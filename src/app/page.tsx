@@ -23,7 +23,7 @@ export default function Home() {
       {/* 1. Header Section */}
       <div className="flex justify-between items-center relative">
         <div>
-          <p className="text-gray-500">TimeTracker</p>
+          <p className="text-gray-500">TimeTracker System</p>
           <h2 className="text-2xl font-bold">ช่างวิทย์ (รหัส 1055)</h2>
         </div>
       </div>
