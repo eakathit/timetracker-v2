@@ -1,0 +1,54 @@
+@import "tailwindcss";
+
+:root {
+  --bg-color: #F9FAFB;
+  --card-bg: #FFFFFF;
+  --primary-color: #38BDF8;
+  --primary-hover: #0EA5E9;
+  --text-primary: #1F2937;
+  --text-secondary: #6B7280;
+  --border-color: #E5E7EB;
+}
+
+body {
+  background-color: var(--bg-color);
+  color: var(--text-primary);
+}
+
+.card {
+  background-color: var(--card-bg);
+  border-radius: 20px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  padding: 1.5rem;
+  transition: all 0.3s ease;
+}
+
+.btn-primary {
+  background-color: var(--primary-color);
+  color: white;
+  border-radius: 12px;
+  padding: 0.75rem 1.5rem;
+  font-weight: 600;
+  transition: background-color 0.3s ease;
+}
+
+.btn-primary:hover {
+  background-color: var(--primary-hover);
+}
+
+/* Animations สำหรับปุ่มตอกบัตร */
+.checkin-btn-anim {
+  animation: pulse 2s infinite;
+}
+@keyframes pulse {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.4); }
+  50% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(56, 189, 248, 0); }
+}
+
+.checkout-btn-anim {
+  animation: pulse-red 2s infinite;
+}
+@keyframes pulse-red {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+  50% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+}
