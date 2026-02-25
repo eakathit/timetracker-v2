@@ -134,7 +134,6 @@ const NAV_GROUPS: NavGroup[] = [
     groupLabel: "System",
     items: [
       { label: "Notifications", labelTh: "แจ้งเตือน", href: "/notifications", icon: Icons.bell, badge: 5 },
-      { label: "Profile", labelTh: "โปรไฟล์", href: "/profile", icon: Icons.user },
       { label: "Settings", labelTh: "ตั้งค่า", href: "/settings", icon: Icons.settings },
     ],
   },
@@ -243,25 +242,6 @@ export default function Sidebar() {
         </button>
       </div>
 
-      {/* ── User Card ──────────────────────────────────────────────── */}
-      <div className={`flex-shrink-0 border-b border-gray-100 ${collapsed ? "p-2" : "p-3"}`}>
-        <div className={`flex items-center gap-3 rounded-xl p-2 hover:bg-gray-50 transition-colors cursor-pointer ${collapsed ? "justify-center" : ""}`}>
-          {/* Avatar */}
-          <div className="relative flex-shrink-0">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-sky-400 to-blue-500 flex items-center justify-center text-white font-bold text-sm shadow-md">
-              ว
-            </div>
-            <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-white" />
-          </div>
-
-          {!collapsed && (
-            <div className="flex-1 min-w-0">
-              <p className="text-gray-800 font-semibold text-sm leading-tight truncate">ช่างวิทย์</p>
-              <p className="text-gray-400 text-xs truncate">รหัส: #1055 · ช่างเทคนิค</p>
-            </div>
-          )}
-        </div>
-      </div>
 
       {/* ── Navigation Groups (Scrollable, hidden scrollbar) ─────────────────── */}
       <nav className="flex-1 overflow-y-auto overflow-x-hidden py-3 space-y-5 px-2

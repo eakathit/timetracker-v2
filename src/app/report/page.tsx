@@ -395,7 +395,6 @@ export default function ReportPage() {
       <div className="sticky top-0 z-10 bg-gray-50/90 backdrop-blur-sm border-b border-gray-100 px-5 py-4">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-xs text-gray-400 font-medium">ช่างวิทย์ · #1055</p>
             <h1 className="text-xl font-bold text-gray-800 leading-tight">Daily Report</h1>
           </div>
           <div className={`
