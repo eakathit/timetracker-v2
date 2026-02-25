@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSidebar } from "@/context/SidebarContext";
+import LogoutButton from '@/components/LogoutButton';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface NavItem {
@@ -285,7 +286,7 @@ export default function Sidebar() {
           </div>
         ))}
       </nav>
-
+      
       {/* ── Footer ─────────────────────────────────────────────────── */}
       <div className="flex-shrink-0 p-3 border-t border-gray-100">
         <div className={`flex items-center gap-2 ${collapsed ? "justify-center" : ""}`}>
