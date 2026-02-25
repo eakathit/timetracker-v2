@@ -17,13 +17,31 @@ const getLocalToday = () => {
   return `${year}-${month}-${day}`;
 };
 
+// 🌟 1. กำหนดพิกัดโรงงานและรัศมีที่อนุญาตให้ Check-in (เมตร)
+const FACTORY_LAT = 13.625; // เปลี่ยนเป็น Latitude ของโรงงานคุณ
+const FACTORY_LNG = 101.025; // เปลี่ยนเป็น Longitude ของโรงงานคุณ
+const ALLOWED_RADIUS_METERS = 100; // รัศมีที่อนุญาต (เมตร)
+
+// 🌟 2. ฟังก์ชันคำนวณระยะทางระหว่าง 2 พิกัด (Haversine Formula)
+const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+  const R = 6371e3; // รัศมีโลก (เมตร)
+  const p1 = lat1 * Math.PI / 180;
+  const p2 = lat2 * Math.PI / 180;
+  const dp = (lat2 - lat1) * Math.PI / 180;
+  const dl = (lon2 - lon1) * Math.PI / 180;
+
+  const a = Math.sin(dp / 2) * Math.sin(dp / 2) +
+            Math.cos(p1) * Math.cos(p2) *
+            Math.sin(dl / 2) * Math.sin(dl / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+  return R * c; // คืนค่าเป็นเมตร
+};
+
 export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
   const [currentTime, setCurrentTime] = useState("");
   
-  // สถานะหลักของระบบ (โหลดหน้าแรก, ยังไม่เข้างาน, เข้างานแล้ว, ออกงานแล้ว)
   const [workStatus, setWorkStatus] = useState<"loading" | "idle" | "working" | "completed">("loading");
-  
-  // 🌟 เพิ่ม State ใหม่: เอาไว้เช็คว่า "กำลังกดปุ่มบันทึกอยู่หรือไม่" (โชว์หมุนๆ ในปุ่ม)
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   const [checkInTime, setCheckInTime] = useState<string>("-");
@@ -32,6 +50,10 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
   const [workType, setWorkType] = useState<"in_factory" | "on_site">("in_factory");
   const [onSiteRole, setOnSiteRole] = useState<"member" | "leader">("member");
 
+  // 🌟 3. State สำหรับจัดการสถานะ GPS และระยะทาง
+  const [locationStatus, setLocationStatus] = useState<"checking" | "in_range" | "out_of_range" | "error">("checking");
+  const [distanceText, setDistanceText] = useState<string>("กำลังตรวจสอบตำแหน่ง...");
+
   useEffect(() => {
     setCurrentTime(new Date().toLocaleTimeString("en-GB"));
     const timer = setInterval(() => {
@@ -39,6 +61,42 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
     }, 1000);
     return () => clearInterval(timer);
   }, []);
+
+  // 🌟 4. ดึงและตรวจสอบตำแหน่ง GPS เมื่อเลือกทำงานในโรงงาน
+  useEffect(() => {
+    if (workType !== "in_factory") return;
+
+    setLocationStatus("checking");
+    setDistanceText("กำลังตรวจสอบพิกัด...");
+
+    if (!navigator.geolocation) {
+      setLocationStatus("error");
+      setDistanceText("อุปกรณ์ของคุณไม่รองรับ GPS");
+      return;
+    }
+
+    const watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        const distance = calculateDistance(FACTORY_LAT, FACTORY_LNG, latitude, longitude);
+        
+        if (distance <= ALLOWED_RADIUS_METERS) {
+          setLocationStatus("in_range");
+          setDistanceText(`อยู่ในพื้นที่โรงงาน (${Math.round(distance)} เมตร)`);
+        } else {
+          setLocationStatus("out_of_range");
+          setDistanceText(`อยู่นอกพื้นที่โรงงาน (${Math.round(distance)} เมตร)`);
+        }
+      },
+      (error) => {
+        setLocationStatus("error");
+        setDistanceText(error.code === 1 ? "กรุณาเปิดสิทธิ์การเข้าถึงตำแหน่ง (GPS)" : "ไม่สามารถระบุตำแหน่งได้");
+      },
+      { enableHighAccuracy: true, maximumAge: 10000, timeout: 10000 }
+    );
+
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, [workType]);
 
   useEffect(() => {
     const fetchTodayStatus = async () => {
@@ -80,7 +138,7 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
 
   const handleCheckIn = async () => {
     if (!userId) return;
-    setIsSubmitting(true); // 🌟 เริ่มหมุนติ้วๆ ในปุ่ม Check In
+    setIsSubmitting(true);
 
     const today = getLocalToday();
     const now = new Date().toISOString(); 
@@ -125,12 +183,12 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
       }
     }
     
-    setIsSubmitting(false); // 🌟 หยุดหมุนเมื่อทำงานเสร็จ
+    setIsSubmitting(false);
   };
 
   const handleCheckOut = async () => {
     if (!userId) return;
-    setIsSubmitting(true); // 🌟 เริ่มหมุนติ้วๆ ในปุ่ม Check Out
+    setIsSubmitting(true);
 
     const today = getLocalToday();
     const now = new Date().toISOString();
@@ -160,9 +218,12 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
       }
     }
     
-    setIsSubmitting(false); // 🌟 หยุดหมุนเมื่อทำงานเสร็จ
+    setIsSubmitting(false);
   };
   
+  // 🌟 5. เงื่อนไขในการปิดปุ่ม Check-in
+  const isCheckInDisabled = isSubmitting || (workType === "in_factory" && locationStatus !== "in_range");
+
   return (
     <main className="p-4 md:p-6 pb-24 space-y-6 w-full">
       {/* 1. Header */}
@@ -181,23 +242,23 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
         <p className="text-gray-400 text-sm">Current Time</p>
         <p className="text-5xl font-bold my-4">{currentTime}</p>
 
-        {/* 🌟 สถานะ 1: ตอนเปิดหน้าเว็บครั้งแรก (Skeleton Loading สีเทา) */}
         {workStatus === "loading" && (
           <div className="w-48 h-48 bg-gray-50 text-gray-400 rounded-full flex flex-col items-center justify-center mx-auto shadow-inner animate-pulse border-4 border-gray-100">
             <span className="text-sm font-medium mt-2">กำลังตรวจสอบ...</span>
           </div>
         )}
 
-        {/* 🌟 สถานะ 2: ปุ่มเข้างาน (มี Loading ข้างในเวลาคลิก) */}
+        {/* 🌟 6. ปุ่ม Check In อัปเดตการทำงาน */}
         {workStatus === "idle" && (
           <button 
             onClick={handleCheckIn} 
-            disabled={isSubmitting}
-            className={`w-48 h-48 bg-sky-400 text-white rounded-full flex flex-col items-center justify-center mx-auto shadow-lg transition-all duration-300 ${isSubmitting ? "opacity-80 cursor-wait" : "hover:bg-sky-500 checkin-btn-anim"}`}
+            disabled={isCheckInDisabled}
+            className={`w-48 h-48 rounded-full flex flex-col items-center justify-center mx-auto shadow-lg transition-all duration-300 
+              ${isCheckInDisabled ? "bg-gray-300 text-gray-500 cursor-not-allowed opacity-80" : "bg-sky-400 text-white hover:bg-sky-500 checkin-btn-anim"}
+            `}
           >
             {isSubmitting ? (
               <>
-                {/* SVG หมุนๆ */}
                 <svg className="animate-spin h-12 w-12 text-white mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
@@ -206,18 +267,20 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
               </>
             ) : (
               <>
-                {/* ไอคอน Check In ปกติ */}
                 <svg className="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
                 </svg>
                 <span className="text-2xl font-semibold mt-2">Check In</span>
+                {/* แจ้งเตือนในปุ่มหากอยู่นอกพื้นที่ */}
+                {workType === "in_factory" && locationStatus === "out_of_range" && (
+                  <span className="text-xs mt-1 text-red-500 font-medium">อยู่นอกพื้นที่โรงงาน</span>
+                )}
               </>
             )}
           </button>
         )}
 
-        {/* 🌟 สถานะ 3: ปุ่มออกงาน (มี Loading ข้างในเวลาคลิก) */}
         {workStatus === "working" && (
           <button 
             onClick={handleCheckOut} 
@@ -243,7 +306,6 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
           </button>
         )}
 
-        {/* 🌟 สถานะ 4: เสร็จสิ้นภารกิจ */}
         {workStatus === "completed" && (
           <div className="w-48 h-48 bg-emerald-500 text-white rounded-full flex flex-col items-center justify-center mx-auto shadow-lg">
             <svg className="w-16 h-16 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -283,9 +345,10 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
           </div>
         </div>
 
+        {/* ... (ส่วนโค้ด on_site เหมือนเดิม) ... */}
         {workType === "on_site" && (
           <div className="pt-4 border-t border-gray-100 space-y-4 animate-fade-in">
-            <h3 className="font-semibold text-center mb-2 text-gray-700">Select Your Role</h3>
+             <h3 className="font-semibold text-center mb-2 text-gray-700">Select Your Role</h3>
             <div className="flex gap-3">
               <button 
                 onClick={() => setOnSiteRole("member")}
@@ -322,16 +385,26 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
           </div>
         )}
 
-        <div className="pt-4 border-t border-gray-100">
-          <h3 className="font-semibold mb-3">Location Status</h3>
-          <div className="flex items-center p-3 rounded-xl bg-gray-100 text-gray-700">
-            <svg className="w-6 h-6 mr-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
-            </svg>
-            <span className="font-medium text-sm">Verifying location...</span>
+        {/* 🌟 7. อัปเดต UI แสดงสถานะ Location ให้ตรงกับ State ปัจจุบัน */}
+        {workType === "in_factory" && (
+          <div className="pt-4 border-t border-gray-100">
+            <h3 className="font-semibold mb-3">Location Status</h3>
+            <div className={`flex items-center p-3 rounded-xl ${
+              locationStatus === "in_range" ? "bg-emerald-50 text-emerald-700" :
+              locationStatus === "out_of_range" ? "bg-red-50 text-red-700" :
+              locationStatus === "error" ? "bg-orange-50 text-orange-700" :
+              "bg-gray-100 text-gray-700"
+            }`}>
+              <svg className="w-6 h-6 mr-3 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
+              </svg>
+              <div className="flex flex-col">
+                <span className="font-medium text-sm">{distanceText}</span>
+              </div>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* 4. Daily Summary */}
