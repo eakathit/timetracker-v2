@@ -712,7 +712,7 @@ function ReportManagementSection() {
         </div>
 
         <div className="px-5 py-3 border-t border-gray-50 flex gap-2">
-          <input value={newDetail} onChange={(e) => setNewDetail(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addDetail()} placeholder="เพิ่มประเภทงานใหม่ เช่น 🔦 Lighting Work" className="flex-1 px-3 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-sky-300 focus:ring-2 focus:ring-sky-50 placeholder-gray-300 transition-colors" />
+          <input value={newDetail} onChange={(e) => setNewDetail(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addDetail()} placeholder="เพิ่มประเภทงานใหม่ เช่น QUOTATION.." className="flex-1 px-3 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-sky-300 focus:ring-2 focus:ring-sky-50 placeholder-gray-300 transition-colors" />
           <button onClick={addDetail} disabled={!newDetail.trim()} className="px-4 py-2 rounded-xl bg-sky-500 text-white text-sm font-bold hover:bg-sky-600 disabled:bg-gray-100 disabled:text-gray-300 transition-colors flex-shrink-0">เพิ่ม</button>
         </div>
       </div>
