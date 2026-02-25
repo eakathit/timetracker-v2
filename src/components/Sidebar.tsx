@@ -111,9 +111,10 @@ const NAV_GROUPS: NavGroup[] = [
   {
     groupLabel: "Overview",
     items: [
-      { label: "Dashboard", labelTh: "แดชบอร์ด", href: "/", icon: Icons.dashboard },
-      { label: "My Attendance", labelTh: "ตารางเวลา", href: "/attendance", icon: Icons.clock },
+      { label: "Time Attendance", labelTh: "ลงเวลา", href: "/", icon: Icons.ot },
+      { label: "Report", labelTh: "รายการ", href: "/report", icon: Icons.chartBar },
       { label: "Calendar", labelTh: "ปฏิทิน", href: "/calendar", icon: Icons.calendar },
+      { label: "Profile", labelTh: "โปรไฟล์", href: "/profile", icon: Icons.user },
     ],
   },
   {
@@ -126,7 +127,6 @@ const NAV_GROUPS: NavGroup[] = [
   {
     groupLabel: "Reports",
     items: [
-      { label: "My Report", labelTh: "รายงานของฉัน", href: "/report", icon: Icons.chartBar },
       { label: "Team", labelTh: "ทีม", href: "/team", icon: Icons.users },
     ],
   },

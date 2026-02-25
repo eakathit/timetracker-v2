@@ -4,16 +4,16 @@ import { useState, useRef, useEffect } from "react";
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
 const DETAIL_OPTIONS = [
-  { value: "wiring_hr", label: "⚡ Wiring" },
-  { value: "panel_install", label: "🔧 Panel Installation" },
-  { value: "conduit", label: "📐 Conduit Work" },
-  { value: "testing", label: "🔍 Testing & Commissioning" },
-  { value: "cable_pull", label: "🔌 Cable Pulling" },
-  { value: "termination", label: "🔩 Termination" },
-  { value: "inspection", label: "📋 Inspection" },
-  { value: "maintenance", label: "🛠 Maintenance" },
-  { value: "site_survey", label: "📍 Site Survey" },
-  { value: "other", label: "📝 Other" },
+  { value: "wiring_hr", label: "Wiring" },
+  { value: "panel_install", label: "Panel Installation" },
+  { value: "conduit", label: "Conduit Work" },
+  { value: "testing", label: "Testing & Commissioning" },
+  { value: "cable_pull", label: "Cable Pulling" },
+  { value: "termination", label: "Termination" },
+  { value: "inspection", label: "Inspection" },
+  { value: "maintenance", label: "Maintenance" },
+  { value: "site_survey", label: "Site Survey" },
+  { value: "other", label: "Other" },
 ];
 
 const PROJECT_OPTIONS = [

@@ -19,11 +19,31 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
 
   // 2. ให้นาฬิกาเดินแบบ Real-time
   useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date().toLocaleTimeString("en-GB"));
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
+    const fetchTodayStatus = async () => {
+      if (!userId) return;
+
+      const today = new Date().toISOString().split('T')[0];
+      
+      const { data, error } = await supabase
+        .from("daily_time_logs")
+        .select("timeline_events")
+        .eq("user_id", userId)
+        .eq("log_date", today)
+        .single();
+
+      if (data && data.timeline_events && data.timeline_events.length > 0) {
+        // ดูกิจกรรมล่าสุด (Event สุดท้ายใน Array)
+        const lastEvent = data.timeline_events[data.timeline_events.length - 1];
+        
+        // ถ้า Event ล่าสุดไม่ใช่การ "checkout" (เลิกงาน) แปลว่ากำลังทำงานอยู่
+        if (lastEvent.event !== "checkout") {
+          setIsCheckedIn(true);
+        }
+      }
+    };
+
+    fetchTodayStatus();
+  }, [userId]);
 
   const handleCheckIn = async () => {
     if (!userId) return;
@@ -99,6 +119,59 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
     }
   };
   
+  // ฟังก์ชันสำหรับบันทึกเวลาเลิกงาน (Check Out)
+  const handleCheckOut = async () => {
+    if (!userId) return;
+
+    setIsCheckedIn(false); // เปลี่ยนหน้าจอทันที
+
+    const today = new Date().toISOString().split('T')[0];
+    const now = new Date().toISOString();
+
+    const newEvent = {
+      event: "checkout",
+      timestamp: now,
+      note: "เลิกงาน"
+    };
+
+    // 1. ดึงข้อมูลของวันนี้มาดูก่อน
+    const { data: existingLog, error: fetchError } = await supabase
+      .from("daily_time_logs")
+      .select("timeline_events")
+      .eq("user_id", userId)
+      .eq("log_date", today)
+      .single();
+
+    if (fetchError || !existingLog) {
+      console.error("Error fetching today log:", fetchError);
+      alert("ไม่พบข้อมูลการเข้างานของวันนี้!");
+      setIsCheckedIn(true);
+      return;
+    }
+
+    // 2. เอา Event เลิกงานไปต่อท้าย Array เดิม
+    const updatedTimeline = [...existingLog.timeline_events, newEvent];
+
+    // 3. อัปเดตข้อมูลกลับไปที่ Database
+    const { error: updateError } = await supabase
+      .from("daily_time_logs")
+      .update({ 
+        timeline_events: updatedTimeline,
+        last_check_out: now, // อัปเดตช่องเวลาออกงานสุดท้ายไว้ให้ HR ดูง่ายๆ ด้วย
+        status: "completed"  // เปลี่ยนสถานะของวันเป็นจบงาน
+      })
+      .eq("user_id", userId)
+      .eq("log_date", today);
+
+    if (updateError) {
+      console.error("Update error:", updateError);
+      alert("บันทึกเวลาออกงานไม่สำเร็จ!");
+      setIsCheckedIn(true);
+    } else {
+      alert("บันทึกเวลาออกงานสำเร็จ แวะพักผ่อนได้เลย!");
+    }
+  };
+
   return (
     <main className="p-4 md:p-6 pb-24 space-y-6 w-full">
       
@@ -124,7 +197,7 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
 
         {!isCheckedIn ? (
           <button 
-            onClick={() => setIsCheckedIn(true)}
+            onClick={handleCheckIn}
             className="w-48 h-48 bg-sky-400 text-white rounded-full flex flex-col items-center justify-center mx-auto shadow-lg hover:bg-sky-500 transition-all duration-300 checkin-btn-anim"
           >
             <svg className="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -135,7 +208,7 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
           </button>
         ) : (
           <button 
-            onClick={() => setIsCheckedIn(false)}
+            onClick={handleCheckOut}
             className="w-48 h-48 bg-red-500 text-white checkout-btn-anim rounded-full flex flex-col items-center justify-center mx-auto shadow-lg hover:bg-red-600 transition-all duration-300"
           >
             <svg className="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">

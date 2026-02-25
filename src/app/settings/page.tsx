@@ -558,14 +558,14 @@ const END_USER_COLORS = [
 function ReportManagementSection() {
   // ── Detail list ──────────────────────────────────────────────────────────────
   const [details, setDetails] = useState([
-    { id: "1", label: "⚡ Wiring",                  active: true },
-    { id: "2", label: "🔧 Panel Installation",       active: true },
-    { id: "3", label: "📐 Conduit Work",             active: true },
-    { id: "4", label: "🔍 Testing & Commissioning",  active: true },
-    { id: "5", label: "🔌 Cable Pulling",            active: true },
-    { id: "6", label: "🔩 Termination",              active: true },
-    { id: "7", label: "📋 Inspection",               active: false },
-    { id: "8", label: "🛠 Maintenance",              active: true },
+    { id: "1", label: "Wiring",                  active: true },
+    { id: "2", label: "Panel Installation",       active: true },
+    { id: "3", label: "Conduit Work",             active: true },
+    { id: "4", label: "Testing & Commissioning",  active: true },
+    { id: "5", label: "Cable Pulling",            active: true },
+    { id: "6", label: "Termination",              active: true },
+    { id: "7", label: "Inspection",               active: false },
+    { id: "8", label: "Maintenance",              active: true },
   ]);
   const [newDetail, setNewDetail] = useState("");
 
