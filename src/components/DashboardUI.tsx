@@ -17,14 +17,12 @@ const getLocalToday = () => {
   return `${year}-${month}-${day}`;
 };
 
-// 🌟 1. กำหนดพิกัดโรงงานและรัศมีที่อนุญาตให้ Check-in (เมตร)
-const FACTORY_LAT = 13.625; // เปลี่ยนเป็น Latitude ของโรงงานคุณ
-const FACTORY_LNG = 101.025; // เปลี่ยนเป็น Longitude ของโรงงานคุณ
-const ALLOWED_RADIUS_METERS = 100; // รัศมีที่อนุญาต (เมตร)
+const FACTORY_LAT = 13.625; 
+const FACTORY_LNG = 101.025; 
+const ALLOWED_RADIUS_METERS = 100; 
 
-// 🌟 2. ฟังก์ชันคำนวณระยะทางระหว่าง 2 พิกัด (Haversine Formula)
 const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-  const R = 6371e3; // รัศมีโลก (เมตร)
+  const R = 6371e3; 
   const p1 = lat1 * Math.PI / 180;
   const p2 = lat2 * Math.PI / 180;
   const dp = (lat2 - lat1) * Math.PI / 180;
@@ -35,7 +33,7 @@ const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: numbe
             Math.sin(dl / 2) * Math.sin(dl / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
-  return R * c; // คืนค่าเป็นเมตร
+  return R * c; 
 };
 
 export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
@@ -50,7 +48,6 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
   const [workType, setWorkType] = useState<"in_factory" | "on_site">("in_factory");
   const [onSiteRole, setOnSiteRole] = useState<"member" | "leader">("member");
 
-  // 🌟 3. State สำหรับจัดการสถานะ GPS และระยะทาง
   const [locationStatus, setLocationStatus] = useState<"checking" | "in_range" | "out_of_range" | "error">("checking");
   const [distanceText, setDistanceText] = useState<string>("กำลังตรวจสอบตำแหน่ง...");
 
@@ -62,7 +59,6 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
     return () => clearInterval(timer);
   }, []);
 
-  // 🌟 4. ดึงและตรวจสอบตำแหน่ง GPS เมื่อเลือกทำงานในโรงงาน
   useEffect(() => {
     if (workType !== "in_factory") return;
 
@@ -136,8 +132,29 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
     fetchTodayStatus();
   }, [userId]);
 
+  // 🌟 1. สร้างฟังก์ชันตรวจสอบ Location ก่อนทำรายการ
+  const validateLocation = () => {
+    if (workType === "on_site") return true; // ทำงานนอกสถานที่ ไม่ต้องเช็ค GPS โรงงาน
+    
+    if (locationStatus === "checking") {
+      alert("ระบบกำลังตรวจสอบพิกัด GPS โปรดรอสักครู่...");
+      return false;
+    }
+    
+    if (locationStatus !== "in_range") {
+      alert("ไม่สามารถ Check-in / Check-out ได้ เนื่องจากคุณอยู่นอกพื้นที่โรงงาน");
+      return false;
+    }
+    
+    return true; // ถ้าอยู่ในระยะ ให้ผ่านได้
+  };
+
   const handleCheckIn = async () => {
     if (!userId) return;
+
+    // 🌟 2. เรียกใช้การตรวจสอบก่อนทำงาน Check-in
+    if (!validateLocation()) return;
+
     setIsSubmitting(true);
 
     const today = getLocalToday();
@@ -188,6 +205,10 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
 
   const handleCheckOut = async () => {
     if (!userId) return;
+
+    // 🌟 3. เรียกใช้การตรวจสอบก่อนทำงาน Check-out
+    if (!validateLocation()) return;
+
     setIsSubmitting(true);
 
     const today = getLocalToday();
@@ -220,9 +241,6 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
     
     setIsSubmitting(false);
   };
-  
-  // 🌟 5. เงื่อนไขในการปิดปุ่ม Check-in
-  const isCheckInDisabled = isSubmitting || (workType === "in_factory" && locationStatus !== "in_range");
 
   return (
     <main className="p-4 md:p-6 pb-24 space-y-6 w-full">
@@ -244,17 +262,17 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
 
         {workStatus === "loading" && (
           <div className="w-48 h-48 bg-gray-50 text-gray-400 rounded-full flex flex-col items-center justify-center mx-auto shadow-inner animate-pulse border-4 border-gray-100">
-            <span className="text-sm font-medium mt-2">กำลังตรวจสอบ...</span>
+            <span className="text-sm font-medium mt-2">กำลังโหลด...</span>
           </div>
         )}
 
-        {/* 🌟 6. ปุ่ม Check In อัปเดตการทำงาน */}
+        {/* 🌟 4. แก้ไขปุ่ม Check-in ให้มีสีปกติเสมอ (ยกเว้นตอนกดให้ขึ้นหมุนๆ) */}
         {workStatus === "idle" && (
           <button 
             onClick={handleCheckIn} 
-            disabled={isCheckInDisabled}
+            disabled={isSubmitting} // เอาตัวแปร isCheckInDisabled ออก
             className={`w-48 h-48 rounded-full flex flex-col items-center justify-center mx-auto shadow-lg transition-all duration-300 
-              ${isCheckInDisabled ? "bg-gray-300 text-gray-500 cursor-not-allowed opacity-80" : "bg-sky-400 text-white hover:bg-sky-500 checkin-btn-anim"}
+              ${isSubmitting ? "bg-sky-400 text-white opacity-80 cursor-wait" : "bg-sky-400 text-white hover:bg-sky-500 checkin-btn-anim"}
             `}
           >
             {isSubmitting ? (
@@ -272,20 +290,19 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
                 </svg>
                 <span className="text-2xl font-semibold mt-2">Check In</span>
-                {/* แจ้งเตือนในปุ่มหากอยู่นอกพื้นที่ */}
-                {workType === "in_factory" && locationStatus === "out_of_range" && (
-                  <span className="text-xs mt-1 text-red-500 font-medium">อยู่นอกพื้นที่โรงงาน</span>
-                )}
               </>
             )}
           </button>
         )}
 
+        {/* 🌟 5. ปุ่ม Check-out มีสีแดงเสมอเหมือนเดิม */}
         {workStatus === "working" && (
           <button 
             onClick={handleCheckOut} 
             disabled={isSubmitting}
-            className={`w-48 h-48 bg-red-500 text-white rounded-full flex flex-col items-center justify-center mx-auto shadow-lg transition-all duration-300 ${isSubmitting ? "opacity-80 cursor-wait" : "hover:bg-red-600 checkout-btn-anim"}`}
+            className={`w-48 h-48 rounded-full flex flex-col items-center justify-center mx-auto shadow-lg transition-all duration-300 
+              ${isSubmitting ? "bg-red-500 text-white opacity-80 cursor-wait" : "bg-red-500 text-white hover:bg-red-600 checkout-btn-anim"}
+            `}
           >
              {isSubmitting ? (
               <>
@@ -345,7 +362,7 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
           </div>
         </div>
 
-        {/* ... (ส่วนโค้ด on_site เหมือนเดิม) ... */}
+        {/* ส่วน on_site เหมือนเดิม... */}
         {workType === "on_site" && (
           <div className="pt-4 border-t border-gray-100 space-y-4 animate-fade-in">
              <h3 className="font-semibold text-center mb-2 text-gray-700">Select Your Role</h3>
@@ -385,7 +402,6 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
           </div>
         )}
 
-        {/* 🌟 7. อัปเดต UI แสดงสถานะ Location ให้ตรงกับ State ปัจจุบัน */}
         {workType === "in_factory" && (
           <div className="pt-4 border-t border-gray-100">
             <h3 className="font-semibold mb-3">Location Status</h3>
