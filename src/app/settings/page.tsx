@@ -568,8 +568,6 @@ const END_USER_COLORS = [
   "bg-amber-500", "bg-rose-500", "bg-indigo-500",
 ];
 
-
-
 function ReportManagementSection() {
   const [details, setDetails] = useState<{ id: string; label: string; active: boolean }[]>([]);
   const [endUsers, setEndUsers] = useState<EndUser[]>([]);
@@ -691,100 +689,6 @@ function ReportManagementSection() {
       ...e, projects: e.projects.filter((p) => p.id !== projId)
     }));
   };
-
-  function HolidaysSection() {
-  // สังเกตว่าเราเพิ่ม working_sat เข้ามาด้วย
-  const HOLIDAY_TYPES = [
-    { value: "national", label: "วันหยุดนักขัตฤกษ์", color: "text-rose-600 bg-rose-50 border-rose-200" },
-    { value: "company", label: "วันหยุดบริษัท", color: "text-orange-600 bg-orange-50 border-orange-200" },
-    { value: "special", label: "วันพิเศษ", color: "text-purple-600 bg-purple-50 border-purple-200" },
-    { value: "working_sat", label: "เสาร์ทำงาน", color: "text-sky-600 bg-sky-50 border-sky-200" },
-  ];
-
-  const [holidays, setHolidays] = useState<any[]>([]); // ของจริงดึงจาก Supabase
-  const [form, setForm] = useState({ date: "", name: "", type: "national" });
-
-  // Todo: ดึงข้อมูลจาก supabase.from("holidays").select("*") แบบเดียวกับ Report Manage
-
-  const handleAdd = () => {
-    if (!form.date || !form.name.trim()) return;
-    // ของจริงใช้ supabase.from("holidays").insert({...})
-    setHolidays([...holidays, { id: Date.now().toString(), holiday_date: form.date, name: form.name.trim(), holiday_type: form.type }]);
-    setForm({ date: "", name: "", type: "national" });
-  };
-
-  const handleDelete = (id: string) => {
-    if(!confirm("แน่ใจหรือไม่ที่จะลบรายการนี้?")) return;
-    // ของจริงใช้ supabase.from("holidays").delete().eq("id", id)
-    setHolidays(holidays.filter(h => h.id !== id));
-  };
-
-  // เรียงลำดับตามวันที่
-  const sorted = [...holidays].sort((a, b) => a.holiday_date.localeCompare(b.holiday_date));
-
-  return (
-    <div className="space-y-4">
-      <SettingGroup title="เพิ่มวันหยุด / เสาร์ทำงาน">
-        <div className="px-5 py-4 space-y-3 bg-gray-50/50">
-          <div className="flex gap-2">
-            <input
-              type="date"
-              value={form.date}
-              onChange={(e) => setForm({ ...form, date: e.target.value })}
-              className="w-40 px-3 py-2 text-sm bg-white border border-gray-200 rounded-xl outline-none focus:border-sky-300 focus:ring-2 focus:ring-sky-50"
-            />
-            <SelectInput
-              value={form.type}
-              onChange={(v) => setForm({ ...form, type: v })}
-              options={HOLIDAY_TYPES}
-            />
-          </div>
-          <div className="flex gap-2">
-            <input
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              placeholder="เช่น วันสงกรานต์, เสาร์ทำงาน (OT)..."
-              className="flex-1 px-3 py-2 text-sm bg-white border border-gray-200 rounded-xl outline-none focus:border-sky-300 focus:ring-2 focus:ring-sky-50"
-            />
-            <button
-              onClick={handleAdd}
-              disabled={!form.date || !form.name.trim()}
-              className="px-4 py-2 rounded-xl bg-sky-500 text-white text-sm font-bold hover:bg-sky-600 disabled:bg-gray-100 disabled:text-gray-300 transition-colors"
-            >
-              เพิ่ม
-            </button>
-          </div>
-        </div>
-      </SettingGroup>
-
-      <SettingGroup title={`รายการทั้งหมด (${holidays.length} วัน)`}>
-        {sorted.length === 0 ? (
-          <div className="px-5 py-8 text-center text-sm text-gray-400">ยังไม่มีข้อมูลวันหยุด</div>
-        ) : (
-          <div className="divide-y divide-gray-50">
-            {sorted.map((h) => {
-              const cfg = HOLIDAY_TYPES.find(t => t.value === h.holiday_type) || HOLIDAY_TYPES[0];
-              return (
-                <div key={h.id} className="flex items-center gap-4 px-5 py-3">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-gray-700">{h.name}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">{h.holiday_date}</p>
-                  </div>
-                  <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border ${cfg.color}`}>
-                    {cfg.label}
-                  </span>
-                  <button onClick={() => handleDelete(h.id)} className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-300 hover:text-rose-400 hover:bg-rose-50 transition-colors">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </SettingGroup>
-    </div>
-  );
-}
 
   if (loading) return <div className="py-10 text-center text-sm text-gray-400 animate-pulse">กำลังโหลดข้อมูล...</div>;
 
@@ -923,6 +827,123 @@ function ReportManagementSection() {
           })}
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── Holidays Section (ย้ายออกมาอยู่นอกสุด) ────────────────────────────────────────────────────────────
+function HolidaysSection() {
+  const HOLIDAY_TYPES = [
+    { value: "national", label: "วันหยุดนักขัตฤกษ์", color: "text-rose-600 bg-rose-50 border-rose-200" },
+    { value: "company", label: "วันหยุดบริษัท", color: "text-orange-600 bg-orange-50 border-orange-200" },
+    { value: "special", label: "วันพิเศษ", color: "text-purple-600 bg-purple-50 border-purple-200" },
+    { value: "working_sat", label: "เสาร์ทำงาน", color: "text-sky-600 bg-sky-50 border-sky-200" },
+  ];
+
+  const [holidays, setHolidays] = useState<any[]>([]);
+  const [form, setForm] = useState({ date: "", name: "", type: "national" });
+  const [loading, setLoading] = useState(true);
+
+  // ดึงข้อมูลจาก Supabase
+  useEffect(() => {
+    const fetchHolidays = async () => {
+      setLoading(true);
+      const { data, error } = await supabase.from("holidays").select("*").order("holiday_date", { ascending: true });
+      if (data && !error) {
+        setHolidays(data);
+      }
+      setLoading(false);
+    };
+    fetchHolidays();
+  }, []);
+
+  const handleAdd = async () => {
+    if (!form.date || !form.name.trim()) return;
+    const newHoliday = {
+      holiday_date: form.date,
+      name: form.name.trim(),
+      holiday_type: form.type
+    };
+
+    const { data, error } = await supabase.from("holidays").insert([newHoliday]).select().single();
+    if (data && !error) {
+      setHolidays((prev) => [...prev, data]);
+      setForm({ date: "", name: "", type: "national" });
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if(!confirm("แน่ใจหรือไม่ที่จะลบรายการนี้?")) return;
+    const { error } = await supabase.from("holidays").delete().eq("id", id);
+    if (!error) {
+      setHolidays((prev) => prev.filter((h) => h.id !== id));
+    }
+  };
+
+  const sorted = [...holidays].sort((a, b) => a.holiday_date.localeCompare(b.holiday_date));
+
+  if (loading) return <div className="py-10 text-center text-sm text-gray-400 animate-pulse">กำลังโหลดข้อมูลวันหยุด...</div>;
+
+  return (
+    <div className="space-y-4">
+      <SettingGroup title="เพิ่มวันหยุด / เสาร์ทำงาน">
+        <div className="px-5 py-4 space-y-3 bg-gray-50/50">
+          <div className="flex gap-2">
+            <input
+              type="date"
+              value={form.date}
+              onChange={(e) => setForm({ ...form, date: e.target.value })}
+              className="w-40 px-3 py-2 text-sm bg-white border border-gray-200 rounded-xl outline-none focus:border-sky-300 focus:ring-2 focus:ring-sky-50"
+            />
+            <SelectInput
+              value={form.type}
+              onChange={(v) => setForm({ ...form, type: v })}
+              options={HOLIDAY_TYPES}
+            />
+          </div>
+          <div className="flex gap-2">
+            <input
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              placeholder="เช่น วันสงกรานต์, เสาร์ทำงาน (OT)..."
+              className="flex-1 px-3 py-2 text-sm bg-white border border-gray-200 rounded-xl outline-none focus:border-sky-300 focus:ring-2 focus:ring-sky-50"
+            />
+            <button
+              onClick={handleAdd}
+              disabled={!form.date || !form.name.trim()}
+              className="px-4 py-2 rounded-xl bg-sky-500 text-white text-sm font-bold hover:bg-sky-600 disabled:bg-gray-100 disabled:text-gray-300 transition-colors"
+            >
+              เพิ่ม
+            </button>
+          </div>
+        </div>
+      </SettingGroup>
+
+      <SettingGroup title={`รายการทั้งหมด (${holidays.length} วัน)`}>
+        {sorted.length === 0 ? (
+          <div className="px-5 py-8 text-center text-sm text-gray-400">ยังไม่มีข้อมูลวันหยุด</div>
+        ) : (
+          <div className="divide-y divide-gray-50">
+            {sorted.map((h) => {
+              const cfg = HOLIDAY_TYPES.find(t => t.value === h.holiday_type) || HOLIDAY_TYPES[0];
+              return (
+                <div key={h.id} className="flex items-center gap-4 px-5 py-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-gray-700">{h.name}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">{h.holiday_date}</p>
+                  </div>
+                  <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border ${cfg.color}`}>
+                    {cfg.label}
+                  </span>
+                  <button onClick={() => handleDelete(h.id)} className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-300 hover:text-rose-400 hover:bg-rose-50 transition-colors">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </SettingGroup>
     </div>
   );
 }

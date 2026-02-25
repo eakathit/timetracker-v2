@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-
+import { supabase } from "@/lib/supabase";
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Holiday {
   id: string;
@@ -498,10 +498,28 @@ export default function CalendarPage() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   
   // ในสถานการณ์จริง ข้อมูล holidays ตรงนี้จะถูกดึงมาจาก Database (Supabase) เหมือนหน้า Settings
-  const [holidays, setHolidays]   = useState<Holiday[]>(INITIAL_HOLIDAYS);
-  const [plans, setPlans]         = useState<Plan[]>(INITIAL_PLANS);
+  const [holidays, setHolidays]   = useState<Holiday[]>([]);
+  const [plans, setPlans]         = useState<Plan[]>(INITIAL_PLANS); // Plans ก็สามารถทำแบบเดียวกันในอนาคต
   const [view, setView] = useState<"month" | "list">("month");
 
+  useEffect(() => {
+    const fetchHolidays = async () => {
+      const { data, error } = await supabase.from("holidays").select("*");
+      if (data && !error) {
+        // Map ข้อมูล Database ให้ตรงกับ Interface Holiday ของ Calendar
+        const mappedHolidays: Holiday[] = data.map((h: any) => ({
+          id: h.id.toString(),
+          date: h.holiday_date,
+          name: h.name,
+          type: h.holiday_type as "national" | "company" | "special" | "working_sat"
+        }));
+        setHolidays(mappedHolidays);
+      }
+    };
+
+    fetchHolidays();
+  }, []);
+  
   const prevMonth = () => {
     if (viewMonth === 0) { setViewYear((y) => y - 1); setViewMonth(11); }
     else setViewMonth((m) => m - 1);
