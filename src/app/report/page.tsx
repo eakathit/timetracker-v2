@@ -13,13 +13,15 @@ const PERIOD_OPTIONS = [
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface ReportEntry {
-  id: string;
+  id: string; // ID สำหรับ UI
+  dbId?: string; // ID ของฐานข้อมูล (ใช้ตอนจะลบ)
   detailId: string;
   endUserId: string;
   projectId: string;
   period: string;
   startTime?: string;
   endTime?: string;
+  isSaved?: boolean;
 }
 
 // ─── Calendar Popup ───────────────────────────────────────────────────────────
@@ -143,7 +145,7 @@ function SelectField({
           className={`
             w-full appearance-none px-4 py-3 pr-10 rounded-xl border text-sm font-medium
             transition-all duration-200 outline-none
-            ${disabled ? "bg-gray-50 border-gray-100 text-gray-300 cursor-not-allowed" : "cursor-pointer"}
+            ${disabled ? "bg-gray-50/50 border-gray-100 text-gray-600 cursor-not-allowed opacity-80" : "cursor-pointer"}
             ${!disabled && value ? "border-sky-300 bg-sky-50/50 text-gray-800" : ""}
             ${!disabled && !value ? "border-gray-200 bg-white text-gray-400" : ""}
             ${!disabled ? "hover:border-sky-300 focus:border-sky-400 focus:ring-2 focus:ring-sky-100" : ""}
@@ -154,11 +156,13 @@ function SelectField({
             <option key={o.value} value={o.value}>{o.label}</option>
           ))}
         </select>
-        <span className={`absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none transition-colors ${value && !disabled ? "text-sky-400" : "text-gray-300"}`}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4">
-            <polyline points="6 9 12 15 18 9" />
-          </svg>
-        </span>
+        {!disabled && (
+          <span className={`absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none transition-colors ${value ? "text-sky-400" : "text-gray-300"}`}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4">
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </span>
+        )}
       </div>
     </div>
   );
@@ -187,31 +191,47 @@ function EntryCard({
     .filter(p => p.end_user_id === entry.endUserId)
     .map(p => ({ value: p.id, label: `${p.project_no} · ${p.name || ''}` }));
 
+  // เงื่อนไขให้ลบได้: ลบได้เสมอถ้ารายการนั้นถูกบันทึกแล้ว หรือถ้ารายการรวมมีมากกว่า 1
+  const canDelete = total > 1 || entry.isSaved;
+
   return (
     <div className={`
       relative bg-white rounded-2xl border-2 p-5 transition-all duration-300
-      ${isComplete ? "border-sky-200 shadow-sm shadow-sky-100" : "border-gray-100"}
+      ${entry.isSaved ? "border-emerald-200 shadow-sm shadow-emerald-50/50" : 
+        isComplete ? "border-sky-200 shadow-sm shadow-sky-100" : "border-gray-100"}
     `}>
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <span className={`
             w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold
-            ${isComplete ? "bg-sky-500 text-white" : "bg-gray-100 text-gray-400"}
+            ${entry.isSaved ? "bg-emerald-500 text-white" : isComplete ? "bg-sky-500 text-white" : "bg-gray-100 text-gray-400"}
           `}>
-            {index + 1}
+            {entry.isSaved ? <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="w-4 h-4"><polyline points="20 6 9 17 4 12" /></svg> : index + 1}
           </span>
           <span className="text-sm font-semibold text-gray-600">
             {isComplete ? detailLabel : "งาน #" + (index + 1)}
           </span>
-          {isComplete && (
+          {isComplete && !entry.isSaved && (
             <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
               {periodLabel?.split(" (")[0]}
             </span>
           )}
+          {entry.isSaved && (
+            <span className="text-xs text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full font-semibold">
+              บันทึกแล้ว
+            </span>
+          )}
         </div>
-        {total > 1 && (
-          <button onClick={() => onRemove(entry.id)} className="w-7 h-7 rounded-lg hover:bg-red-50 flex items-center justify-center text-gray-300 hover:text-red-400 transition-colors">
+        
+        {/* ปุ่มลบ (แสดงเสมอตามเงื่อนไข canDelete) */}
+        {canDelete && (
+          <button 
+            onClick={() => onRemove(entry.id)} 
+            className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors
+              ${entry.isSaved ? "text-gray-300 hover:bg-red-50 hover:text-red-500" : "hover:bg-red-50 text-gray-300 hover:text-red-400"}`}
+            title={entry.isSaved ? "ลบข้อมูลที่บันทึกแล้ว" : "ลบรายการนี้"}
+          >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
           </button>
         )}
@@ -226,6 +246,7 @@ function EntryCard({
           options={dbDetails.map(d => ({ value: d.id, label: d.title }))}
           placeholder="เลือกประเภทงาน..."
           onChange={(v) => onChange(entry.id, "detailId", v)}
+          disabled={entry.isSaved}
         />
         
         <SelectField
@@ -238,6 +259,7 @@ function EntryCard({
             onChange(entry.id, "endUserId", v);
             onChange(entry.id, "projectId", ""); // Reset Project
           }}
+          disabled={entry.isSaved}
         />
 
         <SelectField
@@ -246,7 +268,7 @@ function EntryCard({
           value={entry.projectId}
           options={projectOptions}
           placeholder="เลือกโปรเจค..."
-          disabled={!entry.endUserId}
+          disabled={entry.isSaved || (!entry.endUserId && !entry.isSaved)}
           onChange={(v) => onChange(entry.id, "projectId", v)}
         />
 
@@ -257,22 +279,29 @@ function EntryCard({
           options={PERIOD_OPTIONS}
           placeholder="เลือกช่วงเวลา..."
           onChange={(v) => onChange(entry.id, "period", v)}
+          disabled={entry.isSaved}
         />
 
-        {/* Some Time Inputs (UI กลมกลืนกับเดิม) */}
+        {/* Some Time Inputs */}
         {entry.period === "some_time" && (
           <div className="flex items-center gap-3 pt-1 animate-in slide-in-from-top-1 fade-in duration-200">
             <div className="flex-1 relative">
               <input
                 type="time" value={entry.startTime || ""} onChange={(e) => onChange(entry.id, "startTime", e.target.value)}
-                className="w-full appearance-none px-4 py-2.5 rounded-xl border border-sky-200 bg-sky-50/30 text-sm font-medium text-gray-700 outline-none hover:border-sky-300 focus:border-sky-400 transition-all"
+                disabled={entry.isSaved}
+                className={`w-full appearance-none px-4 py-2.5 rounded-xl border text-sm font-medium outline-none transition-all
+                  ${entry.isSaved ? "bg-gray-50/50 border-gray-100 text-gray-600 cursor-not-allowed opacity-80" : "border-sky-200 bg-sky-50/30 text-gray-700 hover:border-sky-300 focus:border-sky-400"}
+                `}
               />
             </div>
             <span className="text-gray-300 font-bold">-</span>
             <div className="flex-1 relative">
               <input
                 type="time" value={entry.endTime || ""} onChange={(e) => onChange(entry.id, "endTime", e.target.value)}
-                className="w-full appearance-none px-4 py-2.5 rounded-xl border border-sky-200 bg-sky-50/30 text-sm font-medium text-gray-700 outline-none hover:border-sky-300 focus:border-sky-400 transition-all"
+                disabled={entry.isSaved}
+                className={`w-full appearance-none px-4 py-2.5 rounded-xl border text-sm font-medium outline-none transition-all
+                  ${entry.isSaved ? "bg-gray-50/50 border-gray-100 text-gray-600 cursor-not-allowed opacity-80" : "border-sky-200 bg-sky-50/30 text-gray-700 hover:border-sky-300 focus:border-sky-400"}
+                `}
               />
             </div>
           </div>
@@ -287,9 +316,10 @@ export default function ReportPage() {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [calOpen, setCalOpen] = useState(false);
   const [entries, setEntries] = useState<ReportEntry[]>([
-    { id: "1", detailId: "", endUserId: "", projectId: "", period: "" },
+    { id: Date.now().toString(), detailId: "", endUserId: "", projectId: "", period: "", isSaved: false },
   ]);
   const [submitted, setSubmitted] = useState(false);
+  const [isFetchingReports, setIsFetchingReports] = useState(false);
   
   // Database States
   const [dbEndUsers, setDbEndUsers] = useState<any[]>([]);
@@ -297,8 +327,9 @@ export default function ReportPage() {
   const [dbDetails, setDbDetails] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  // ดึงข้อมูลพื้นฐาน (Base Data)
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchBaseData = async () => {
       setIsLoading(true);
       const [uRes, pRes, dRes] = await Promise.all([
         supabase.from('end_users').select('*'),
@@ -310,23 +341,121 @@ export default function ReportPage() {
       if (dRes.data) setDbDetails(dRes.data);
       setIsLoading(false);
     };
-    fetchData();
+    fetchBaseData();
   }, []);
 
-  const addEntry = () => {
-    setEntries((prev) => [...prev, { id: Date.now().toString(), detailId: "", endUserId: "", projectId: "", period: "" }]);
+  // ฟังก์ชันดึงประวัติ Report เมื่อเปลี่ยนวันที่
+  const fetchDailyReports = async (date: Date) => {
+    setIsFetchingReports(true);
+    const targetDate = date.toISOString().split('T')[0];
+    
+    try {
+      const { data: report, error: reportErr } = await supabase
+        .from('daily_reports')
+        .select('id')
+        .eq('user_id', 'ช่างวิทย์ #1055')
+        .eq('report_date', targetDate)
+        .maybeSingle();
+
+      if (reportErr) throw reportErr;
+
+      if (report) {
+        const { data: items, error: itemsErr } = await supabase
+          .from('daily_report_items')
+          .select('*')
+          .eq('report_id', report.id)
+          .order('id', { ascending: true }); // เรียงตามลำดับการบันทึก
+        
+        if (itemsErr) throw itemsErr;
+
+        if (items && items.length > 0) {
+          const mappedEntries: ReportEntry[] = items.map(item => {
+             // ค้นหา value จาก label ใน PERIOD_OPTIONS
+             let periodValue = '';
+             if (item.period_type === 'some_time') {
+               periodValue = 'some_time';
+             } else {
+               const opt = PERIOD_OPTIONS.find(p => p.label === item.period_label);
+               periodValue = opt ? opt.value : '';
+             }
+
+             return {
+               id: item.id.toString(),
+               dbId: item.id.toString(), // จำ ID ฐานข้อมูลไว้ใช้ตอนลบ
+               detailId: item.detail_id,
+               endUserId: item.end_user_id,
+               projectId: item.project_id,
+               period: periodValue,
+               startTime: item.period_start || '',
+               endTime: item.period_end || '',
+               isSaved: true // ล็อคเป็นประวัติ
+             };
+          });
+          setEntries(mappedEntries);
+          setIsFetchingReports(false);
+          return;
+        }
+      }
+      
+      // ถ้าไม่มีข้อมูลในวันนั้นเลย ให้เคลียร์เป็นฟอร์มเปล่า 1 อัน
+      setEntries([{ id: Date.now().toString(), detailId: "", endUserId: "", projectId: "", period: "", isSaved: false }]);
+    } catch (err) {
+      console.error("Fetch reports error:", err);
+    } finally {
+      setIsFetchingReports(false);
+    }
   };
 
-  const removeEntry = (id: string) => setEntries((prev) => prev.filter((e) => e.id !== id));
+  // ดึงข้อมูลใหม่ทุกครั้งที่เปลี่ยนวันที่
+  useEffect(() => {
+    fetchDailyReports(selectedDate);
+  }, [selectedDate]);
+
+  const addEntry = () => {
+    setEntries((prev) => [...prev, { id: Date.now().toString(), detailId: "", endUserId: "", projectId: "", period: "", isSaved: false }]);
+  };
+
+  const removeEntry = async (id: string) => {
+    const entryToDelete = entries.find(e => e.id === id);
+    if (!entryToDelete) return;
+
+    // ถ้าเป็นข้อมูลที่บันทึกแล้ว ต้องยิง API ไปลบในฐานข้อมูลด้วย
+    if (entryToDelete.isSaved && entryToDelete.dbId) {
+      const isConfirmed = window.confirm("คุณต้องการลบประวัติงานนี้ออกจากระบบใช่หรือไม่?");
+      if (!isConfirmed) return;
+
+      try {
+        const { error } = await supabase.from('daily_report_items').delete().eq('id', entryToDelete.dbId);
+        if (error) throw error;
+      } catch (err) {
+        console.error("Error deleting item:", err);
+        alert("เกิดข้อผิดพลาดในการลบข้อมูล");
+        return;
+      }
+    }
+
+    // ลบออกจาก UI State
+    setEntries((prev) => {
+      const filtered = prev.filter((e) => e.id !== id);
+      // ถ้าลบหมดเกลี้ยงเลย ให้สร้างฟอร์มเปล่าขึ้นมาทดแทน 1 อัน เพื่อให้หน้าเว็บไม่โล่ง
+      if (filtered.length === 0) {
+        return [{ id: Date.now().toString(), detailId: "", endUserId: "", projectId: "", period: "", isSaved: false }];
+      }
+      return filtered;
+    });
+  };
+  
   const updateEntry = (id: string, field: keyof ReportEntry, value: string) => {
     setEntries((prev) => prev.map((e) => (e.id === id ? { ...e, [field]: value } : e)));
   };
 
-  const completedEntries = entries.filter((e) => 
+  const unsavedEntries = entries.filter((e) => !e.isSaved);
+  const completedUnsaved = unsavedEntries.filter((e) => 
     e.detailId && e.endUserId && e.projectId && e.period && (e.period !== "some_time" || (e.startTime && e.endTime))
   );
-  const completedCount = completedEntries.length;
-  const allComplete = completedCount === entries.length && entries.length > 0;
+  
+  const allUnsavedComplete = unsavedEntries.length > 0 && completedUnsaved.length === unsavedEntries.length;
+  const savedEntriesCount = entries.filter(e => e.isSaved).length;
 
   const formatDateShort = (d: Date) => {
     const dd = String(d.getDate()).padStart(2, "0");
@@ -338,23 +467,36 @@ export default function ReportPage() {
     `${DAYS_TH[d.getDay()]} ${d.getDate()} ${MONTHS_TH[d.getMonth()]} ${d.getFullYear() + 543}`;
 
   const handleSubmit = async () => {
-    if (!allComplete) return;
+    if (!allUnsavedComplete) return;
     
     try {
-      // 1. บันทึก Report หลัก
-      const { data: reportData, error: reportErr } = await supabase
+      const targetDate = selectedDate.toISOString().split('T')[0];
+      let reportId;
+
+      const { data: existingReport, error: fetchErr } = await supabase
         .from('daily_reports')
-        .insert({
-          user_id: 'ช่างวิทย์ #1055',
-          report_date: selectedDate.toISOString().split('T')[0]
-        })
-        .select().single();
+        .select('id')
+        .eq('user_id', 'ช่างวิทย์ #1055')
+        .eq('report_date', targetDate)
+        .maybeSingle();
 
-      if (reportErr) throw reportErr;
+      if (existingReport) {
+        reportId = existingReport.id;
+      } else {
+        const { data: newReport, error: reportErr } = await supabase
+          .from('daily_reports')
+          .insert({
+            user_id: 'ช่างวิทย์ #1055',
+            report_date: targetDate
+          })
+          .select().single();
 
-      // 2. บันทึก Report Items ย่อย
-      const items = entries.map(e => ({
-        report_id: reportData.id,
+        if (reportErr) throw reportErr;
+        reportId = newReport.id;
+      }
+
+      const itemsToInsert = completedUnsaved.map(e => ({
+        report_id: reportId,
         end_user_id: e.endUserId,
         project_id: e.projectId,
         detail_id: e.detailId,
@@ -364,14 +506,17 @@ export default function ReportPage() {
         period_end: e.period === 'some_time' ? e.endTime : null
       }));
 
-      const { error: itemsErr } = await supabase.from('daily_report_items').insert(items);
+      const { error: itemsErr } = await supabase.from('daily_report_items').insert(itemsToInsert);
       if (itemsErr) throw itemsErr;
 
       setSubmitted(true);
+      
+      // ดึงข้อมูลจากฐานข้อมูลของวันนั้นใหม่ทั้งหมด เพื่อให้ State สอดคล้องกับ DB และได้รับ id จริงจาก Database 
+      await fetchDailyReports(selectedDate);
+      
       setTimeout(() => {
         setSubmitted(false);
-        setEntries([{ id: Date.now().toString(), detailId: "", endUserId: "", projectId: "", period: "" }]);
-      }, 3000);
+      }, 1500);
 
     } catch (error) {
       console.error("Error saving report:", error);
@@ -397,12 +542,9 @@ export default function ReportPage() {
           <div>
             <h1 className="text-xl font-bold text-gray-800 leading-tight">Daily Report</h1>
           </div>
-          <div className={`
-            flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all duration-300
-            ${allComplete ? "bg-emerald-100 text-emerald-600" : "bg-gray-100 text-gray-500"}
-          `}>
-            <span className={`w-1.5 h-1.5 rounded-full ${allComplete ? "bg-emerald-400 animate-pulse" : "bg-gray-300"}`} />
-            {completedCount}/{entries.length} รายการ
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-sky-100 text-sky-600">
+            <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />
+            รวม {entries.length} รายการ (บันทึกแล้ว {savedEntriesCount})
           </div>
         </div>
       </div>
@@ -410,7 +552,7 @@ export default function ReportPage() {
       <div className="px-4 pt-5 space-y-4">
 
         {/* ── Date Picker Field ── */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 relative z-20">
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
             Report Date
           </p>
@@ -452,8 +594,8 @@ export default function ReportPage() {
           <div className="flex-1 h-px bg-gray-200" />
         </div>
 
-        {/* ── Entry Cards ── */}
-        <div className="space-y-3">
+        {/* ── Loading State / Entry Cards ── */}
+        <div className={`space-y-3 transition-opacity duration-300 ${isFetchingReports ? "opacity-50 pointer-events-none" : "opacity-100"}`}>
           {entries.map((entry, i) => (
             <EntryCard
               key={entry.id} entry={entry} index={i} total={entries.length}
@@ -466,55 +608,38 @@ export default function ReportPage() {
         {/* ── Add Entry ── */}
         <button
           onClick={addEntry}
-          className="w-full py-3.5 rounded-2xl border-2 border-dashed border-gray-200 flex items-center justify-center gap-2 text-sm font-semibold text-gray-400 hover:border-sky-300 hover:text-sky-500 hover:bg-sky-50/50 transition-all duration-200"
+          disabled={isFetchingReports}
+          className="w-full py-3.5 rounded-2xl border-2 border-dashed border-gray-200 flex items-center justify-center gap-2 text-sm font-semibold text-gray-400 hover:border-sky-300 hover:text-sky-500 hover:bg-sky-50/50 transition-all duration-200 disabled:opacity-50"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
           เพิ่มรายการงาน
         </button>
 
-        {/* ── Summary ── */}
-        {completedCount > 0 && (
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">สรุปรายการวันนี้</p>
-            <div className="space-y-2">
-              {completedEntries.map((e, i) => (
-                <div key={e.id} className="flex items-center gap-3 text-sm">
-                  <span className="w-5 h-5 rounded-md bg-sky-500 text-white text-xs flex items-center justify-center font-bold flex-shrink-0">{i + 1}</span>
-                  <span className="flex-1 text-gray-700 font-medium truncate">
-                    {dbDetails.find(d => d.id === e.detailId)?.title}
-                  </span>
-                  <span className="text-gray-400 text-xs font-medium flex-shrink-0">
-                    {dbProjects.find(p => p.id === e.projectId)?.project_no}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
+        {/* ── Submit (แสดงเฉพาะเมื่อมีฟอร์มที่ยังไม่บันทึก) ── */}
+        {unsavedEntries.length > 0 && !isFetchingReports && (
+          <button
+            onClick={handleSubmit}
+            disabled={!allUnsavedComplete || submitted}
+            className={`
+              w-full py-4 rounded-2xl text-base font-bold flex items-center justify-center gap-2 transition-all duration-300 mt-4
+              ${allUnsavedComplete 
+                ? submitted 
+                  ? "bg-emerald-500 text-white shadow-lg shadow-emerald-200" 
+                  : "bg-sky-500 text-white shadow-lg shadow-sky-200 hover:bg-sky-600 active:scale-[0.98]" 
+                : "bg-gray-100 text-gray-300 cursor-not-allowed"
+              }
+            `}
+          >
+            {submitted ? (
+              <><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-5 h-5"><polyline points="20 6 9 17 4 12" /></svg>บันทึกสำเร็จแล้ว!</>
+            ) : (
+              <><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-5 h-5"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" /><polyline points="17 21 17 13 7 13 7 21" /><polyline points="7 3 7 8 15 8" /></svg>บันทึก Daily Report</>
+            )}
+          </button>
         )}
 
-        {/* ── Submit ── */}
-        <button
-          onClick={handleSubmit}
-          disabled={!allComplete || submitted}
-          className={`
-            w-full py-4 rounded-2xl text-base font-bold flex items-center justify-center gap-2 transition-all duration-300
-            ${allComplete 
-              ? submitted 
-                ? "bg-emerald-500 text-white shadow-lg shadow-emerald-200" 
-                : "bg-sky-500 text-white shadow-lg shadow-sky-200 hover:bg-sky-600 active:scale-[0.98]" 
-              : "bg-gray-100 text-gray-300 cursor-not-allowed"
-            }
-          `}
-        >
-          {submitted ? (
-            <><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-5 h-5"><polyline points="20 6 9 17 4 12" /></svg>บันทึกสำเร็จแล้ว!</>
-          ) : (
-            <><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-5 h-5"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" /><polyline points="17 21 17 13 7 13 7 21" /><polyline points="7 3 7 8 15 8" /></svg>บันทึก Daily Report</>
-          )}
-        </button>
-
-        <p className="text-center text-xs text-gray-300 pb-2">
-          {formatDateFull(selectedDate)} · {entries.length} รายการ
+        <p className="text-center text-xs text-gray-300 pb-2 pt-2">
+          {formatDateFull(selectedDate)}
         </p>
 
       </div>
