@@ -120,16 +120,29 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
   
   // 🌟 2. ฟังก์ชันจัดการเมื่อกด Submit Form ขอ OT
   const handleOTSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    // ตรงนี้คุณสามารถนำไปต่อยอดใช้ supabase.from('ot_requests').insert(...) ได้ครับ
-    console.log("Submitting OT Request:", otForm);
-    alert(`ส่งคำขอ OT เรียบร้อย!\nวันที่: ${otForm.date}\nเวลา: ${otForm.startTime} - ${otForm.endTime}\nงานที่ทำ: ${otForm.task}`);
-    
-    // ส่งเสร็จให้ปิด Modal และเคลียร์ฟอร์ม
+  e.preventDefault();
+  
+  if (!userId) return;
+
+  const { data, error } = await supabase
+    .from('ot_requests')
+    .insert([{
+      user_id: userId,
+      request_date: otForm.date,
+      start_time: otForm.startTime,
+      end_time: otForm.endTime,
+      task_detail: otForm.task,
+      status: 'pending'
+    }]);
+
+  if (error) {
+    alert("เกิดข้อผิดพลาดในการส่งคำขอ OT: " + error.message);
+  } else {
+    alert("ส่งคำขอ OT เรียบร้อย รอการอนุมัติ");
     setIsOTModalOpen(false);
     setOtForm({ ...otForm, startTime: "", endTime: "", task: "" });
-  };
+  }
+};
   
   const [locationStatus, setLocationStatus] = useState<"checking" | "in_range" | "out_of_range" | "error">("checking");
   const [distanceText, setDistanceText] = useState<string>("กำลังตรวจสอบตำแหน่ง...");
@@ -674,7 +687,7 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
           </div>
         </div>
       )}
-      
+
     </main>
   );
 }
