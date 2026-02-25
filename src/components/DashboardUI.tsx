@@ -9,7 +9,6 @@ interface DashboardUIProps {
   userId: string;
 }
 
-// 🌟 แก้ปัญหา Timezone: ฟังก์ชันนี้จะดึง "วันที่ของไทย" เสมอ (YYYY-MM-DD)
 const getLocalToday = () => {
   const d = new Date();
   const year = d.getFullYear();
@@ -19,36 +18,34 @@ const getLocalToday = () => {
 };
 
 export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
-  // 1. ควบคุมนาฬิกา (เริ่มด้วยค่าว่างเพื่อป้องกัน UI กระตุกตอนโหลด)
   const [currentTime, setCurrentTime] = useState("");
   
-  // 2. 🌟 เปลี่ยนจาก boolean เป็น Status 4 ระดับ
+  // สถานะหลักของระบบ (โหลดหน้าแรก, ยังไม่เข้างาน, เข้างานแล้ว, ออกงานแล้ว)
   const [workStatus, setWorkStatus] = useState<"loading" | "idle" | "working" | "completed">("loading");
   
-  // 3. 🌟 ตัวแปรเก็บเวลาจริงเพื่อเอาไปโชว์ใน Daily Summary
+  // 🌟 เพิ่ม State ใหม่: เอาไว้เช็คว่า "กำลังกดปุ่มบันทึกอยู่หรือไม่" (โชว์หมุนๆ ในปุ่ม)
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
   const [checkInTime, setCheckInTime] = useState<string>("-");
   const [checkOutTime, setCheckOutTime] = useState<string>("-");
 
   const [workType, setWorkType] = useState<"in_factory" | "on_site">("in_factory");
   const [onSiteRole, setOnSiteRole] = useState<"member" | "leader">("member");
 
-  // --- นาฬิกา Real-time ---
   useEffect(() => {
-    setCurrentTime(new Date().toLocaleTimeString("en-GB")); // อัปเดตทันทีที่โหลด
+    setCurrentTime(new Date().toLocaleTimeString("en-GB"));
     const timer = setInterval(() => {
       setCurrentTime(new Date().toLocaleTimeString("en-GB"));
     }, 1000);
     return () => clearInterval(timer);
   }, []);
 
-  // --- โหลดข้อมูลจาก Database ทันทีที่เข้าเว็บ (ยึดตามความเป็นจริง) ---
   useEffect(() => {
     const fetchTodayStatus = async () => {
       if (!userId) return;
-
-      const today = getLocalToday(); // ใช้วันที่ไทย
+      const today = getLocalToday();
       
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from("daily_time_logs")
         .select("timeline_events, first_check_in, last_check_out")
         .eq("user_id", userId)
@@ -56,7 +53,6 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
         .single();
 
       if (data) {
-        // ดึงเวลามาแสดงในช่อง Summary
         if (data.first_check_in) {
           setCheckInTime(new Date(data.first_check_in).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }));
         }
@@ -64,32 +60,30 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
           setCheckOutTime(new Date(data.last_check_out).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }));
         }
 
-        // เช็คว่ากดเลิกงานหรือยัง
         if (data.timeline_events && data.timeline_events.length > 0) {
           const lastEvent = data.timeline_events[data.timeline_events.length - 1];
           if (lastEvent.event === "checkout") {
-            setWorkStatus("completed"); // โชว์ปุ่ม Complete
+            setWorkStatus("completed");
           } else {
-            setWorkStatus("working"); // โชว์ปุ่ม Check Out
+            setWorkStatus("working");
           }
         } else {
-          setWorkStatus("idle"); // โชว์ปุ่ม Check In
+          setWorkStatus("idle");
         }
       } else {
-        setWorkStatus("idle"); // ไม่มีประวัติเลย = โชว์ปุ่ม Check In
+        setWorkStatus("idle");
       }
     };
 
     fetchTodayStatus();
   }, [userId]);
 
-  // --- บันทึกเวลาเข้างาน ---
   const handleCheckIn = async () => {
     if (!userId) return;
+    setIsSubmitting(true); // 🌟 เริ่มหมุนติ้วๆ ในปุ่ม Check In
 
-    setWorkStatus("loading"); 
     const today = getLocalToday();
-    const now = new Date().toISOString(); // Database ชอบเวลาแบบ UTC เราส่งไปตามนี้ถูกต้องแล้ว
+    const now = new Date().toISOString(); 
 
     const newEvent = {
       event: workType === "in_factory" ? "arrive_factory" : "arrive_site",
@@ -105,7 +99,6 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
       .single();
 
     if (existingLog) {
-      // ต่อท้าย Timeline เดิม
       const updatedTimeline = [...existingLog.timeline_events, newEvent];
       const { error } = await supabase.from("daily_time_logs")
         .update({ timeline_events: updatedTimeline })
@@ -117,7 +110,6 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
         setWorkStatus("working");
       }
     } else {
-      // สร้างแถวใหม่
       const { error } = await supabase.from("daily_time_logs")
         .insert([{
           user_id: userId,
@@ -132,13 +124,14 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
         setWorkStatus("working");
       }
     }
+    
+    setIsSubmitting(false); // 🌟 หยุดหมุนเมื่อทำงานเสร็จ
   };
 
-  // --- บันทึกเวลาเลิกงาน ---
   const handleCheckOut = async () => {
     if (!userId) return;
+    setIsSubmitting(true); // 🌟 เริ่มหมุนติ้วๆ ในปุ่ม Check Out
 
-    setWorkStatus("loading");
     const today = getLocalToday();
     const now = new Date().toISOString();
 
@@ -163,14 +156,16 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
 
       if (!error) {
         setCheckOutTime(new Date(now).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }));
-        setWorkStatus("completed"); // เด้งไปโชว์ปุ่ม Complete
+        setWorkStatus("completed");
       }
     }
+    
+    setIsSubmitting(false); // 🌟 หยุดหมุนเมื่อทำงานเสร็จ
   };
   
   return (
     <main className="p-4 md:p-6 pb-24 space-y-6 w-full">
-      {/* 1. Header Section */}
+      {/* 1. Header */}
       <div className="flex justify-between items-center relative gap-4">
         <div className="overflow-hidden">
           <p className="text-gray-500">TimeTracker System</p>
@@ -181,44 +176,80 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
         <div><LogoutButton /></div>
       </div>
 
-      {/* 2. Current Time & Action Button Card */}
+      {/* 2. Action Button Card */}
       <div className="card text-center bg-white p-6 rounded-2xl shadow-sm border border-gray-100 min-h-[380px]">
         <p className="text-gray-400 text-sm">Current Time</p>
         <p className="text-5xl font-bold my-4">{currentTime}</p>
 
-        {/* 🌟 แสดงปุ่มตามสถานะ (loading, idle, working, completed) */}
+        {/* 🌟 สถานะ 1: ตอนเปิดหน้าเว็บครั้งแรก (Skeleton Loading สีเทา) */}
         {workStatus === "loading" && (
-          <div className="w-48 h-48 bg-gray-100 text-gray-400 rounded-full flex flex-col items-center justify-center mx-auto shadow-inner animate-pulse">
-            <span className="text-lg font-medium">กำลังประมวลผล...</span>
+          <div className="w-48 h-48 bg-gray-50 text-gray-400 rounded-full flex flex-col items-center justify-center mx-auto shadow-inner animate-pulse border-4 border-gray-100">
+            <span className="text-sm font-medium mt-2">กำลังตรวจสอบ...</span>
           </div>
         )}
 
+        {/* 🌟 สถานะ 2: ปุ่มเข้างาน (มี Loading ข้างในเวลาคลิก) */}
         {workStatus === "idle" && (
-          <button onClick={handleCheckIn} className="w-48 h-48 bg-sky-400 text-white rounded-full flex flex-col items-center justify-center mx-auto shadow-lg hover:bg-sky-500 transition-all duration-300 checkin-btn-anim">
-            <svg className="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
-            </svg>
-            <span className="text-2xl font-semibold mt-2">Check In</span>
+          <button 
+            onClick={handleCheckIn} 
+            disabled={isSubmitting}
+            className={`w-48 h-48 bg-sky-400 text-white rounded-full flex flex-col items-center justify-center mx-auto shadow-lg transition-all duration-300 ${isSubmitting ? "opacity-80 cursor-wait" : "hover:bg-sky-500 checkin-btn-anim"}`}
+          >
+            {isSubmitting ? (
+              <>
+                {/* SVG หมุนๆ */}
+                <svg className="animate-spin h-12 w-12 text-white mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span className="text-xl font-semibold mt-2">กำลังบันทึก...</span>
+              </>
+            ) : (
+              <>
+                {/* ไอคอน Check In ปกติ */}
+                <svg className="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                </svg>
+                <span className="text-2xl font-semibold mt-2">Check In</span>
+              </>
+            )}
           </button>
         )}
 
+        {/* 🌟 สถานะ 3: ปุ่มออกงาน (มี Loading ข้างในเวลาคลิก) */}
         {workStatus === "working" && (
-          <button onClick={handleCheckOut} className="w-48 h-48 bg-red-500 text-white checkout-btn-anim rounded-full flex flex-col items-center justify-center mx-auto shadow-lg hover:bg-red-600 transition-all duration-300">
-            <svg className="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
-            </svg>
-            <span className="text-2xl font-semibold mt-2">Check Out</span>
+          <button 
+            onClick={handleCheckOut} 
+            disabled={isSubmitting}
+            className={`w-48 h-48 bg-red-500 text-white rounded-full flex flex-col items-center justify-center mx-auto shadow-lg transition-all duration-300 ${isSubmitting ? "opacity-80 cursor-wait" : "hover:bg-red-600 checkout-btn-anim"}`}
+          >
+             {isSubmitting ? (
+              <>
+                <svg className="animate-spin h-12 w-12 text-white mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span className="text-xl font-semibold mt-2">กำลังบันทึก...</span>
+              </>
+            ) : (
+              <>
+                <svg className="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
+                </svg>
+                <span className="text-2xl font-semibold mt-2">Check Out</span>
+              </>
+            )}
           </button>
         )}
 
+        {/* 🌟 สถานะ 4: เสร็จสิ้นภารกิจ */}
         {workStatus === "completed" && (
           <div className="w-48 h-48 bg-emerald-500 text-white rounded-full flex flex-col items-center justify-center mx-auto shadow-lg">
             <svg className="w-16 h-16 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7"></path>
             </svg>
             <span className="text-2xl font-bold mt-1">Complete</span>
-            <span className="text-sm font-medium opacity-80">เลิกงานเรียบร้อย</span>
           </div>
         )}
 
@@ -232,7 +263,7 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
         )}
       </div>
 
-      {/* 3. Work Type Settings (ซ่อนถ้าเลิกงานแล้ว) */}
+      {/* 3. Work Type Settings */}
       {workStatus !== "completed" && (
         <div className="card space-y-4 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
           <div>
@@ -242,22 +273,20 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
               <button onClick={() => setWorkType("on_site")} className={`flex-1 p-2 rounded-lg transition-all ${workType === "on_site" ? "bg-sky-500 text-white shadow" : "text-gray-600"}`}>On-site</button>
             </div>
           </div>
-          {/* ... ส่วน On-site UI เดิมของคุณ ... */}
+          {/* ... ส่วน On-site ... */}
         </div>
       )}
 
-      {/* 4. Daily Summary (โชว์เวลาเข้า-ออกจริงจาก DB) */}
+      {/* 4. Daily Summary */}
       <div className="card bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
         <h3 className="font-semibold mb-3">Daily Summary</h3>
         <div className="space-y-3 text-sm">
           <div className="flex justify-between">
             <span className="text-gray-500">Check-in:</span>
-            {/* ดึงเวลาจริงมาโชว์ */}
             <span className="font-medium text-gray-800">{checkInTime}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-gray-500">Check-out:</span>
-            {/* ดึงเวลาออกงานจริงมาโชว์ */}
             <span className="font-medium text-gray-800">{checkOutTime}</span>
           </div>
           <div className="flex justify-between">
