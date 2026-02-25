@@ -7,7 +7,7 @@ interface Holiday {
   id: string;
   date: string; // "YYYY-MM-DD"
   name: string;
-  type: "national" | "company" | "special";
+  type: "national" | "company" | "special" | "working_sat";
 }
 
 interface Plan {
@@ -37,12 +37,14 @@ const CATEGORY_CONFIG = {
 };
 
 const HOLIDAY_TYPE_CONFIG = {
-  national: { label: "วันหยุดนักขัตฤกษ์", color: "bg-rose-100 text-rose-600 border-rose-200",   dot: "bg-rose-500"   },
-  company:  { label: "วันหยุดบริษัท",      color: "bg-orange-100 text-orange-600 border-orange-200", dot: "bg-orange-500" },
-  special:  { label: "วันพิเศษ",           color: "bg-purple-100 text-purple-600 border-purple-200", dot: "bg-purple-500" },
+  national:    { label: "วันหยุดนักขัตฤกษ์", color: "bg-rose-100 text-rose-600 border-rose-200",     dot: "bg-rose-500"   },
+  company:     { label: "วันหยุดบริษัท",      color: "bg-orange-100 text-orange-600 border-orange-200",   dot: "bg-orange-500" },
+  special:     { label: "วันพิเศษ",           color: "bg-purple-100 text-purple-600 border-purple-200",   dot: "bg-purple-500" },
+  working_sat: { label: "เสาร์ทำงาน",         color: "bg-sky-100 text-sky-600 border-sky-200",         dot: "bg-sky-500"   },
 };
 
 // ─── Mock Data ────────────────────────────────────────────────────────────────
+// หมายเหตุ: ข้อมูลนี้เป็น Mock Data สำหรับหน้า Calendar โดยปกติจะต้อง Fetch มาจาก API / Supabase ร่วมกัน
 const INITIAL_HOLIDAYS: Holiday[] = [
   { id: "h1", date: "2026-01-01", name: "วันขึ้นปีใหม่",            type: "national" },
   { id: "h2", date: "2026-02-28", name: "วันสิ้นเดือนบริษัท",       type: "company"  },
@@ -51,18 +53,9 @@ const INITIAL_HOLIDAYS: Holiday[] = [
   { id: "h5", date: "2026-04-13", name: "วันสงกรานต์",              type: "national" },
   { id: "h6", date: "2026-04-14", name: "วันสงกรานต์",              type: "national" },
   { id: "h7", date: "2026-04-15", name: "วันสงกรานต์",              type: "national" },
-  { id: "h8", date: "2026-05-04", name: "วันฉัตรมงคล",              type: "national" },
-  { id: "h9", date: "2026-05-05", name: "วันวิสาขบูชา",             type: "national" },
-  { id:"h10", date: "2026-05-11", name: "วันหยุดชดเชยวิสาขบูชา",   type: "national" },
-  { id:"h11", date: "2026-06-03", name: "วันเฉลิมพระชนมพรรษา ร.10",type: "national" },
-  { id:"h12", date: "2026-07-28", name: "วันเฉลิมพระชนมพรรษา ร.10 (เพิ่มเติม)", type: "special" },
-  { id:"h13", date: "2026-08-12", name: "วันแม่แห่งชาติ",           type: "national" },
-  { id:"h14", date: "2026-10-13", name: "วันคล้ายวันสวรรคต ร.9",    type: "national" },
-  { id:"h15", date: "2026-10-23", name: "วันปิยมหาราช",             type: "national" },
-  { id:"h16", date: "2026-12-05", name: "วันพ่อแห่งชาติ",           type: "national" },
-  { id:"h17", date: "2026-12-10", name: "วันรัฐธรรมนูญ",            type: "national" },
-  { id:"h18", date: "2026-12-31", name: "วันสิ้นปี",                type: "national" },
-  { id:"h19", date: "2026-02-25", name: "วัน Team Building บริษัท", type: "company"  },
+  { id: "h19", date: "2026-02-25", name: "วัน Team Building บริษัท", type: "company"  },
+  { id: "h20", date: "2026-02-07", name: "เสาร์ทำงาน (สัปดาห์ที่ 1)", type: "working_sat" }, // ตัวอย่างเสาร์ทำงาน
+  { id: "h21", date: "2026-02-21", name: "เสาร์ทำงาน (สัปดาห์ที่ 3)", type: "working_sat" }, // ตัวอย่างเสาร์ทำงาน
 ];
 
 const INITIAL_PLANS: Plan[] = [
@@ -166,7 +159,7 @@ function DayPanel({
           {/* Holidays */}
           {dayHolidays.length > 0 && (
             <div className="space-y-2">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">วันหยุด</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">วันหยุด / เสาร์ทำงาน</p>
               {dayHolidays.map((h) => (
                 <div key={h.id} className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border text-sm font-semibold ${HOLIDAY_TYPE_CONFIG[h.type].color}`}>
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 flex-shrink-0">
@@ -320,122 +313,6 @@ function DayPanel({
   );
 }
 
-// ─── Admin Holiday Modal ──────────────────────────────────────────────────────
-function AdminHolidayModal({
-  holidays,
-  onClose,
-  onAdd,
-  onDelete,
-}: {
-  holidays: Holiday[];
-  onClose: () => void;
-  onAdd: (h: Omit<Holiday, "id">) => void;
-  onDelete: (id: string) => void;
-}) {
-  const [form, setForm] = useState({ date: "", name: "", type: "national" as Holiday["type"] });
-  const sorted = [...holidays].sort((a, b) => a.date.localeCompare(b.date));
-
-  const handleAdd = () => {
-    if (!form.date || !form.name.trim()) return;
-    onAdd({ date: form.date, name: form.name.trim(), type: form.type });
-    setForm({ date: "", name: "", type: "national" });
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" onClick={onClose} />
-      <div className="relative w-full max-w-lg max-h-[85vh] bg-white rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
-          <div>
-            <h2 className="text-lg font-bold text-gray-800">จัดการวันหยุด</h2>
-            <p className="text-xs text-gray-400">Admin · เพิ่ม/ลบวันหยุดบริษัท</p>
-          </div>
-          <button onClick={onClose} className="w-9 h-9 rounded-xl hover:bg-gray-100 flex items-center justify-center text-gray-400 transition-colors">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4">
-              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </button>
-        </div>
-
-        {/* Add form */}
-        <div className="px-6 py-4 bg-gray-50/50 border-b border-gray-100 flex-shrink-0 space-y-3">
-          <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">เพิ่มวันหยุดใหม่</p>
-          <div className="flex gap-2">
-            <input
-              type="date"
-              value={form.date}
-              onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
-              className="w-40 px-3 py-2.5 text-sm bg-white border border-gray-200 rounded-xl outline-none focus:border-sky-300 focus:ring-2 focus:ring-sky-50 transition-colors"
-            />
-            <div className="relative flex-shrink-0">
-              <select
-                value={form.type}
-                onChange={(e) => setForm((f) => ({ ...f, type: e.target.value as Holiday["type"] }))}
-                className="appearance-none pl-3 pr-8 py-2.5 text-sm bg-white border border-gray-200 rounded-xl outline-none focus:border-sky-300 focus:ring-2 focus:ring-sky-50 cursor-pointer transition-colors"
-              >
-                <option value="national">นักขัตฤกษ์</option>
-                <option value="company">บริษัท</option>
-                <option value="special">พิเศษ</option>
-              </select>
-              <span className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3 h-3"><polyline points="6 9 12 15 18 9" /></svg>
-              </span>
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <input
-              value={form.name}
-              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-              onKeyDown={(e) => e.key === "Enter" && handleAdd()}
-              placeholder="ชื่อวันหยุด เช่น วันหยุดพิเศษบริษัท..."
-              className="flex-1 px-3 py-2.5 text-sm bg-white border border-gray-200 rounded-xl outline-none focus:border-sky-300 focus:ring-2 focus:ring-sky-50 placeholder-gray-300 transition-colors"
-            />
-            <button
-              onClick={handleAdd}
-              disabled={!form.date || !form.name.trim()}
-              className="px-4 py-2.5 rounded-xl bg-sky-500 text-white text-sm font-bold hover:bg-sky-600 disabled:bg-gray-100 disabled:text-gray-300 transition-colors flex-shrink-0"
-            >
-              เพิ่ม
-            </button>
-          </div>
-        </div>
-
-        {/* Holiday list */}
-        <div className="flex-1 overflow-y-auto divide-y divide-gray-50">
-          {sorted.map((h) => {
-            const d = parseDate(h.date);
-            const cfg = HOLIDAY_TYPE_CONFIG[h.type];
-            return (
-              <div key={h.id} className="flex items-center gap-3 px-6 py-3">
-                <div className={`w-2 h-2 rounded-full flex-shrink-0 ${cfg.dot}`} />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-gray-700 truncate">{h.name}</p>
-                  <p className="text-xs text-gray-400">
-                    {d.getDate()} {MONTHS_TH[d.getMonth()]} {d.getFullYear() + 543}
-                    <span className={`ml-2 px-1.5 py-0.5 rounded-full text-[10px] font-bold border ${cfg.color}`}>
-                      {cfg.label}
-                    </span>
-                  </p>
-                </div>
-                <button
-                  onClick={() => onDelete(h.id)}
-                  className="w-8 h-8 rounded-lg hover:bg-rose-50 flex items-center justify-center text-gray-300 hover:text-rose-400 transition-colors flex-shrink-0"
-                >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
-                    <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a1 1 0 011-1h4a1 1 0 011 1v2" />
-                  </svg>
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ─── Calendar Grid (Main) ─────────────────────────────────────────────────────
 function CalendarGrid({
   year,
@@ -505,9 +382,11 @@ function CalendarGrid({
           const isToday = dateStr === todayStr;
           const dayHolidays = holidays.filter((h) => h.date === dateStr);
           const dayPlans = plans.filter((p) => p.date === dateStr).sort((a, b) => a.time.localeCompare(b.time));
+          
           const isNationalHoliday = dayHolidays.some((h) => h.type === "national");
           const isCompanyHoliday = dayHolidays.some((h) => h.type === "company");
           const isSpecialHoliday = dayHolidays.some((h) => h.type === "special");
+          const isWorkingSat = dayHolidays.some((h) => h.type === "working_sat");
           const isHoliday = dayHolidays.length > 0;
           const isSun = col === 0;
           const isSat = col === 6;
@@ -529,7 +408,7 @@ function CalendarGrid({
                   ? "bg-orange-50/50"
                   : isSun
                   ? "bg-red-50/30 hover:bg-red-50/60"
-                  : isSat
+                  : isSat && !isWorkingSat
                   ? "bg-sky-50/30 hover:bg-sky-50/60"
                   : "bg-white hover:bg-slate-50"
                 }
@@ -550,7 +429,7 @@ function CalendarGrid({
                   : isNationalHoliday || isSpecialHoliday ? "text-rose-500"
                   : isCompanyHoliday ? "text-orange-500"
                   : isSun ? "text-rose-400"
-                  : isSat ? "text-sky-500"
+                  : isSat && !isWorkingSat ? "text-sky-500"
                   : "text-gray-800"
                 }
                 group-hover:ring-2 group-hover:ring-sky-200
@@ -562,7 +441,9 @@ function CalendarGrid({
               {isHoliday && (
                 <span className={`
                   hidden md:block text-[9px] font-bold truncate leading-tight px-1.5 py-0.5 rounded-md w-full
-                  ${isNationalHoliday || isSpecialHoliday
+                  ${isWorkingSat 
+                    ? "text-sky-600 bg-sky-100" 
+                    : isNationalHoliday || isSpecialHoliday
                     ? "text-rose-600 bg-rose-100"
                     : "text-orange-600 bg-orange-100"
                   }
@@ -615,9 +496,10 @@ export default function CalendarPage() {
   const [viewYear, setViewYear]   = useState(today.getFullYear());
   const [viewMonth, setViewMonth] = useState(today.getMonth());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  
+  // ในสถานการณ์จริง ข้อมูล holidays ตรงนี้จะถูกดึงมาจาก Database (Supabase) เหมือนหน้า Settings
   const [holidays, setHolidays]   = useState<Holiday[]>(INITIAL_HOLIDAYS);
   const [plans, setPlans]         = useState<Plan[]>(INITIAL_PLANS);
-  const [showAdminModal, setShowAdminModal] = useState(false);
   const [view, setView] = useState<"month" | "list">("month");
 
   const prevMonth = () => {
@@ -634,11 +516,6 @@ export default function CalendarPage() {
     setPlans((prev) => [...prev, { ...plan, id: Date.now().toString(), userId: "current" }]);
   };
   const deletePlan = (id: string) => setPlans((prev) => prev.filter((p) => p.id !== id));
-
-  const addHoliday = (h: Omit<Holiday, "id">) => {
-    setHolidays((prev) => [...prev, { ...h, id: Date.now().toString() }]);
-  };
-  const deleteHoliday = (id: string) => setHolidays((prev) => prev.filter((h) => h.id !== id));
 
   // Month stats
   const monthStr = `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}`;
@@ -691,18 +568,6 @@ export default function CalendarPage() {
                 </svg>
               </button>
             </div>
-
-            {/* Admin button */}
-            <button
-              onClick={() => setShowAdminModal(true)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white border border-gray-200 text-xs font-bold text-gray-600 hover:border-sky-300 hover:text-sky-600 transition-all shadow-sm"
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
-                <circle cx="12" cy="12" r="3" />
-                <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" />
-              </svg>
-              <span className="hidden md:inline">วันหยุด</span>
-            </button>
           </div>
         </div>
 
@@ -722,7 +587,7 @@ export default function CalendarPage() {
               {MONTHS_TH[viewMonth]} {viewYear + 543}
             </h2>
             <div className="flex items-center justify-center gap-2 mt-0.5">
-              <span className="text-xs text-gray-400">{monthHolidays.length} วันหยุด</span>
+              <span className="text-xs text-gray-400">{monthHolidays.length} วันพิเศษ</span>
               <span className="text-gray-200">·</span>
               <span className="text-xs text-gray-400">{monthPlans.length} แผนงาน</span>
             </div>
@@ -862,16 +727,6 @@ export default function CalendarPage() {
           onClose={() => setSelectedDate(null)}
           onAddPlan={addPlan}
           onDeletePlan={deletePlan}
-        />
-      )}
-
-      {/* ── Admin Holiday Modal ── */}
-      {showAdminModal && (
-        <AdminHolidayModal
-          holidays={holidays}
-          onClose={() => setShowAdminModal(false)}
-          onAdd={addHoliday}
-          onDelete={deleteHoliday}
         />
       )}
     </main>
