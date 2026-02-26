@@ -125,9 +125,10 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    groupLabel: "Reports",
+    groupLabel: "Management",
     items: [
-      { label: "Team", labelTh: "ทีม", href: "/team", icon: Icons.users },
+      { label: "Project Summary", labelTh: "ทีม", href: "/team", icon: Icons.users },
+      { label: "Audit Log", labelTh: "ทีม", href: "/team", icon: Icons.users },
     ],
   },
   {

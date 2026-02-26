@@ -541,22 +541,14 @@ export default function ProfilePage() {
                 </div>
                 <span className="absolute bottom-0 right-0 w-4 h-4 bg-emerald-400 rounded-full border-2 border-white" />
               </div>
-              {/* Work type badges */}
-              <div className="flex gap-1.5 pb-1">
-                <span className="text-[10px] font-bold text-sky-600 bg-sky-50 border border-sky-200 px-2 py-1 rounded-full">
-                  ช่างเทคนิค
-                </span>
-                <span className="text-[10px] font-bold text-gray-500 bg-gray-50 border border-gray-200 px-2 py-1 rounded-full">
-                  #1055
-                </span>
-              </div>
+
             </div>
             <div className="mt-3">
-              <h2 className="text-xl font-extrabold text-gray-800 leading-tight">ช่างวิทย์ สมบูรณ์</h2>
+              <h2 className="text-xl font-extrabold text-gray-800 leading-tight">Eakarthit Hekhunthod</h2>
               <p className="text-sm text-gray-400 mt-0.5">Electrical Technician · แผนกช่างเทคนิค</p>
-              <p className="text-xs text-gray-300 mt-0.5">witthawat@company.com</p>
+              <p className="text-xs text-gray-300 mt-0.5">eakarthitx@company.com</p>
             </div>
-
+        
             {/* Quick stats strip */}
             <div className="mt-4 grid grid-cols-3 gap-3 pt-4 border-t border-gray-50">
               <div className="text-center">

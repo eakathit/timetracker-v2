@@ -528,7 +528,6 @@ export default function CalendarPage() {
         <div className="flex items-center justify-between px-4 md:px-6 pt-4 pb-3 gap-3">
           {/* Left: title */}
           <div>
-            <p className="text-xs text-gray-400 font-medium leading-none">ช่างวิทย์ · #1055</p>
             <h1 className="text-xl font-extrabold text-gray-800 leading-tight">ปฏิทิน</h1>
           </div>
 
