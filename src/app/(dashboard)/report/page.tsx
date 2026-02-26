@@ -321,16 +321,23 @@ export default function ReportPage() {
   const [submitted, setSubmitted] = useState(false);
   const [isFetchingReports, setIsFetchingReports] = useState(false);
   
+  // ─── 1. เพิ่ม State เก็บ User ID ───
+  const [userId, setUserId] = useState<string | null>(null);
+  
   // Database States
   const [dbEndUsers, setDbEndUsers] = useState<any[]>([]);
   const [dbProjects, setDbProjects] = useState<any[]>([]);
   const [dbDetails, setDbDetails] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // ดึงข้อมูลพื้นฐาน (Base Data)
+  // ─── 2. โหลด User ปัจจุบัน และข้อมูล Dropdown ───
   useEffect(() => {
-    const fetchBaseData = async () => {
+    const fetchBaseDataAndUser = async () => {
       setIsLoading(true);
+      
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) setUserId(user.id);
+
       const [uRes, pRes, dRes] = await Promise.all([
         supabase.from('end_users').select('*'),
         supabase.from('projects').select('*'),
@@ -341,11 +348,11 @@ export default function ReportPage() {
       if (dRes.data) setDbDetails(dRes.data);
       setIsLoading(false);
     };
-    fetchBaseData();
+    fetchBaseDataAndUser();
   }, []);
 
-  // ฟังก์ชันดึงประวัติ Report เมื่อเปลี่ยนวันที่
-  const fetchDailyReports = async (date: Date) => {
+  // ─── 3. เปลี่ยนให้ดึงข้อมูลจาก User ID ของตัวเอง ───
+  const fetchDailyReports = async (date: Date, currentUserId: string) => {
     setIsFetchingReports(true);
     const targetDate = date.toISOString().split('T')[0];
     
@@ -353,7 +360,7 @@ export default function ReportPage() {
       const { data: report, error: reportErr } = await supabase
         .from('daily_reports')
         .select('id')
-        .eq('user_id', 'ช่างวิทย์ #1055')
+        .eq('user_id', currentUserId) // <-- ใช้ ID จริงของ User
         .eq('report_date', targetDate)
         .maybeSingle();
 
@@ -364,13 +371,12 @@ export default function ReportPage() {
           .from('daily_report_items')
           .select('*')
           .eq('report_id', report.id)
-          .order('id', { ascending: true }); // เรียงตามลำดับการบันทึก
+          .order('id', { ascending: true });
         
         if (itemsErr) throw itemsErr;
 
         if (items && items.length > 0) {
           const mappedEntries: ReportEntry[] = items.map(item => {
-             // ค้นหา value จาก label ใน PERIOD_OPTIONS
              let periodValue = '';
              if (item.period_type === 'some_time') {
                periodValue = 'some_time';
@@ -381,14 +387,14 @@ export default function ReportPage() {
 
              return {
                id: item.id.toString(),
-               dbId: item.id.toString(), // จำ ID ฐานข้อมูลไว้ใช้ตอนลบ
+               dbId: item.id.toString(),
                detailId: item.detail_id,
                endUserId: item.end_user_id,
                projectId: item.project_id,
                period: periodValue,
                startTime: item.period_start || '',
                endTime: item.period_end || '',
-               isSaved: true // ล็อคเป็นประวัติ
+               isSaved: true
              };
           });
           setEntries(mappedEntries);
@@ -397,7 +403,6 @@ export default function ReportPage() {
         }
       }
       
-      // ถ้าไม่มีข้อมูลในวันนั้นเลย ให้เคลียร์เป็นฟอร์มเปล่า 1 อัน
       setEntries([{ id: Date.now().toString(), detailId: "", endUserId: "", projectId: "", period: "", isSaved: false }]);
     } catch (err) {
       console.error("Fetch reports error:", err);
@@ -406,10 +411,12 @@ export default function ReportPage() {
     }
   };
 
-  // ดึงข้อมูลใหม่ทุกครั้งที่เปลี่ยนวันที่
+  // ดึงข้อมูลใหม่ทุกครั้งที่เปลี่ยนวันที่ หรือโหลด User ID เสร็จ
   useEffect(() => {
-    fetchDailyReports(selectedDate);
-  }, [selectedDate]);
+    if (userId) {
+      fetchDailyReports(selectedDate, userId);
+    }
+  }, [selectedDate, userId]);
 
   const addEntry = () => {
     setEntries((prev) => [...prev, { id: Date.now().toString(), detailId: "", endUserId: "", projectId: "", period: "", isSaved: false }]);
@@ -419,7 +426,6 @@ export default function ReportPage() {
     const entryToDelete = entries.find(e => e.id === id);
     if (!entryToDelete) return;
 
-    // ถ้าเป็นข้อมูลที่บันทึกแล้ว ต้องยิง API ไปลบในฐานข้อมูลด้วย
     if (entryToDelete.isSaved && entryToDelete.dbId) {
       const isConfirmed = window.confirm("คุณต้องการลบประวัติงานนี้ออกจากระบบใช่หรือไม่?");
       if (!isConfirmed) return;
@@ -434,10 +440,8 @@ export default function ReportPage() {
       }
     }
 
-    // ลบออกจาก UI State
     setEntries((prev) => {
       const filtered = prev.filter((e) => e.id !== id);
-      // ถ้าลบหมดเกลี้ยงเลย ให้สร้างฟอร์มเปล่าขึ้นมาทดแทน 1 อัน เพื่อให้หน้าเว็บไม่โล่ง
       if (filtered.length === 0) {
         return [{ id: Date.now().toString(), detailId: "", endUserId: "", projectId: "", period: "", isSaved: false }];
       }
@@ -466,8 +470,9 @@ export default function ReportPage() {
   const formatDateFull = (d: Date) =>
     `${DAYS_TH[d.getDay()]} ${d.getDate()} ${MONTHS_TH[d.getMonth()]} ${d.getFullYear() + 543}`;
 
+  // ─── 4. เปลี่ยนให้ Save ลง User ID ของตัวเอง ───
   const handleSubmit = async () => {
-    if (!allUnsavedComplete) return;
+    if (!allUnsavedComplete || !userId) return; // ต้องมี userId ถึงเซฟได้
     
     try {
       const targetDate = selectedDate.toISOString().split('T')[0];
@@ -476,7 +481,7 @@ export default function ReportPage() {
       const { data: existingReport, error: fetchErr } = await supabase
         .from('daily_reports')
         .select('id')
-        .eq('user_id', 'ช่างวิทย์ #1055')
+        .eq('user_id', userId) // <-- บันทึกลง ID ของ User ตัวเอง
         .eq('report_date', targetDate)
         .maybeSingle();
 
@@ -486,7 +491,7 @@ export default function ReportPage() {
         const { data: newReport, error: reportErr } = await supabase
           .from('daily_reports')
           .insert({
-            user_id: 'ช่างวิทย์ #1055',
+            user_id: userId, // <-- บันทึกลง ID ของ User ตัวเอง
             report_date: targetDate
           })
           .select().single();
@@ -511,8 +516,8 @@ export default function ReportPage() {
 
       setSubmitted(true);
       
-      // ดึงข้อมูลจากฐานข้อมูลของวันนั้นใหม่ทั้งหมด เพื่อให้ State สอดคล้องกับ DB และได้รับ id จริงจาก Database 
-      await fetchDailyReports(selectedDate);
+      // ดึงข้อมูลใหม่หลังจากเซฟ (อย่าลืมส่ง userId เข้าไปด้วย)
+      await fetchDailyReports(selectedDate, userId);
       
       setTimeout(() => {
         setSubmitted(false);
@@ -535,7 +540,6 @@ export default function ReportPage() {
 
   return (
     <main className="min-h-screen bg-gray-50 pb-28 md:pb-10">
-
       {/* ── Top Header ── */}
       <div className="sticky top-0 z-10 bg-gray-50/90 backdrop-blur-sm border-b border-gray-100 px-5 py-4">
         <div className="flex items-center justify-between">
@@ -550,7 +554,6 @@ export default function ReportPage() {
       </div>
 
       <div className="px-4 pt-5 space-y-4">
-
         {/* ── Date Picker Field ── */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 relative z-20">
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
@@ -615,7 +618,7 @@ export default function ReportPage() {
           เพิ่มรายการงาน
         </button>
 
-        {/* ── Submit (แสดงเฉพาะเมื่อมีฟอร์มที่ยังไม่บันทึก) ── */}
+        {/* ── Submit ── */}
         {unsavedEntries.length > 0 && !isFetchingReports && (
           <button
             onClick={handleSubmit}

@@ -251,66 +251,110 @@ function SystemSection() {
 }
 
 function PermissionsSection() {
-  const [users, setUsers] = useState([
-    { id: 1, name: "ช่างวิทย์", code: "1055", dept: "ช่างเทคนิค", role: "user",    active: true  },
-    { id: 2, name: "นายสมชาย",  code: "1010", dept: "วิศวกร",     role: "manager", active: true  },
-    { id: 3, name: "นางสมศรี",  code: "1020", dept: "HR",          role: "admin",   active: true  },
-    { id: 4, name: "นายสมหมาย", code: "1088", dept: "ช่างเทคนิค", role: "viewer",  active: false },
-  ]);
+  const [users, setUsers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const cycleRole = (id: number) => {
+  // 1. ดึงข้อมูล User จากตาราง profiles
+  useEffect(() => {
+    const fetchUsers = async () => {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .order("first_name", { ascending: true }); // เรียงตามชื่อ
+
+      if (data && !error) {
+        setUsers(data);
+      }
+      setLoading(false);
+    };
+    fetchUsers();
+  }, []);
+
+  // 2. ฟังก์ชันเปลี่ยนสิทธิ์และบันทึกลง Database ทันที
+  const cycleRole = async (id: string, currentRole: string) => {
     const roles = ["viewer", "user", "manager", "admin"];
+    const normalizedRole = currentRole || "user"; // กันเหนียวกรณี role เป็น null
+    const currentIndex = roles.indexOf(normalizedRole);
+    const nextRole = roles[(currentIndex !== -1 ? currentIndex + 1 : 1) % roles.length];
+    
+    // อัปเดต UI ทันที (Optimistic Update) เพื่อให้ดูไหลลื่น
     setUsers((prev) =>
-      prev.map((u) => {
-        if (u.id !== id) return u;
-        const next = roles[(roles.indexOf(u.role) + 1) % roles.length];
-        return { ...u, role: next };
-      })
+      prev.map((u) => (u.id === id ? { ...u, role: nextRole } : u))
     );
+
+    // อัปเดตลง Database
+    const { error } = await supabase
+      .from("profiles")
+      .update({ role: nextRole })
+      .eq("id", id);
+
+    if (error) {
+      console.error("Error updating role:", error);
+      alert("ไม่สามารถเปลี่ยนสิทธิ์ได้ กรุณาลองใหม่");
+      // ถ้า Error ให้ย้อนกลับเป็นค่าเดิม
+      setUsers((prev) =>
+        prev.map((u) => (u.id === id ? { ...u, role: currentRole } : u))
+      );
+    }
   };
+
+  if (loading) {
+    return <div className="py-10 text-center text-sm text-gray-400 animate-pulse">กำลังโหลดข้อมูลพนักงาน...</div>;
+  }
 
   return (
     <div className="space-y-4">
-      <SettingGroup title={`ผู้ใช้งานทั้งหมด (${users.length} คน)`}>
-        {users.map((u) => (
-          <div key={u.id} className="flex items-center gap-4 px-5 py-4">
-            {/* Avatar */}
-            <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-white text-sm font-bold flex-shrink-0 ${u.active ? "bg-gradient-to-br from-sky-400 to-blue-500" : "bg-gray-300"}`}>
-              {u.name[0]}
-            </div>
-            {/* Info */}
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <p className="text-sm font-semibold text-gray-700 truncate">{u.name}</p>
-                {!u.active && <span className="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full">ปิดใช้งาน</span>}
+      <SettingGroup title={`ผู้ใช้งานทั้งหมดในระบบ (${users.length} คน)`}>
+        {users.map((u) => {
+          // จัดการแสดงผลชื่อและแผนก
+          const fullName = (u.first_name || u.last_name) 
+            ? `${u.first_name || ''} ${u.last_name || ''}`.trim() 
+            : "ยังไม่ได้ระบุชื่อ";
+          const initial = fullName !== "ยังไม่ได้ระบุชื่อ" ? fullName.charAt(0) : "U";
+          const currentRole = u.role || "user";
+
+          return (
+            <div key={u.id} className="flex items-center gap-4 px-5 py-4 hover:bg-gray-50/50 transition-colors">
+              {/* Avatar */}
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white text-sm font-bold flex-shrink-0 bg-gradient-to-br from-sky-400 to-blue-500 shadow-sm">
+                {initial}
               </div>
-              <p className="text-xs text-gray-400">#{u.code} · {u.dept}</p>
+              
+              {/* Info */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-semibold text-gray-700 truncate">{fullName}</p>
+                </div>
+                <p className="text-xs text-gray-400 mt-0.5">{u.department || "ยังไม่ระบุแผนก"}</p>
+              </div>
+              
+              {/* Role badge — คลิกเพื่อเปลี่ยนสิทธิ์ */}
+              <button
+                onClick={() => cycleRole(u.id, currentRole)}
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition-all hover:scale-105 ${ROLE_STYLES[currentRole] || ROLE_STYLES.user}`}
+                title="คลิกเพื่อเปลี่ยนสิทธิ์ (บันทึกอัตโนมัติ)"
+              >
+                {ROLE_LABELS[currentRole] || "User"}
+              </button>
             </div>
-            {/* Role badge — click to cycle */}
-            <button
-              onClick={() => cycleRole(u.id)}
-              className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition-all hover:scale-105 ${ROLE_STYLES[u.role]}`}
-              title="คลิกเพื่อเปลี่ยนสิทธิ์"
-            >
-              {ROLE_LABELS[u.role]}
-            </button>
-          </div>
-        ))}
+          );
+        })}
       </SettingGroup>
 
       {/* Role legend */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-        <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">ระดับสิทธิ์</p>
-        <div className="grid grid-cols-2 gap-2">
+        <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">ระดับสิทธิ์การใช้งาน</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
           {[
-            { role: "admin",   desc: "เข้าถึงได้ทุกส่วน" },
-            { role: "manager", desc: "ดูรายงานและอนุมัติ" },
-            { role: "user",    desc: "ตอกบัตรและรายงานตัวเอง" },
-            { role: "viewer",  desc: "ดูข้อมูลอย่างเดียว" },
+            { role: "admin",   desc: "เข้าถึงได้ทุกส่วน และจัดการระบบได้" },
+            { role: "manager", desc: "ดูรายงานภาพรวมและอนุมัติ OT/ลา" },
+            { role: "user",    desc: "ตอกบัตรและรายงานตัวของตัวเอง" },
+            { role: "viewer",  desc: "ดูข้อมูลได้อย่างเดียว แก้ไขไม่ได้" },
           ].map((r) => (
             <div key={r.role} className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border ${ROLE_STYLES[r.role]}`}>
-              <span className="text-xs font-bold">{ROLE_LABELS[r.role]}</span>
-              <span className="text-[10px] opacity-70">— {r.desc}</span>
+              <span className="text-xs font-bold min-w-[60px]">{ROLE_LABELS[r.role]}</span>
+              <span className="text-[10px] opacity-70 truncate">— {r.desc}</span>
             </div>
           ))}
         </div>

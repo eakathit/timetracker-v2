@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { createBrowserClient } from "@supabase/ssr";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface DayLog {
@@ -125,18 +126,6 @@ const MOCK_LEAVE: LeaveRecord[] = [
   { id: "lv4", startDate: "2026-03-05", endDate: "2026-03-05", days: 1, type: "sick", reason: "นัดหมอ", status: "pending" },
 ];
 
-// ─── Helper ───────────────────────────────────────────────────────────────────
-const fmt = (dateStr: string) => {
-  const [y, m, d] = dateStr.split("-").map(Number);
-  const date = new Date(y, m - 1, d);
-  return `${d} ${MONTHS_TH[m - 1].slice(0, 3)} ${y + 543}`;
-};
-
-const fmtShort = (dateStr: string) => {
-  const [, m, d] = dateStr.split("-").map(Number);
-  return `${d} ${MONTHS_TH[m - 1].slice(0, 3)}`;
-};
-
 // ─── Sub Components ───────────────────────────────────────────────────────────
 function StatCard({ icon, label, value, sub, accent }: {
   icon: React.ReactNode; label: string; value: string; sub?: string; accent: string;
@@ -255,7 +244,6 @@ function LeaveHistory({ records }: { records: LeaveRecord[] }) {
 
           return (
             <div key={r.id} className="flex items-center gap-3 px-5 py-3.5 hover:bg-gray-50/50 transition-colors">
-              {/* Date badge */}
               <div className={`flex-shrink-0 px-2.5 py-2 rounded-xl border text-center min-w-[52px] ${typeCfg.bg}`}>
                 <p className={`text-sm font-extrabold leading-none ${typeCfg.color}`}>
                   {isSingle
@@ -266,7 +254,6 @@ function LeaveHistory({ records }: { records: LeaveRecord[] }) {
                   {MONTHS_TH[Number(r.startDate.split("-")[1]) - 1].slice(0, 3)}
                 </p>
               </div>
-              {/* Info */}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${typeCfg.bg} ${typeCfg.color}`}>
@@ -276,7 +263,6 @@ function LeaveHistory({ records }: { records: LeaveRecord[] }) {
                 </div>
                 <p className="text-sm font-semibold text-gray-700 mt-0.5 truncate">{r.reason}</p>
               </div>
-              {/* Status */}
               <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border flex-shrink-0 ${statusCfg.color}`}>
                 {statusCfg.label}
               </span>
@@ -314,7 +300,6 @@ function AttendanceCalendar({ year, month, logs }: { year: number; month: number
 
   return (
     <div>
-      {/* Day headers */}
       <div className="grid grid-cols-7 mb-1">
         {DAYS_SHORT.map((d, i) => (
           <div key={d} className={`text-center text-[10px] font-bold pb-1.5 ${i === 0 ? "text-rose-400" : i === 6 ? "text-sky-400" : "text-gray-400"}`}>
@@ -322,7 +307,6 @@ function AttendanceCalendar({ year, month, logs }: { year: number; month: number
           </div>
         ))}
       </div>
-      {/* Cells */}
       <div className="grid grid-cols-7 gap-y-1">
         {cells.map((day, idx) => {
           if (!day) return <div key={`e-${idx}`} />;
@@ -343,11 +327,9 @@ function AttendanceCalendar({ year, month, logs }: { year: number; month: number
               `}>
                 {day}
               </div>
-              {/* Indicator dot */}
               {log && log.status !== "holiday" && (
                 <span className={`w-1 h-1 rounded-full ${sc}`} />
               )}
-              {/* Report dot */}
               {log?.isReportSent && (
                 <span className="w-1 h-1 rounded-full bg-sky-400" />
               )}
@@ -355,8 +337,6 @@ function AttendanceCalendar({ year, month, logs }: { year: number; month: number
           );
         })}
       </div>
-
-      {/* Legend */}
       <div className="flex flex-wrap gap-x-4 gap-y-1.5 mt-4 pt-3 border-t border-gray-50">
         {[
           { color: "bg-emerald-400", label: "ตรงเวลา" },
@@ -389,18 +369,13 @@ function AttendanceList({ logs }: { logs: DayLog[] }) {
 
         return (
           <div key={log.date} className={`flex items-center gap-3 px-5 py-3 hover:bg-gray-50/50 transition-colors ${!isPast ? "opacity-40" : ""}`}>
-            {/* Date */}
             <div className="flex-shrink-0 w-12 text-center">
               <p className="text-base font-extrabold text-gray-700 leading-none">{d}</p>
               <p className={`text-[10px] font-bold ${dow === 0 ? "text-rose-400" : dow === 6 ? "text-sky-400" : "text-gray-400"}`}>
                 {DAYS_SHORT[dow]}
               </p>
             </div>
-
-            {/* Status dot */}
             <StatusDot status={log.status} />
-
-            {/* Times */}
             <div className="flex-1 min-w-0">
               {log.status === "leave" ? (
                 <span className="text-xs font-bold text-violet-500 bg-violet-50 px-2 py-0.5 rounded-full border border-violet-200">วันลา</span>
@@ -430,8 +405,6 @@ function AttendanceList({ logs }: { logs: DayLog[] }) {
                 </div>
               )}
             </div>
-
-            {/* Badges */}
             <div className="flex items-center gap-1.5 flex-shrink-0">
               {log.status === "late" && (
                 <span className="text-[10px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">
@@ -472,6 +445,74 @@ export default function ProfilePage() {
   const [viewMonth, setViewMonth] = useState(today.getMonth());
   const [activeTab, setActiveTab] = useState<"calendar" | "list">("calendar");
   const [historyTab, setHistoryTab] = useState<"ot" | "leave">("ot");
+
+  // ─── States สำหรับระบบ Profile ──────────────────────────────────────────────
+  const [isEditing, setIsEditing] = useState(false);
+  const [profileForm, setProfileForm] = useState({ firstName: '', lastName: '', department: '' });
+  const [userId, setUserId] = useState<string | null>(null);
+  const [userEmail, setUserEmail] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(true);
+
+  // ─── โหลดข้อมูล Profile ตอนเปิดหน้า ──────────────────────────────────────────
+  useEffect(() => {
+    const fetchProfile = async () => {
+      const supabase = createBrowserClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      );
+
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setUserId(user.id);
+        setUserEmail(user.email || '');
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+
+        if (data) {
+          setProfileForm({
+            firstName: data.first_name || '',
+            lastName: data.last_name || '',
+            department: data.department || ''
+          });
+        }
+      }
+      setIsLoading(false);
+    };
+
+    fetchProfile();
+  }, []);
+
+  // ─── ฟังก์ชันเซฟข้อมูล ────────────────────────────────────────────────────────
+  const handleSaveProfile = async () => {
+    if (!userId) return;
+    
+    setIsLoading(true); // ปรับ state ระหว่างรอเซฟ
+    const supabase = createBrowserClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+
+    const { error } = await supabase.from('profiles').upsert({
+      id: userId,
+      first_name: profileForm.firstName,
+      last_name: profileForm.lastName,
+      department: profileForm.department,
+      updated_at: new Date().toISOString()
+    });
+
+    setIsLoading(false);
+
+    if (error) {
+      console.error('Error saving profile:', error);
+      alert('บันทึกข้อมูลไม่สำเร็จ กรุณาลองใหม่');
+    } else {
+      setIsEditing(false);
+      alert('บันทึกข้อมูลเรียบร้อยแล้ว');
+    }
+  };
 
   const logs = useMemo(() => generateMonthLogs(viewYear, viewMonth), [viewYear, viewMonth]);
 
@@ -518,7 +559,7 @@ export default function ProfilePage() {
       {/* ── Header ── */}
       <div className="sticky top-0 z-20 bg-gray-50/90 backdrop-blur-sm border-b border-gray-100">
         <div className="px-4 md:px-6 pt-5 pb-4">
-          <p className="text-xs text-gray-400 font-medium">ช่างวิทย์ · #1055</p>
+          <p className="text-xs text-gray-400 font-medium">โปรไฟล์ · #1055</p>
           <h1 className="text-xl font-extrabold text-gray-800">โปรไฟล์ & ประวัติการทำงาน</h1>
         </div>
       </div>
@@ -528,7 +569,6 @@ export default function ProfilePage() {
         {/* ── Profile Card ── */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
           <div className="h-20 bg-gradient-to-r from-sky-400 to-blue-500 relative">
-            {/* Decoration circles */}
             <div className="absolute -right-4 -top-4 w-24 h-24 rounded-full bg-white/10" />
             <div className="absolute right-8 -bottom-2 w-14 h-14 rounded-full bg-white/10" />
           </div>
@@ -537,20 +577,74 @@ export default function ProfilePage() {
               {/* Avatar */}
               <div className="relative">
                 <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-sky-400 to-blue-500 flex items-center justify-center text-white text-2xl font-extrabold shadow-lg border-4 border-white">
-                  ว
+                  {profileForm.firstName ? profileForm.firstName.charAt(0) : 'U'}
                 </div>
                 <span className="absolute bottom-0 right-0 w-4 h-4 bg-emerald-400 rounded-full border-2 border-white" />
               </div>
-
             </div>
-            <div className="mt-3">
-              <h2 className="text-xl font-extrabold text-gray-800 leading-tight">Eakarthit Hekhunthod</h2>
-              <p className="text-sm text-gray-400 mt-0.5">Electrical Technician · แผนกช่างเทคนิค</p>
-              <p className="text-xs text-gray-300 mt-0.5">eakarthitx@company.com</p>
+
+            {/* ── Profile Info / Edit Form ── */}
+            <div className="mt-4">
+              {isLoading ? (
+                <p className="text-sm text-gray-400 animate-pulse">กำลังโหลดข้อมูลโปรไฟล์...</p>
+              ) : isEditing ? (
+                <div className="space-y-3 mt-4 w-full md:w-3/4 lg:w-1/2">
+                    <input 
+                        type="text" 
+                        placeholder="ชื่อจริง" 
+                        className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm outline-none focus:border-sky-400"
+                        value={profileForm.firstName} 
+                        onChange={e => setProfileForm({...profileForm, firstName: e.target.value})} 
+                    />
+                    <input 
+                        type="text" 
+                        placeholder="นามสกุล" 
+                        className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm outline-none focus:border-sky-400"
+                        value={profileForm.lastName} 
+                        onChange={e => setProfileForm({...profileForm, lastName: e.target.value})} 
+                    />
+                    <input 
+                        type="text" 
+                        placeholder="แผนก" 
+                        className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm outline-none focus:border-sky-400"
+                        value={profileForm.department} 
+                        onChange={e => setProfileForm({...profileForm, department: e.target.value})} 
+                    />
+                    <div className="flex gap-2 pt-2">
+                        <button onClick={handleSaveProfile} className="px-5 py-2 bg-sky-500 text-white text-sm font-bold rounded-xl hover:bg-sky-600 transition-colors shadow-sm">
+                            บันทึกการแก้ไข
+                        </button>
+                        <button onClick={() => setIsEditing(false)} className="px-5 py-2 bg-gray-100 text-gray-600 text-sm font-bold rounded-xl hover:bg-gray-200 transition-colors">
+                            ยกเลิก
+                        </button>
+                    </div>
+                </div>
+              ) : (
+                <div className="flex justify-between items-start">
+                    <div>
+                        <h2 className="text-xl font-extrabold text-gray-800 leading-tight">
+                            {profileForm.firstName || profileForm.lastName 
+                                ? `${profileForm.firstName} ${profileForm.lastName}`
+                                : 'ยังไม่ได้ตั้งชื่อ'
+                            }
+                        </h2>
+                        <p className="text-sm text-gray-400 mt-0.5">
+                            {profileForm.department || 'ยังไม่ระบุแผนก'}
+                        </p>
+                        <p className="text-xs text-gray-300 mt-0.5">{userEmail}</p>
+                    </div>
+                    <button 
+                        onClick={() => setIsEditing(true)} 
+                        className="text-xs font-bold text-sky-600 bg-sky-50 px-4 py-2 rounded-xl border border-sky-100 hover:bg-sky-100 transition-colors"
+                    >
+                        แก้ไขโปรไฟล์
+                    </button>
+                </div>
+              )}
             </div>
         
             {/* Quick stats strip */}
-            <div className="mt-4 grid grid-cols-3 gap-3 pt-4 border-t border-gray-50">
+            <div className="mt-5 grid grid-cols-3 gap-3 pt-4 border-t border-gray-50">
               <div className="text-center">
                 <p className="text-lg font-extrabold text-gray-800">{leaveQuota - leaveUsed}</p>
                 <p className="text-[10px] text-gray-400 font-medium">วันลาคงเหลือ</p>
@@ -647,7 +741,6 @@ export default function ProfilePage() {
 
         {/* ── Attendance Section ── */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-          {/* Section Header */}
           <div className="flex items-center justify-between px-5 py-4 border-b border-gray-50">
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-xl bg-sky-50 text-sky-500 flex items-center justify-center">
@@ -660,7 +753,6 @@ export default function ProfilePage() {
               <h3 className="text-sm font-bold text-gray-700">ประวัติเข้า-ออกงาน</h3>
             </div>
 
-            {/* Tab Toggle */}
             <div className="flex items-center bg-gray-100 rounded-xl p-1 gap-0.5">
               <button
                 onClick={() => setActiveTab("calendar")}
@@ -677,7 +769,6 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          {/* Content */}
           {activeTab === "calendar" ? (
             <div className="px-5 py-4">
               <AttendanceCalendar year={viewYear} month={viewMonth} logs={logs} />
@@ -711,7 +802,6 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          {/* Progress Bar */}
           <div className="w-full h-2.5 bg-gray-100 rounded-full overflow-hidden mb-4">
             <div
               className="h-full bg-gradient-to-r from-violet-400 to-sky-400 rounded-full transition-all duration-500"
@@ -719,7 +809,6 @@ export default function ProfilePage() {
             />
           </div>
 
-          {/* Day-by-day grid */}
           <div className="grid grid-cols-7 gap-1">
             {logs.filter(l => l.status !== "holiday").map((log) => {
               const d = Number(log.date.split("-")[2]);
@@ -737,7 +826,6 @@ export default function ProfilePage() {
                   `}>
                     {d}
                   </div>
-                  {/* Tooltip */}
                   {isWork && (
                     <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 z-10 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
                       <div className="bg-gray-800 text-white text-[9px] font-bold px-2 py-1 rounded-lg whitespace-nowrap shadow-xl">
@@ -768,7 +856,6 @@ export default function ProfilePage() {
 
         {/* ── OT & Leave History ── */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-          {/* Tab Header */}
           <div className="flex border-b border-gray-100">
             <button
               onClick={() => setHistoryTab("ot")}
