@@ -43,29 +43,6 @@ const HOLIDAY_TYPE_CONFIG = {
   working_sat: { label: "เสาร์ทำงาน",         color: "bg-sky-100 text-sky-600 border-sky-200",         dot: "bg-sky-500"   },
 };
 
-// ─── Mock Data ────────────────────────────────────────────────────────────────
-// หมายเหตุ: ข้อมูลนี้เป็น Mock Data สำหรับหน้า Calendar โดยปกติจะต้อง Fetch มาจาก API / Supabase ร่วมกัน
-const INITIAL_HOLIDAYS: Holiday[] = [
-  { id: "h1", date: "2026-01-01", name: "วันขึ้นปีใหม่",            type: "national" },
-  { id: "h2", date: "2026-02-28", name: "วันสิ้นเดือนบริษัท",       type: "company"  },
-  { id: "h3", date: "2026-03-06", name: "วันมาฆบูชา",               type: "national" },
-  { id: "h4", date: "2026-04-06", name: "วันจักรี",                  type: "national" },
-  { id: "h5", date: "2026-04-13", name: "วันสงกรานต์",              type: "national" },
-  { id: "h6", date: "2026-04-14", name: "วันสงกรานต์",              type: "national" },
-  { id: "h7", date: "2026-04-15", name: "วันสงกรานต์",              type: "national" },
-  { id: "h19", date: "2026-02-25", name: "วัน Team Building บริษัท", type: "company"  },
-  { id: "h20", date: "2026-02-07", name: "เสาร์ทำงาน (สัปดาห์ที่ 1)", type: "working_sat" }, // ตัวอย่างเสาร์ทำงาน
-  { id: "h21", date: "2026-02-21", name: "เสาร์ทำงาน (สัปดาห์ที่ 3)", type: "working_sat" }, // ตัวอย่างเสาร์ทำงาน
-];
-
-const INITIAL_PLANS: Plan[] = [
-  { id:"p1", date:"2026-02-25", time:"09:00", title:"Meeting ลูกค้า Toyota",    category:"meeting",  note:"เตรียม Proposal Q1",      userId:"current" },
-  { id:"p2", date:"2026-02-25", time:"14:00", title:"ส่งมอบงาน Phase 1",        category:"task",     note:"Site: นิคมอุตสาหกรรม",   userId:"current" },
-  { id:"p3", date:"2026-02-26", time:"08:30", title:"ตรวจงาน Site A",           category:"travel",                                   userId:"current" },
-  { id:"p4", date:"2026-03-01", time:"10:00", title:"อบรม Safety Training",     category:"training", note:"ห้องประชุมใหญ่",          userId:"current" },
-  { id:"p5", date:"2026-03-05", time:"13:00", title:"Meeting Team Weekly",      category:"meeting",                                   userId:"current" },
-];
-
 // ─── Helper ───────────────────────────────────────────────────────────────────
 const fmt = (d: Date): string => {
   const y = d.getFullYear();
@@ -499,7 +476,7 @@ export default function CalendarPage() {
   
   // ในสถานการณ์จริง ข้อมูล holidays ตรงนี้จะถูกดึงมาจาก Database (Supabase) เหมือนหน้า Settings
   const [holidays, setHolidays]   = useState<Holiday[]>([]);
-  const [plans, setPlans]         = useState<Plan[]>(INITIAL_PLANS); // Plans ก็สามารถทำแบบเดียวกันในอนาคต
+  const [plans, setPlans]         = useState<Plan[]>([]); // Plans ก็สามารถทำแบบเดียวกันในอนาคต
   const [view, setView] = useState<"month" | "list">("month");
 
   useEffect(() => {

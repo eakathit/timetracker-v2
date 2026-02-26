@@ -71,8 +71,9 @@ export const config = {
      * - _next/static (ไฟล์สคริปต์ของ Next.js)
      * - _next/image (ไฟล์รูปภาพที่ Next.js จัดการ)
      * - favicon.ico (ไอคอนเว็บ)
-     * - ไฟล์นามสกุลรูปภาพต่างๆ (svg, png, jpg, jpeg, gif, webp)
+     * - ไฟล์ PWA (manifest, sw) <<< เราเพิ่มตรงนี้
+     * - ไฟล์นามสกุลรูปภาพต่างๆ
      */
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|manifest.json|sw.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 };
