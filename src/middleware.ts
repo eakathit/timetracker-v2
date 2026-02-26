@@ -59,6 +59,21 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  if (user && url.pathname.startsWith('/settings')) {
+    // ใช้ supabase client ตัวเดียวกับที่มีใน middleware
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+
+    if (!profile || profile.role !== 'admin') {
+      // ถ้าไม่มีสิทธิ์ เตะกลับไปหน้าแรก (Dashboard)
+      url.pathname = '/';
+      return NextResponse.redirect(url);
+    }
+  }
+  
   // 5. ปล่อยให้เข้าไปใช้งานหน้านั้นๆ ได้ตามปกติ พร้อมคืนค่า Cookie ที่อัปเดตแล้ว
   return supabaseResponse;
 }

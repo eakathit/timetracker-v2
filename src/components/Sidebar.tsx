@@ -4,7 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSidebar } from "@/context/SidebarContext";
 import LogoutButton from '@/components/LogoutButton';
-
+import { useEffect, useState } from "react";
+import { createBrowserClient } from "@supabase/ssr";
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface NavItem {
   label: string;
@@ -203,6 +204,51 @@ function NavLink({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
 // ─── Main Sidebar ─────────────────────────────────────────────────────────────
 export default function Sidebar() {
   const { collapsed, setCollapsed } = useSidebar();
+  
+  // 1. สร้าง State เก็บ Role ของ User (ค่าเริ่มต้นให้เป็น employee ไว้ก่อน)
+  const [userRole, setUserRole] = useState<string>("employee");
+
+  // 2. ดึงข้อมูล Role จาก Supabase เมื่อโหลด Sidebar
+  useEffect(() => {
+    const fetchRole = async () => {
+      const supabase = createBrowserClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      );
+
+      // หาว่าใคร Login อยู่
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (user) {
+        // ไปดึง Role จากตาราง profiles ที่เราสร้างไว้ใน Step 1
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", user.id)
+          .single();
+
+        if (profile) {
+          setUserRole(profile.role);
+        }
+      }
+    };
+
+    fetchRole();
+  }, []);
+
+  // 3. กรองเมนู: ถ้าไม่ใช่ Admin ให้ตัดเมนู /settings ออก
+  const filteredNavGroups = NAV_GROUPS.map(group => {
+    return {
+      ...group,
+      items: group.items.filter(item => {
+        // เช็คว่าถ้าเป็นเมนู Settings จะแสดงก็ต่อเมื่อ userRole เป็น 'admin' เท่านั้น
+        if (item.href === "/settings") {
+          return userRole === "admin";
+        }
+        return true; // เมนูอื่นๆ แสดงตามปกติ
+      })
+    };
+  });
 
   return (
     <aside
@@ -245,26 +291,27 @@ export default function Sidebar() {
 
 
       {/* ── Navigation Groups (Scrollable, hidden scrollbar) ─────────────────── */}
-      <nav className="flex-1 overflow-y-auto overflow-x-hidden py-3 space-y-5 px-2
-        [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-        {NAV_GROUPS.map((group) => (
-          <div key={group.groupLabel}>
-            {/* Group label */}
-            {!collapsed && (
-              <p className="px-3 mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-gray-400 select-none">
-                {group.groupLabel}
-              </p>
-            )}
-            {collapsed && (
-              <div className="mx-auto w-6 border-t border-gray-100 mb-1.5" />
-            )}
+      <nav className="flex-1 overflow-y-auto overflow-x-hidden py-3 space-y-5 px-2">
+        {filteredNavGroups.map((group) => (
+          // เช็คเพิ่มว่าถ้ากลุ่มนี้ไม่มีเมนูเหลืออยู่เลย (เช่น โดนกรองออกหมด) ไม่ต้องแสดง Header ของกลุ่มนั้น
+          group.items.length > 0 && (
+            <div key={group.groupLabel}>
+              {!collapsed && (
+                <p className="px-3 mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-gray-400 select-none">
+                  {group.groupLabel}
+                </p>
+              )}
+              {collapsed && (
+                <div className="mx-auto w-6 border-t border-gray-100 mb-1.5" />
+              )}
 
-            <div className="space-y-0.5">
-              {group.items.map((item) => (
-                <NavLink key={item.href} item={item} collapsed={collapsed} />
-              ))}
+              <div className="space-y-0.5">
+                {group.items.map((item) => (
+                  <NavLink key={item.href} item={item} collapsed={collapsed} />
+                ))}
+              </div>
             </div>
-          </div>
+          )
         ))}
       </nav>
       
