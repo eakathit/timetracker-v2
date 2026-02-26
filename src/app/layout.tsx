@@ -1,28 +1,20 @@
-import type { Metadata } from "next";
-import { Prompt } from "next/font/google";
+// src/app/layout.tsx
 import "./globals.css";
-import AppShell from "@/components/AppShell";
+import { Prompt } from "next/font/google";
 
-const prompt = Prompt({ 
-  weight: ['400', '500', '600', '700'],
-  subsets: ["thai", "latin"],
-  display: 'swap',
-});
+const prompt = Prompt({ subsets: ["thai", "latin"], weight: ["300", "400", "500", "700"] });
 
-export const metadata: Metadata = {
+export const metadata = {
   title: "TimeTracker V2",
   description: "ระบบบันทึกเวลาเข้า-ออกงาน",
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="th">
-      <body className={`${prompt.className} antialiased bg-gray-50 text-gray-800`}>
-        <AppShell>{children}</AppShell>
+      <body className={prompt.className}>
+        {/* ไม่มี Sidebar ตรงนี้แล้ว! หน้า Login จะได้โล่งๆ */}
+        {children}
       </body>
     </html>
   );

@@ -4,14 +4,14 @@ import { supabase } from "@/lib/supabase"; // เรียกใช้ client �
 
 export default function GoogleLoginButton() {
   const handleLogin = async () => {
-    await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        // กำหนดให้กลับมาที่หน้านี้หลังจาก Login สำเร็จ
-        redirectTo: `${window.location.origin}/auth/callback`,
-      },
-    });
-  };
+  await supabase.auth.signInWithOAuth({
+    provider: "google",
+    options: {
+      // ใช้ window.location.origin เพื่อให้มันรู้เองว่าตอนนี้รันอยู่บน localhost หรือ vercel
+      redirectTo: `${window.location.origin}/auth/callback`, 
+    },
+  });
+};
 
   return (
     <button
