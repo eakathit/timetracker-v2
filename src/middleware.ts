@@ -51,7 +51,7 @@ export async function middleware(request: NextRequest) {
     url.pathname = '/login';
     return NextResponse.redirect(url);
   }
-
+  
   // กฎข้อที่ 2: ถ้า "ล็อกอินแล้ว" แต่พยายามเข้า "หน้า Login" ซ้ำ
   if (user && isLoginPage) {
     // พาไปหน้าหลัก (Dashboard) แทน
@@ -73,7 +73,7 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(url);
     }
   }
-  
+
   // 5. ปล่อยให้เข้าไปใช้งานหน้านั้นๆ ได้ตามปกติ พร้อมคืนค่า Cookie ที่อัปเดตแล้ว
   return supabaseResponse;
 }

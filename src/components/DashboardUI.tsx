@@ -200,7 +200,7 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
         .select("timeline_events, first_check_in, last_check_out")
         .eq("user_id", userId)
         .eq("log_date", today)
-        .single();
+        .maybeSingle();
 
       if (data) {
         if (data.first_check_in) {
@@ -269,7 +269,7 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
       .select("timeline_events, first_check_in")
       .eq("user_id", userId)
       .eq("log_date", today)
-      .single();
+      .maybeSingle();
 
     if (existingLog) {
       const updatedTimeline = [...existingLog.timeline_events, newEvent];
@@ -319,7 +319,7 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
       .select("timeline_events")
       .eq("user_id", userId)
       .eq("log_date", today)
-      .single();
+      .maybeSingle();
 
     if (existingLog) {
       const updatedTimeline = [...existingLog.timeline_events, newEvent];
