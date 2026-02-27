@@ -1,17 +1,25 @@
 "use client";
 
-import { supabase } from "@/lib/supabase"; // เรียกใช้ client ที่เราสร้างไว้ใน lib
+import { supabase } from "@/lib/supabase";
 
 export default function GoogleLoginButton() {
   const handleLogin = async () => {
-  await supabase.auth.signInWithOAuth({
-    provider: "google",
-    options: {
-      // ใช้ window.location.origin เพื่อให้มันรู้เองว่าตอนนี้รันอยู่บน localhost หรือ vercel
-      redirectTo: `${window.location.origin}/auth/callback`, 
-    },
-  });
-};
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+        // บังคับใช้ PKCE flow (ต้องตรงกับ route handler ที่ใช้ exchangeCodeForSession)
+        queryParams: {
+          access_type: "offline",
+          prompt: "consent",
+        },
+      },
+    });
+
+    if (error) {
+      console.error("[GoogleLogin] OAuth error:", error.message);
+    }
+  };
 
   return (
     <button
