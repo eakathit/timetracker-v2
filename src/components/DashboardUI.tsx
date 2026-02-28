@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import LogoutButton from "@/components/LogoutButton";
+import DailyReportForm from "@/components/DailyReportForm";
 import { supabase } from "@/lib/supabase";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -95,6 +96,7 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
   /* ── Status ── */
   const [workStatus, setWorkStatus]     = useState<WorkStatus>("loading");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showReportPopup, setShowReportPopup] = useState(false);
 
   /* ── Regular times ── */
   const [rawCheckIn,  setRawCheckIn]  = useState<string | null>(null);
@@ -264,6 +266,8 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
     }
     setWorkStatus("working");
     setIsSubmitting(false);
+    // เมื่อเช็คอินเสร็จ ให้แสดง Popup Daily Report
+    setShowReportPopup(true);
   };
 
   const handleCheckOut = async () => {
@@ -614,6 +618,41 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
           )}
         </div>
       </div>
+        
+       {/* ── 5. DAILY REPORT POPUP (MODAL) ─────────────────────────────────── */}
+      {showReportPopup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-6 bg-gray-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden animate-in slide-in-from-bottom-8 duration-300">
+            
+            {/* Modal Header */}
+            <div className="px-5 py-4 flex items-center justify-between border-b border-gray-100 bg-sky-50/50">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-sky-100 flex items-center justify-center text-sky-500">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-gray-800">วางแผนงานวันนี้</h2>
+                  <p className="text-xs text-gray-500">กรอกข้อมูล Daily Report เบื้องต้น</p>
+                </div>
+              </div>
+              <button onClick={() => setShowReportPopup(false)} className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 transition-colors">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
+              </button>
+            </div>
+
+            {/* Modal Body: เรียกใช้ฟอร์มที่เราแยกออกมาตะกี้! */}
+            <div className="p-2 md:p-4 overflow-y-auto flex-1 bg-gray-50/30">
+              <DailyReportForm 
+                hideHeader={true} 
+                onSaved={() => setShowReportPopup(false)} 
+              />
+            </div>
+
+          </div>
+        </div>
+      )}
 
     </main>
   );
