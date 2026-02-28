@@ -96,8 +96,11 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
   /* ── Status ── */
   const [workStatus, setWorkStatus]     = useState<WorkStatus>("loading");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(true);
   const [showReportPopup, setShowReportPopup] = useState(false);
 
+  const [checkInTime, setCheckInTime] = useState<string>("-");   // ← เพิ่ม
+  const [checkOutTime, setCheckOutTime] = useState<string>("-");
   /* ── Regular times ── */
   const [rawCheckIn,  setRawCheckIn]  = useState<string | null>(null);
   const [rawCheckOut, setRawCheckOut] = useState<string | null>(null);
@@ -168,40 +171,44 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
   }, [workType]);
 
   // ── Fetch today's log ─────────────────────────────────────────────────────
-  useEffect(() => {
-    const fetchTodayStatus = async () => {
-      if (!userId) return;
-      const { data } = await supabase
-        .from("daily_time_logs")
-        .select("timeline_events, first_check_in, last_check_out")
-        .eq("user_id", userId)
-        .eq("log_date", getLocalToday())
-        .maybeSingle();
+ useEffect(() => {
+  const fetchTodayStatus = async () => {
+    if (!userId) return;
+    const today = getLocalToday();
 
-      if (!data) { setWorkStatus("idle"); return; }
+    const { data } = await supabase
+      .from("daily_time_logs")
+      .select("timeline_events, first_check_in, last_check_out")
+      .eq("user_id", userId)
+      .eq("log_date", today)
+      .single();
 
-      if (data.first_check_in) setRawCheckIn(data.first_check_in);
-      if (data.last_check_out) setRawCheckOut(data.last_check_out);
-
-      const events: { event: string; timestamp: string }[] = data.timeline_events ?? [];
-      const otStartEv = [...events].reverse().find((e) => e.event === "ot_start");
-      const otEndEv   = [...events].reverse().find((e) => e.event === "ot_end");
-      if (otStartEv) setRawOtStart(otStartEv.timestamp);
-      if (otEndEv)   setRawOtEnd(otEndEv.timestamp);
-
-      const last = events.at(-1);
-      if (!last)                     { setWorkStatus("idle");         return; }
-      if (last.event === "ot_end")   { setWorkStatus("ot_completed"); return; }
-      if (last.event === "ot_start") {
-        setWorkStatus("ot_working");
-        setOtElapsed(elapsedStr(otStartEv?.timestamp ?? null));
-        return;
+    if (data) {
+      if (data.first_check_in) {
+        setRawCheckIn(data.first_check_in);
+        setCheckInTime(new Date(data.first_check_in).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }));
       }
-      if (last.event === "checkout") { setWorkStatus("completed");    return; }
-      setWorkStatus("working");
-    };
-    fetchTodayStatus();
-  }, [userId]);
+      if (data.last_check_out) {
+        setRawCheckOut(data.last_check_out);
+        setCheckOutTime(new Date(data.last_check_out).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }));
+      }
+
+      if (data.timeline_events && data.timeline_events.length > 0) {
+        const lastEvent = data.timeline_events[data.timeline_events.length - 1];
+        setWorkStatus(lastEvent.event === "checkout" ? "completed" : "working");
+      } else {
+        setWorkStatus("idle");
+      }
+    } else {
+      setWorkStatus("idle");
+    }
+
+    // ✅ เพิ่มบรรทัดนี้ — บอกว่า sync เสร็จแล้ว
+    setIsInitializing(false);
+  };
+
+  fetchTodayStatus();
+}, [userId]);
 
   // ── Location guard ────────────────────────────────────────────────────────
   const validateLocation = useCallback((): boolean => {
@@ -336,44 +343,60 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
         <p className="text-5xl font-bold my-4">{currentTime}</p>
 
         {/* LOADING */}
-        {workStatus === "loading" && (
+        {/* {workStatus === "loading" && (
           <div className="w-48 h-48 bg-gray-50 text-gray-400 rounded-full flex flex-col items-center justify-center mx-auto shadow-inner animate-pulse border-4 border-gray-100">
             <span className="text-sm font-medium mt-2">กำลังโหลด...</span>
           </div>
-        )}
+        )} */}
 
         {/* IDLE → Check In */}
         {workStatus === "idle" && (
-          <button
-            onClick={handleCheckIn}
-            disabled={isSubmitting}
-            className={`w-48 h-48 rounded-full flex flex-col items-center justify-center mx-auto shadow-lg transition-all duration-300
-              ${isSubmitting
-                ? "bg-sky-400 text-white opacity-80 cursor-wait"
-                : "bg-sky-400 text-white hover:bg-sky-500 checkin-btn-anim"}`}
-          >
-            {isSubmitting ? <Spinner /> : (
-              <>
-                <svg className="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-                <span className="text-2xl font-semibold mt-2">Check In</span>
-              </>
-            )}
-          </button>
-        )}
+  <button
+    onClick={handleCheckIn}
+    disabled={isSubmitting || isInitializing}   // ← เพิ่ม isInitializing
+    className={`w-48 h-48 rounded-full flex flex-col items-center justify-center mx-auto shadow-lg transition-all duration-300
+      ${isSubmitting
+        ? "bg-sky-400 text-white opacity-80 cursor-wait"
+        : isInitializing
+          ? "bg-sky-300 text-white cursor-wait"  // ← สีอ่อนกว่า ระหว่าง sync
+          : "bg-sky-400 text-white hover:bg-sky-500 checkin-btn-anim"
+      }
+    `}
+  >
+    {isSubmitting ? (
+      <>
+        <svg className="animate-spin h-12 w-12 text-white mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+        </svg>
+        <span className="text-xl font-semibold mt-2">กำลังบันทึก...</span>
+      </>
+    ) : (
+      <>
+        <svg className="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+        <span className="text-2xl font-semibold mt-2">Check In</span>
+      </>
+    )}
+  </button>
+)}
 
         {/* WORKING → Check Out */}
         {workStatus === "working" && (
-          <button
-            onClick={handleCheckOut}
-            disabled={isSubmitting}
-            className={`w-48 h-48 rounded-full flex flex-col items-center justify-center mx-auto shadow-lg transition-all duration-300
-              ${isSubmitting
-                ? "bg-red-500 text-white opacity-80 cursor-wait"
-                : "bg-red-500 text-white hover:bg-red-600 checkout-btn-anim"}`}
-          >
+  <button
+    onClick={handleCheckOut}
+    disabled={isSubmitting || isInitializing}   // ← เพิ่ม isInitializing
+    className={`w-48 h-48 rounded-full flex flex-col items-center justify-center mx-auto shadow-lg transition-all duration-300
+      ${isSubmitting
+        ? "bg-rose-400 text-white opacity-80 cursor-wait"
+        : isInitializing
+          ? "bg-rose-300 text-white cursor-wait"   // ← สีอ่อนกว่า ระหว่าง sync
+          : "bg-rose-400 text-white hover:bg-rose-500 active:scale-95"
+      }
+    `}
+  >
             {isSubmitting ? <Spinner /> : (
               <>
                 <svg className="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
