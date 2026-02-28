@@ -12,6 +12,14 @@ const PERIOD_OPTIONS = [
 ];
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+const getLocalISODate = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+
 interface ReportEntry {
   id: string; // ID สำหรับ UI
   dbId?: string; // ID ของฐานข้อมูล (ใช้ตอนจะลบ)
@@ -354,7 +362,7 @@ export default function ReportPage() {
   // ─── 3. เปลี่ยนให้ดึงข้อมูลจาก User ID ของตัวเอง ───
   const fetchDailyReports = async (date: Date, currentUserId: string) => {
     setIsFetchingReports(true);
-    const targetDate = date.toISOString().split('T')[0];
+    const targetDate = getLocalISODate(date);
     
     try {
       const { data: report, error: reportErr } = await supabase
@@ -475,7 +483,7 @@ export default function ReportPage() {
     if (!allUnsavedComplete || !userId) return; // ต้องมี userId ถึงเซฟได้
     
     try {
-      const targetDate = selectedDate.toISOString().split('T')[0];
+      const targetDate = getLocalISODate(selectedDate);
       let reportId;
 
       const { data: existingReport, error: fetchErr } = await supabase
