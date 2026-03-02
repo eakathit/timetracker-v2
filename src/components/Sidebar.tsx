@@ -105,6 +105,14 @@ const Icons = {
       <path d="M6 16l10 5 10-5" stroke="#38BDF8" strokeWidth="1.8" strokeLinejoin="round" />
     </svg>
   ),
+  requests: (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" />
+    <rect x="9" y="3" width="6" height="4" rx="1" />
+    <line x1="9" y1="12" x2="15" y2="12" />
+    <line x1="9" y1="16" x2="13" y2="16" />
+  </svg>
+),
 };
 
 // ─── Nav config (เพิ่มเมนูได้ตรงนี้เลย) ──────────────────────────────────────
@@ -113,22 +121,17 @@ const NAV_GROUPS: NavGroup[] = [
     groupLabel: "Overview",
     items: [
       { label: "Time Attendance", labelTh: "ลงเวลา", href: "/", icon: Icons.ot },
+      { label: "Requests", labelTh: "คำขอ", href: "/requests", icon: Icons.requests },
       { label: "Report", labelTh: "รายการ", href: "/report", icon: Icons.chartBar },
       { label: "Calendar", labelTh: "ปฏิทิน", href: "/calendar", icon: Icons.calendar },
       { label: "Profile", labelTh: "โปรไฟล์", href: "/profile", icon: Icons.user },
     ],
   },
   {
-    groupLabel: "Requests",
-    items: [
-      { label: "OT Request", labelTh: "ขอทำ OT", href: "/ot", icon: Icons.ot, badge: 2 },
-      { label: "Leave Request", labelTh: "ลาออก", href: "/leave", icon: Icons.leave },
-    ],
-  },
-  {
     groupLabel: "Management",
     items: [
       { label: "Project Summary", labelTh: "ทีม", href: "/team", icon: Icons.users },
+      { label: "HR Attendance",   labelTh: "HR",      href: "/hr",   icon: Icons.user },
     ],
   },
   {
