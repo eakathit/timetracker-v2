@@ -275,7 +275,7 @@ export default function DailyReportForm({
   return (
     <div className="w-full">
       {!hideHeader && (
-        <div className="sticky top-0 z-10 bg-gray-50/90 backdrop-blur-sm border-b border-gray-100 px-5 py-4 mb-5 -mx-4">
+        <div className="sticky top-0 z-10 bg-gray-50/90 backdrop-blur-sm border-b border-gray-100 px-5 py-4 mb-5">
           <div className="flex items-center justify-between">
             <h1 className="text-xl font-bold text-gray-800 leading-tight">Daily Report</h1>
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-sky-100 text-sky-600">
