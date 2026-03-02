@@ -172,43 +172,59 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
 
   // ── Fetch today's log ─────────────────────────────────────────────────────
  useEffect(() => {
-  const fetchTodayStatus = async () => {
-    if (!userId) return;
-    const today = getLocalToday();
+    const fetchTodayStatus = async () => {
+      if (!userId) return;
+      const today = getLocalToday();
 
-    const { data } = await supabase
-      .from("daily_time_logs")
-      .select("timeline_events, first_check_in, last_check_out")
-      .eq("user_id", userId)
-      .eq("log_date", today)
-      .single();
+      const { data } = await supabase
+        .from("daily_time_logs")
+        .select("timeline_events, first_check_in, last_check_out")
+        .eq("user_id", userId)
+        .eq("log_date", today)
+        .single();
 
-    if (data) {
-      if (data.first_check_in) {
-        setRawCheckIn(data.first_check_in);
-        setCheckInTime(new Date(data.first_check_in).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }));
-      }
-      if (data.last_check_out) {
-        setRawCheckOut(data.last_check_out);
-        setCheckOutTime(new Date(data.last_check_out).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }));
-      }
+      if (data) {
+        if (data.first_check_in) {
+          setRawCheckIn(data.first_check_in);
+          setCheckInTime(new Date(data.first_check_in).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }));
+        }
+        if (data.last_check_out) {
+          setRawCheckOut(data.last_check_out);
+          setCheckOutTime(new Date(data.last_check_out).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }));
+        }
 
-      if (data.timeline_events && data.timeline_events.length > 0) {
-        const lastEvent = data.timeline_events[data.timeline_events.length - 1];
-        setWorkStatus(lastEvent.event === "checkout" ? "completed" : "working");
+        if (data.timeline_events && data.timeline_events.length > 0) {
+          // 💡 1. ค้นหาข้อมูล OT จากใน JSON Array
+          const otStartEvent = data.timeline_events.find((e: any) => e.event === "ot_start");
+          const otEndEvent = data.timeline_events.find((e: any) => e.event === "ot_end");
+
+          if (otStartEvent) setRawOtStart(otStartEvent.timestamp);
+          if (otEndEvent) setRawOtEnd(otEndEvent.timestamp);
+
+          // 💡 2. อัปเดตสถานะของปุ่ม (workStatus) ให้ถูกต้องครอบคลุมกรณี OT ด้วย
+          const lastEvent = data.timeline_events[data.timeline_events.length - 1];
+          
+          if (lastEvent.event === "ot_end") {
+            setWorkStatus("ot_completed");
+          } else if (lastEvent.event === "ot_start") {
+            setWorkStatus("ot_working");
+          } else if (lastEvent.event === "checkout") {
+            setWorkStatus("completed");
+          } else {
+            setWorkStatus("working");
+          }
+        } else {
+          setWorkStatus("idle");
+        }
       } else {
         setWorkStatus("idle");
       }
-    } else {
-      setWorkStatus("idle");
-    }
 
-    // ✅ เพิ่มบรรทัดนี้ — บอกว่า sync เสร็จแล้ว
-    setIsInitializing(false);
-  };
+      setIsInitializing(false);
+    };
 
-  fetchTodayStatus();
-}, [userId]);
+    fetchTodayStatus();
+  }, [userId]);
 
   // ── Location guard ────────────────────────────────────────────────────────
   const validateLocation = useCallback((): boolean => {

@@ -4,7 +4,6 @@ import { useState, useRef, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-// ฟังก์ชันแก้บัค Timezone ที่คุยกันไว้
 const getLocalISODate = (date: Date) => {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -148,12 +147,25 @@ function EntryCard({ entry, index, total, dbEndUsers, dbProjects, dbDetails, onC
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
+
+// 1. เพิ่ม Props สำหรับรับข้อมูลมาจาก page.tsx ที่เป็น Server Component
 interface DailyReportFormProps {
   hideHeader?: boolean;
   onSaved?: () => void;
+  userId?: string | null;
+  initialEndUsers?: any[];
+  initialProjects?: any[];
+  initialDetails?: any[];
 }
 
-export default function DailyReportForm({ hideHeader = false, onSaved }: DailyReportFormProps) {
+export default function DailyReportForm({ 
+  hideHeader = false, 
+  onSaved,
+  userId = null,
+  initialEndUsers = [],
+  initialProjects = [],
+  initialDetails = []
+}: DailyReportFormProps) {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [calOpen, setCalOpen] = useState(false);
   const [entries, setEntries] = useState<ReportEntry[]>([
@@ -161,34 +173,15 @@ export default function DailyReportForm({ hideHeader = false, onSaved }: DailyRe
   ]);
   const [submitted, setSubmitted] = useState(false);
   const [isFetchingReports, setIsFetchingReports] = useState(false);
-  const [userId, setUserId] = useState<string | null>(null);
   
-  const [dbEndUsers, setDbEndUsers] = useState<any[]>([]);
-  const [dbProjects, setDbProjects] = useState<any[]>([]);
-  const [dbDetails, setDbDetails] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchBaseDataAndUser = async () => {
-      setIsLoading(true);
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) setUserId(user.id);
-      const [uRes, pRes, dRes] = await Promise.all([
-        supabase.from('end_users').select('*'),
-        supabase.from('projects').select('*'),
-        supabase.from('work_details').select('*')
-      ]);
-      if (uRes.data) setDbEndUsers(uRes.data);
-      if (pRes.data) setDbProjects(pRes.data);
-      if (dRes.data) setDbDetails(dRes.data);
-      setIsLoading(false);
-    };
-    fetchBaseDataAndUser();
-  }, []);
+  // 2. ใช้ State จาก Props แทนการโหลดข้อมูลใหม่
+  const [dbEndUsers] = useState<any[]>(initialEndUsers);
+  const [dbProjects] = useState<any[]>(initialProjects);
+  const [dbDetails] = useState<any[]>(initialDetails);
 
   const fetchDailyReports = async (date: Date, currentUserId: string) => {
     setIsFetchingReports(true);
-    const targetDate = getLocalISODate(date); // แก้บัควันที่ตรงนี้แล้ว!
+    const targetDate = getLocalISODate(date);
     try {
       const { data: report, error: reportErr } = await supabase.from('daily_reports').select('id').eq('user_id', currentUserId).eq('report_date', targetDate).maybeSingle();
       if (reportErr) throw reportErr;
@@ -247,7 +240,7 @@ export default function DailyReportForm({ hideHeader = false, onSaved }: DailyRe
   const handleSubmit = async () => {
     if (!allUnsavedComplete || !userId) return;
     try {
-      const targetDate = getLocalISODate(selectedDate); // แก้บัควันที่ตรงนี้แล้ว!
+      const targetDate = getLocalISODate(selectedDate);
       let reportId;
       const { data: existingReport } = await supabase.from('daily_reports').select('id').eq('user_id', userId).eq('report_date', targetDate).maybeSingle();
       if (existingReport) {
@@ -271,7 +264,6 @@ export default function DailyReportForm({ hideHeader = false, onSaved }: DailyRe
       setSubmitted(true);
       await fetchDailyReports(selectedDate, userId);
       
-      // ถ้ามี prop onSaved ส่งมา (จากหน้า Dashboard) ให้ทำงาน
       setTimeout(() => {
         setSubmitted(false);
         if (onSaved) onSaved();
@@ -279,15 +271,6 @@ export default function DailyReportForm({ hideHeader = false, onSaved }: DailyRe
 
     } catch (error) { alert("เกิดข้อผิดพลาดในการบันทึกข้อมูล"); }
   };
-
-  if (isLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center p-10 space-y-4">
-        <div className="w-8 h-8 border-4 border-sky-200 border-t-sky-500 rounded-full animate-spin"></div>
-        <p className="text-sm font-semibold text-gray-400 animate-pulse">กำลังโหลดข้อมูลระบบ...</p>
-      </div>
-    );
-  }
 
   return (
     <div className="w-full">
