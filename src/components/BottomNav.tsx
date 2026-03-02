@@ -3,105 +3,153 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-const BOTTOM_NAV = [
-  {
-    label: "Home",
-    href: "/",
-    icon: (
+// ─── Icon Library ─────────────────────────────────────────────────────────────
+const Icons = {
+  // Requests (clipboard + list)
+  requests: {
+    outline: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="3" y="3" width="7" height="7" rx="1.5" />
-        <rect x="14" y="3" width="7" height="7" rx="1.5" />
-        <rect x="3" y="14" width="7" height="7" rx="1.5" />
-        <rect x="14" y="14" width="7" height="7" rx="1.5" />
+        <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" />
+        <rect x="9" y="3" width="6" height="4" rx="1" />
+        <line x1="9" y1="12" x2="15" y2="12" />
+        <line x1="9" y1="16" x2="13" y2="16" />
       </svg>
     ),
-    iconFilled: (
-      <svg viewBox="0 0 24 24" fill="currentColor" stroke="none">
-        <rect x="3" y="3" width="7" height="7" rx="1.5" />
-        <rect x="14" y="3" width="7" height="7" rx="1.5" />
-        <rect x="3" y="14" width="7" height="7" rx="1.5" />
-        <rect x="14" y="14" width="7" height="7" rx="1.5" />
-      </svg>
-    ),
-  },
-  {
-    label: "Attendance",
-    href: "/attendance",
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="9" />
-        <polyline points="12 7 12 12 15.5 14" />
-      </svg>
-    ),
-    iconFilled: (
+    filled: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="9" />
-        <polyline points="12 7 12 12 15.5 14" />
+        <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" />
+        <rect x="9" y="3" width="6" height="4" rx="1" />
+        <line x1="9" y1="12" x2="15" y2="12" />
+        <line x1="9" y1="16" x2="13" y2="16" />
       </svg>
     ),
   },
-  {
-    label: "OT",
-    href: "/ot",
-    isCTA: true,
-    badge: 2,
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <line x1="12" y1="5" x2="12" y2="19" />
-        <line x1="5" y1="12" x2="19" y2="12" />
+
+  // Report (bar chart)
+  report: {
+    outline: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <line x1="18" y1="20" x2="18" y2="10" />
+        <line x1="12" y1="20" x2="12" y2="4" />
+        <line x1="6" y1="20" x2="6" y2="14" />
+        <line x1="2" y1="20" x2="22" y2="20" />
       </svg>
     ),
-    iconFilled: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-        <line x1="12" y1="5" x2="12" y2="19" />
-        <line x1="5" y1="12" x2="19" y2="12" />
+    filled: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+        <line x1="18" y1="20" x2="18" y2="10" />
+        <line x1="12" y1="20" x2="12" y2="4" />
+        <line x1="6" y1="20" x2="6" y2="14" />
+        <line x1="2" y1="20" x2="22" y2="20" />
       </svg>
     ),
   },
+
+  // Home (house icon for CTA center button)
+  home: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 12L12 3l9 9" />
+      <path d="M9 21V12h6v9" />
+      <rect x="3" y="12" width="18" height="9" rx="1" />
+    </svg>
+  ),
+
+  // Calendar
+  calendar: {
+    outline: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="4" width="18" height="18" rx="2" />
+        <line x1="3" y1="9" x2="21" y2="9" />
+        <line x1="8" y1="2" x2="8" y2="6" />
+        <line x1="16" y1="2" x2="16" y2="6" />
+      </svg>
+    ),
+    filled: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="4" width="18" height="18" rx="2" />
+        <line x1="3" y1="9" x2="21" y2="9" />
+        <line x1="8" y1="2" x2="8" y2="6" />
+        <line x1="16" y1="2" x2="16" y2="6" />
+      </svg>
+    ),
+  },
+
+  // Profile (user)
+  profile: {
+    outline: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
+        <circle cx="12" cy="7" r="4" />
+      </svg>
+    ),
+    filled: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
+        <circle cx="12" cy="7" r="4" />
+      </svg>
+    ),
+  },
+};
+
+// ─── Nav Config ───────────────────────────────────────────────────────────────
+interface NavItem {
+  label: string;
+  labelTh: string;
+  href: string;
+  isCTA?: boolean;
+  badge?: number;
+  icon: React.ReactNode;
+  iconFilled: React.ReactNode;
+}
+
+const BOTTOM_NAV: NavItem[] = [
   {
-    label: "Reports",
+    label: "Requests",
+    labelTh: "คำขอ",
+    href: "/requests",
+    // badge: 2, // ← เปิด badge เมื่อมีคำขอที่รออนุมัติ
+    icon: Icons.requests.outline,
+    iconFilled: Icons.requests.filled,
+  },
+  {
+    label: "Report",
+    labelTh: "รายงาน",
     href: "/report",
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <line x1="18" y1="20" x2="18" y2="10" />
-        <line x1="12" y1="20" x2="12" y2="4" />
-        <line x1="6" y1="20" x2="6" y2="14" />
-        <line x1="2" y1="20" x2="22" y2="20" />
-      </svg>
-    ),
-    iconFilled: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-        <line x1="18" y1="20" x2="18" y2="10" />
-        <line x1="12" y1="20" x2="12" y2="4" />
-        <line x1="6" y1="20" x2="6" y2="14" />
-        <line x1="2" y1="20" x2="22" y2="20" />
-      </svg>
-    ),
+    icon: Icons.report.outline,
+    iconFilled: Icons.report.filled,
+  },
+  {
+    // ── CTA Center Button ──
+    label: "Home",
+    labelTh: "หน้าหลัก",
+    href: "/",
+    isCTA: true,
+    icon: Icons.home,
+    iconFilled: Icons.home,
+  },
+  {
+    label: "Calendar",
+    labelTh: "ปฏิทิน",
+    href: "/calendar",
+    icon: Icons.calendar.outline,
+    iconFilled: Icons.calendar.filled,
   },
   {
     label: "Profile",
+    labelTh: "โปรไฟล์",
     href: "/profile",
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
-        <circle cx="12" cy="7" r="4" />
-      </svg>
-    ),
-    iconFilled: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
-        <circle cx="12" cy="7" r="4" />
-      </svg>
-    ),
+    icon: Icons.profile.outline,
+    iconFilled: Icons.profile.filled,
   },
 ];
 
+// ─── Component ────────────────────────────────────────────────────────────────
 export default function BottomNav() {
   const pathname = usePathname();
 
   return (
     <>
-      {/* Safe area spacer */}
+      {/* Safe area spacer — ป้องกัน content ถูกบังด้วย nav bar */}
       <div className="md:hidden h-20" />
 
       <nav className="
@@ -113,10 +161,14 @@ export default function BottomNav() {
           {BOTTOM_NAV.map((item) => {
             const isActive = pathname === item.href;
 
-            // CTA Center button (OT)
+            // ── CTA Center Button (Home) ──────────────────────────────────
             if (item.isCTA) {
               return (
-                <Link key={item.href} href={item.href} className="relative flex flex-col items-center -mt-6 pb-1">
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className="relative flex flex-col items-center -mt-6 pb-1"
+                >
                   <div className={`
                     relative w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg
                     transition-all duration-200 active:scale-90
@@ -127,7 +179,7 @@ export default function BottomNav() {
                   `}>
                     <span className="w-6 h-6 text-white">{item.icon}</span>
 
-                    {/* Badge */}
+                    {/* Badge (optional) */}
                     {item.badge && (
                       <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center border-2 border-white">
                         {item.badge}
@@ -141,6 +193,7 @@ export default function BottomNav() {
               );
             }
 
+            // ── Regular Nav Items ─────────────────────────────────────────
             return (
               <Link
                 key={item.href}
@@ -160,8 +213,18 @@ export default function BottomNav() {
                   {isActive ? item.iconFilled : item.icon}
                 </span>
 
+                {/* Badge */}
+                {item.badge && (
+                  <span className="absolute top-0.5 right-1.5 w-4 h-4 rounded-full bg-rose-500 text-white text-[9px] font-bold flex items-center justify-center">
+                    {item.badge}
+                  </span>
+                )}
+
                 {/* Label */}
-                <span className={`text-[10px] font-medium leading-none transition-colors duration-200 ${isActive ? "text-sky-500 font-semibold" : "text-slate-400"}`}>
+                <span className={`
+                  text-[10px] font-medium leading-none transition-colors duration-200
+                  ${isActive ? "text-sky-500 font-semibold" : "text-slate-400"}
+                `}>
                   {item.label}
                 </span>
               </Link>
