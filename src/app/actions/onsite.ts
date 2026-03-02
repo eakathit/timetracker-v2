@@ -1,9 +1,6 @@
 "use server";
 
-// ============================================================
-// app/actions/onsite.ts
-// Server Actions สำหรับระบบ On-site Group Check-in/Out
-// ============================================================
+// src/app/actions/onsite.ts
 
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
@@ -14,75 +11,104 @@ import type {
   OnsiteTimelineEvent,
 } from "@/types/onsite";
 
-// ─── Supabase Server Client ───────────────────────────────────────────────────
-async function getSupabase() {
+// ─────────────────────────────────────────────────────────────────────────────
+// Supabase Server Client — Server Action version
+//
+// ⚠️ Server Actions ต้องใช้ getAll + setAll (ไม่ใช่แค่ get)
+//    เพราะ Action อาจต้อง refresh token และ write cookie กลับไปที่ browser
+//    ถ้าใช้แค่ get → auth.uid() อาจเป็น null ใน RLS → INSERT สำเร็จแต่ SELECT กลับได้ 0 rows → 406
+// ─────────────────────────────────────────────────────────────────────────────
+async function getSupabaseServer() {
   const cookieStore = await cookies();
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        getAll: () => cookieStore.getAll(),
-        setAll: (cookiesToSet) => {
-          cookiesToSet.forEach(({ name, value, options }) =>
-            cookieStore.set(name, value, options)
-          );
+        getAll() {
+          return cookieStore.getAll();
+        },
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options)
+            );
+          } catch {
+            // Server Action อาจ throw ถ้า called จาก Server Component
+            // ไม่ต้อง handle — token อ่านได้แล้วตอน getAll
+          }
         },
       },
     }
   );
 }
 
-/** Helper: ดึง user id ปัจจุบัน */
-async function getCurrentUserId(): Promise<string> {
-  const supabase = await getSupabase();
-  const { data: { user }, error } = await supabase.auth.getUser();
-  if (error || !user) throw new Error("Unauthorized");
-  return user.id;
-}
-
-/** Helper: วันนี้เป็น string "YYYY-MM-DD" (local) */
 function getLocalToday(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 1. สร้าง Session ใหม่ (Leader)
+// 1. สร้าง Session ใหม่
 // ─────────────────────────────────────────────────────────────────────────────
 export async function createOnsiteSession(
   input: CreateSessionInput
 ): Promise<ActionResult<{ session_id: string; session_code: string }>> {
   try {
-    const supabase  = await getSupabase();
-    const leaderId  = await getCurrentUserId();
-    const today     = getLocalToday();
+    console.log("🔥 [ACTION CALLED]", input);
+    const supabase = await getSupabaseServer();
 
-    // 1. สร้าง Session (session_code จะถูก generate โดย Trigger อัตโนมัติ)
-    const { data: session, error: sessionError } = await supabase
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return { success: false, error: "กรุณาล็อกอินใหม่อีกครั้ง" };
+    }
+
+    const leaderId = user.id;
+    const today    = getLocalToday();
+
+    // ── Step 1: INSERT session ─────────────────────────────────────────────
+    // ใช้ insert แล้ว select แยก เพื่อหลีกเลี่ยง 406 จาก .single() หลัง insert
+    const { error: insertError } = await supabase
       .from("onsite_sessions")
       .insert({
         leader_id:    leaderId,
         site_name:    input.site_name.trim(),
-        project_id:   input.project_id,
+        project_id:   input.project_id ?? null,
         status:       "open",
         session_date: today,
-      })
-      .select("id, session_code")
-      .single();
+      });
 
-    if (sessionError || !session) {
-      return { success: false, error: sessionError?.message ?? "สร้าง Session ไม่สำเร็จ" };
+    if (insertError) {
+      console.error("[createOnsiteSession] insert error:", insertError);
+      return { success: false, error: "สร้าง Session ไม่สำเร็จ: " + insertError.message };
     }
 
-    // 2. เพิ่ม Leader เป็น member role='leader' ก่อน
+    // ── Step 2: SELECT session ที่เพิ่งสร้าง ─────────────────────────────
+    // แยก SELECT ออกมา ไม่ chain กับ INSERT เพื่อหลีกเลี่ยง 406
+    const { data: sessions, error: selectError } = await supabase
+      .from("onsite_sessions")
+      .select("id, session_code")
+      .eq("leader_id", leaderId)
+      .eq("session_date", today)
+      .eq("status", "open")
+      .order("created_at", { ascending: false })
+      .limit(1);
+
+    if (selectError || !sessions || sessions.length === 0) {
+      console.error("[createOnsiteSession] select error:", selectError);
+      return { success: false, error: "สร้างแล้วแต่อ่านข้อมูลกลับไม่ได้: " + (selectError?.message ?? "ไม่พบ session") };
+    }
+
+    const session = sessions[0];
+    console.log("[createOnsiteSession] session ok:", session.id, "code:", session.session_code);
+
+    // ── Step 3: INSERT members ────────────────────────────────────────────
     const memberRows = [
-      { session_id: session.id, user_id: leaderId, role: "leader" as const },
-      // เพิ่ม Members ที่ Leader เลือก
+      { session_id: session.id, user_id: leaderId, role: "leader" },
       ...input.member_ids.map((uid) => ({
         session_id: session.id,
         user_id:    uid,
-        role:       "member" as const,
+        role:       "member",
       })),
     ];
 
@@ -91,30 +117,37 @@ export async function createOnsiteSession(
       .insert(memberRows);
 
     if (membersError) {
-      // Rollback: ลบ session ที่สร้างไปแล้ว
+      console.error("[createOnsiteSession] members error:", membersError);
+      // Rollback session
       await supabase.from("onsite_sessions").delete().eq("id", session.id);
       return { success: false, error: "เพิ่มสมาชิกไม่สำเร็จ: " + membersError.message };
     }
 
+    console.log("[createOnsiteSession] done ✅", memberRows.length, "members");
+
     return {
       success: true,
-      data: { session_id: session.id, session_code: session.session_code ?? "" },
+      data: {
+        session_id:   session.id,
+        session_code: session.session_code ?? "",
+      },
     };
   } catch (err) {
-    return { success: false, error: String(err) };
+    console.error("[createOnsiteSession] unexpected:", err);
+    return { success: false, error: "เกิดข้อผิดพลาด: " + String(err) };
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 2. ดึง Session พร้อม Members (ใช้แสดงในห้อง)
+// 2. ดึง Session + Members
 // ─────────────────────────────────────────────────────────────────────────────
 export async function getOnsiteSession(
   sessionId: string
 ): Promise<ActionResult<OnsiteSessionWithMembers>> {
   try {
-    const supabase = await getSupabase();
+    const supabase = await getSupabaseServer();
 
-    const { data, error } = await supabase
+    const { data: rows, error } = await supabase
       .from("onsite_sessions")
       .select(`
         *,
@@ -125,43 +158,40 @@ export async function getOnsiteSession(
         )
       `)
       .eq("id", sessionId)
-      .single();
+      .limit(1);
 
-    if (error || !data) {
-      return { success: false, error: error?.message ?? "ไม่พบ Session" };
-    }
+    if (error) return { success: false, error: error.message };
+    if (!rows || rows.length === 0) return { success: false, error: "ไม่พบ Session" };
 
-    return { success: true, data: data as OnsiteSessionWithMembers };
+    return { success: true, data: rows[0] as OnsiteSessionWithMembers };
   } catch (err) {
     return { success: false, error: String(err) };
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 3. ดึง Active Session ของวันนี้ (สำหรับ Dashboard)
-//    — ทั้งห้องที่เราเป็น Leader และห้องที่เราเป็น Member
+// 3. Active Session วันนี้
 // ─────────────────────────────────────────────────────────────────────────────
 export async function getTodayActiveSession(): Promise<
   ActionResult<OnsiteSessionWithMembers | null>
 > {
   try {
-    const supabase = await getSupabase();
-    const userId   = await getCurrentUserId();
-    const today    = getLocalToday();
+    const supabase = await getSupabaseServer();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { success: false, error: "Unauthorized" };
 
-    // หา session_id ที่ user นี้อยู่ในวันนี้
+    const today = getLocalToday();
+
     const { data: membership } = await supabase
       .from("onsite_session_members")
       .select("session_id")
-      .eq("user_id", userId)
-      .limit(1);
+      .eq("user_id", user.id);
 
-    if (!membership || membership.length === 0) {
-      return { success: true, data: null };
-    }
+    if (!membership || membership.length === 0) return { success: true, data: null };
 
-    // ดึง session ที่ยังไม่ปิด ของวันนี้
-    const { data, error } = await supabase
+    const sessionIds = membership.map((m) => m.session_id);
+
+    const { data: rows, error } = await supabase
       .from("onsite_sessions")
       .select(`
         *,
@@ -171,53 +201,48 @@ export async function getTodayActiveSession(): Promise<
           profile:profiles ( id, first_name, last_name, department, role )
         )
       `)
-      .in("id", membership.map((m) => m.session_id))
+      .in("id", sessionIds)
       .eq("session_date", today)
       .neq("status", "closed")
       .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .limit(1);
 
     if (error) return { success: false, error: error.message };
-
-    return { success: true, data: (data as OnsiteSessionWithMembers) ?? null };
+    return { success: true, data: rows && rows.length > 0 ? (rows[0] as OnsiteSessionWithMembers) : null };
   } catch (err) {
     return { success: false, error: String(err) };
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 4. Group Check-in (Leader กด → ทุกคน Check-in พร้อมกัน)
+// 4. Group Check-in
 // ─────────────────────────────────────────────────────────────────────────────
-export async function groupCheckIn(
-  sessionId: string
-): Promise<ActionResult> {
+export async function groupCheckIn(sessionId: string): Promise<ActionResult> {
   try {
-    const supabase  = await getSupabase();
-    const leaderId  = await getCurrentUserId();
-    const now       = new Date().toISOString();
-    const today     = getLocalToday();
+    const supabase = await getSupabaseServer();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { success: false, error: "Unauthorized" };
 
-    // ตรวจสอบว่า user เป็น Leader ของ session นี้จริง
-    const { data: session, error: sessionErr } = await supabase
+    const now   = new Date().toISOString();
+    const today = getLocalToday();
+
+    // ดึง session
+    const { data: sessions, error: sessionErr } = await supabase
       .from("onsite_sessions")
       .select("id, status, site_name, members:onsite_session_members(user_id)")
       .eq("id", sessionId)
-      .eq("leader_id", leaderId)
-      .single();
+      .eq("leader_id", user.id)
+      .limit(1);
 
-    if (sessionErr || !session) {
+    if (sessionErr || !sessions || sessions.length === 0) {
       return { success: false, error: "ไม่พบ Session หรือคุณไม่ใช่ Leader" };
     }
-    if (session.status !== "open") {
-      return { success: false, error: "Session นี้ Check-in ไปแล้ว" };
-    }
+    const session = sessions[0];
+    if (session.status !== "open") return { success: false, error: "Session นี้ Check-in ไปแล้ว" };
 
-    const memberUserIds: string[] = (session.members as { user_id: string }[]).map(
-      (m) => m.user_id
-    );
+    const memberUserIds = (session.members as { user_id: string }[]).map((m) => m.user_id);
 
-    // ─── อัปเดต onsite_sessions → checked_in ───────────────
+    // อัปเดต session status
     const { error: updateErr } = await supabase
       .from("onsite_sessions")
       .update({ status: "checked_in", group_check_in: now })
@@ -225,16 +250,12 @@ export async function groupCheckIn(
 
     if (updateErr) return { success: false, error: updateErr.message };
 
-    // ─── Upsert daily_time_logs ทุก member พร้อมกัน ────────
+    // Upsert daily_time_logs ทุก member
     const newEvent: OnsiteTimelineEvent = {
-      event:       "onsite_checkin",
-      timestamp:   now,
-      session_id:  sessionId,
-      site_name:   session.site_name,
-      synced_from: "leader",
+      event: "onsite_checkin", timestamp: now,
+      session_id: sessionId, site_name: session.site_name, synced_from: "leader",
     };
 
-    // ดึง existing logs ของวันนี้ก่อน (เพื่อ merge timeline_events)
     const { data: existingLogs } = await supabase
       .from("daily_time_logs")
       .select("user_id, timeline_events")
@@ -245,26 +266,22 @@ export async function groupCheckIn(
       (existingLogs ?? []).map((l) => [l.user_id, l.timeline_events ?? []])
     );
 
-    // Upsert แต่ละคน
-    const upsertRows = memberUserIds.map((uid) => {
-      const existing = existingMap.get(uid) ?? [];
-      return {
-        user_id:           uid,
-        log_date:          today,
-        work_type:         "on_site",
-        first_check_in:    now,
-        onsite_session_id: sessionId,
-        timeline_events:   [...existing, newEvent],
-        status:            "active",
-      };
-    });
-
     const { error: upsertErr } = await supabase
       .from("daily_time_logs")
-      .upsert(upsertRows, { onConflict: "user_id,log_date" });
+      .upsert(
+        memberUserIds.map((uid) => ({
+          user_id:           uid,
+          log_date:          today,
+          work_type:         "on_site",
+          first_check_in:    now,
+          onsite_session_id: sessionId,
+          timeline_events:   [...(existingMap.get(uid) ?? []), newEvent],
+          status:            "active",
+        })),
+        { onConflict: "user_id,log_date" }
+      );
 
     if (upsertErr) return { success: false, error: upsertErr.message };
-
     return { success: true };
   } catch (err) {
     return { success: false, error: String(err) };
@@ -272,64 +289,51 @@ export async function groupCheckIn(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 5. Group Check-out (Leader กด → ทุกคนที่ยัง pending ออกพร้อมกัน)
+// 5. Group Check-out
 // ─────────────────────────────────────────────────────────────────────────────
-export async function groupCheckOut(
-  sessionId: string
-): Promise<ActionResult> {
+export async function groupCheckOut(sessionId: string): Promise<ActionResult> {
   try {
-    const supabase = await getSupabase();
-    const leaderId = await getCurrentUserId();
-    const now      = new Date().toISOString();
-    const today    = getLocalToday();
+    const supabase = await getSupabaseServer();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { success: false, error: "Unauthorized" };
 
-    // ตรวจสิทธิ์ + ดึง members ที่ยัง pending
-    const { data: session, error: sessionErr } = await supabase
+    const now   = new Date().toISOString();
+    const today = getLocalToday();
+
+    const { data: sessions, error: sessionErr } = await supabase
       .from("onsite_sessions")
-      .select(`
-        id, status, site_name,
-        members:onsite_session_members!inner(user_id, checkout_type)
-      `)
+      .select("id, status, members:onsite_session_members(user_id, checkout_type)")
       .eq("id", sessionId)
-      .eq("leader_id", leaderId)
-      .single();
+      .eq("leader_id", user.id)
+      .limit(1);
 
-    if (sessionErr || !session) {
+    if (sessionErr || !sessions || sessions.length === 0) {
       return { success: false, error: "ไม่พบ Session หรือคุณไม่ใช่ Leader" };
     }
-    if (session.status !== "checked_in") {
-      return { success: false, error: "Session ยังไม่ได้ Check-in หรือ ปิดไปแล้ว" };
-    }
+    const session = sessions[0];
+    if (session.status !== "checked_in") return { success: false, error: "Session ยังไม่ได้ Check-in" };
 
-    // เฉพาะ member ที่ยัง pending (ยังไม่ออก early)
-    const pendingUids: string[] = (
+    const pendingUids = (
       session.members as { user_id: string; checkout_type: string }[]
     )
       .filter((m) => m.checkout_type === "pending")
       .map((m) => m.user_id);
 
-    // ─── อัปเดต onsite_session_members → checkout_type = 'group' ───
-    const { error: memberUpdateErr } = await supabase
+    await supabase
       .from("onsite_session_members")
       .update({ checkout_type: "group" })
       .eq("session_id", sessionId)
       .eq("checkout_type", "pending");
 
-    if (memberUpdateErr) return { success: false, error: memberUpdateErr.message };
-
-    // ─── ปิด Session ───────────────────────────────────────────────
     await supabase
       .from("onsite_sessions")
       .update({ status: "closed", group_check_out: now, closed_at: now })
       .eq("id", sessionId);
 
-    // ─── อัปเดต daily_time_logs ของ pending members ───────────────
     if (pendingUids.length > 0) {
       const checkoutEvent: OnsiteTimelineEvent = {
-        event:         "onsite_checkout",
-        timestamp:     now,
-        session_id:    sessionId,
-        checkout_type: "group",
+        event: "onsite_checkout", timestamp: now,
+        session_id: sessionId, checkout_type: "group",
       };
 
       const { data: existingLogs } = await supabase
@@ -342,20 +346,18 @@ export async function groupCheckOut(
         (existingLogs ?? []).map((l) => [l.user_id, l.timeline_events ?? []])
       );
 
-      const upsertRows = pendingUids.map((uid) => {
-        const existing = existingMap.get(uid) ?? [];
-        return {
-          user_id:         uid,
-          log_date:        today,
-          work_type:       "on_site",
-          last_check_out:  now,
-          timeline_events: [...existing, checkoutEvent],
-        };
-      });
-
       await supabase
         .from("daily_time_logs")
-        .upsert(upsertRows, { onConflict: "user_id,log_date" });
+        .upsert(
+          pendingUids.map((uid) => ({
+            user_id:         uid,
+            log_date:        today,
+            work_type:       "on_site",
+            last_check_out:  now,
+            timeline_events: [...(existingMap.get(uid) ?? []), checkoutEvent],
+          })),
+          { onConflict: "user_id,log_date" }
+        );
     }
 
     return { success: true };
@@ -365,59 +367,49 @@ export async function groupCheckOut(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 6. Early Leave (Member ออกก่อนกลุ่ม)
+// 6. Early Leave
 // ─────────────────────────────────────────────────────────────────────────────
-export async function earlyLeave(
-  sessionId: string,
-  note: string
-): Promise<ActionResult> {
+export async function earlyLeave(sessionId: string, note: string): Promise<ActionResult> {
   try {
-    const supabase = await getSupabase();
-    const userId   = await getCurrentUserId();
-    const now      = new Date().toISOString();
-    const today    = getLocalToday();
+    const supabase = await getSupabaseServer();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { success: false, error: "Unauthorized" };
 
-    // อัปเดต membership
+    const now   = new Date().toISOString();
+    const today = getLocalToday();
+
     const { error: memberErr } = await supabase
       .from("onsite_session_members")
       .update({
-        checkout_type:      "early",
-        early_checkout_at:  now,
+        checkout_type:       "early",
+        early_checkout_at:   now,
         early_checkout_note: note.trim() || null,
       })
       .eq("session_id", sessionId)
-      .eq("user_id", userId)
-      .eq("checkout_type", "pending"); // ป้องกัน double-checkout
+      .eq("user_id", user.id)
+      .eq("checkout_type", "pending");
 
     if (memberErr) return { success: false, error: memberErr.message };
 
-    // อัปเดต daily_time_logs ของ member คนนี้
-    const earlyEvent: OnsiteTimelineEvent = {
-      event:      "onsite_early_leave",
-      timestamp:  now,
-      session_id: sessionId,
-      note:       note.trim() || null,
-    };
-    const checkoutEvent: OnsiteTimelineEvent = {
-      event:         "onsite_checkout",
-      timestamp:     now,
-      session_id:    sessionId,
-      checkout_type: "early",
-    };
-
-    const { data: existing } = await supabase
+    const { data: existingRows } = await supabase
       .from("daily_time_logs")
       .select("timeline_events")
-      .eq("user_id", userId)
+      .eq("user_id", user.id)
       .eq("log_date", today)
-      .maybeSingle();
+      .limit(1);
 
-    const timeline = [...(existing?.timeline_events ?? []), earlyEvent, checkoutEvent];
+    const existing = existingRows && existingRows.length > 0 ? existingRows[0] : null;
+
+    const timeline = [
+      ...(existing?.timeline_events ?? []),
+      { event: "onsite_early_leave", timestamp: now, session_id: sessionId, note: note.trim() || null } as OnsiteTimelineEvent,
+      { event: "onsite_checkout", timestamp: now, session_id: sessionId, checkout_type: "early" } as OnsiteTimelineEvent,
+    ];
 
     await supabase
       .from("daily_time_logs")
       .update({ last_check_out: now, timeline_events: timeline })
-      .eq("user_id", userId)
+      .eq("user_id", user.id)
       .eq("log_date", today);
 
     return { success: true };
@@ -427,50 +419,36 @@ export async function earlyLeave(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 7. ดึงรายชื่อพนักงานทั้งหมด (สำหรับ Leader ค้นหาเพิ่ม Member)
-// ─────────────────────────────────────────────────────────────────────────────
-export async function getAllEmployees() {
-  const supabase = await getSupabase();
-  const userId   = await getCurrentUserId();
-
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("id, first_name, last_name, department, role")
-    .neq("id", userId)          // ไม่เอาตัวเอง (Leader เพิ่มเป็น role='leader' อัตโนมัติ)
-    .order("first_name", { ascending: true });
-
-  if (error) return { success: false as const, error: error.message };
-  return { success: true as const, data: data ?? [] };
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// 8. ดึงประวัติ Sessions (สำหรับหน้า History)
+// 7. ประวัติ Sessions
 // ─────────────────────────────────────────────────────────────────────────────
 export async function getSessionHistory(limit = 10) {
-  const supabase = await getSupabase();
-  const userId   = await getCurrentUserId();
+  try {
+    const supabase = await getSupabaseServer();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { success: false as const, error: "Unauthorized" };
 
-  const { data: membership } = await supabase
-    .from("onsite_session_members")
-    .select("session_id")
-    .eq("user_id", userId);
+    const { data: membership } = await supabase
+      .from("onsite_session_members")
+      .select("session_id")
+      .eq("user_id", user.id);
 
-  if (!membership || membership.length === 0) {
-    return { success: true as const, data: [] };
+    if (!membership || membership.length === 0) return { success: true as const, data: [] };
+
+    const { data, error } = await supabase
+      .from("onsite_sessions")
+      .select(`
+        id, site_name, session_date, status,
+        group_check_in, group_check_out, session_code,
+        project:projects ( project_no, name ),
+        members:onsite_session_members ( user_id, role, checkout_type )
+      `)
+      .in("id", membership.map((m) => m.session_id))
+      .order("session_date", { ascending: false })
+      .limit(limit);
+
+    if (error) return { success: false as const, error: error.message };
+    return { success: true as const, data: data ?? [] };
+  } catch (err) {
+    return { success: false as const, error: String(err) };
   }
-
-  const { data, error } = await supabase
-    .from("onsite_sessions")
-    .select(`
-      id, site_name, session_date, status,
-      group_check_in, group_check_out, session_code,
-      project:projects ( project_no, name ),
-      members:onsite_session_members ( user_id, role, checkout_type )
-    `)
-    .in("id", membership.map((m) => m.session_id))
-    .order("session_date", { ascending: false })
-    .limit(limit);
-
-  if (error) return { success: false as const, error: error.message };
-  return { success: true as const, data: data ?? [] };
 }

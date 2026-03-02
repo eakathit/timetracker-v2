@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import DailyReportForm from "@/components/DailyReportForm";
 import { supabase } from "@/lib/supabase";
-
+import { useRouter } from "next/navigation";
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface DashboardUIProps {
   userName?: string;
@@ -126,7 +126,7 @@ const elapsedStr = (isoStart: string | null): string => {
 
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
-
+  const router = useRouter(); 
   /* ── Clock ── */
   const [currentTime, setCurrentTime] = useState("");
 
@@ -609,12 +609,13 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
               </button>
             )}
             {onSiteRole === "leader" && (
-              <div className="space-y-3">
-                <input type="text" placeholder="Project Name / Project No." className="w-full p-3 border border-gray-300 rounded-xl outline-none focus:border-sky-400" />
-                <input type="text" placeholder="Location" className="w-full p-3 border border-gray-300 rounded-xl outline-none focus:border-sky-400" />
-                <button className="w-full bg-sky-500 text-white rounded-lg py-3 hover:bg-sky-600 transition-colors">Create Check-in Room</button>
-              </div>
-            )}
+  <button
+    onClick={() => router.push("/onsite/create")}
+    className="w-full bg-sky-500 text-white rounded-lg py-3 hover:bg-sky-600 transition-colors font-semibold"
+  >
+    Create Check-in Room →
+  </button>
+)}
           </div>
         )}
 
