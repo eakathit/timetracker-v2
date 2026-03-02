@@ -1,13 +1,13 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
-import LogoutButton from "@/components/LogoutButton";
 import DailyReportForm from "@/components/DailyReportForm";
 import { supabase } from "@/lib/supabase";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface DashboardUIProps {
-  userEmail: string | undefined;
+  userName?: string;
+  userEmail?: string;
   userId: string;
 }
 
@@ -350,7 +350,6 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
             {userEmail || "ผู้ใช้งาน"}
           </h2>
         </div>
-        <div><LogoutButton /></div>
       </div>
 
       {/* ── 2. ACTION BUTTON CARD ───────────────────────────────────────────── */}

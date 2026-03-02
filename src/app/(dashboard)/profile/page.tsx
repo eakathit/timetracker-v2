@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { createBrowserClient } from "@supabase/ssr";
-
+import LogoutButton from "@/components/LogoutButton";
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface DayLog {
   date: string; // "YYYY-MM-DD"
@@ -599,6 +599,7 @@ export default function ProfilePage() {
             <p className="text-lg font-extrabold text-sky-500">{reportRate}%</p>
             <p className="text-[10px] text-gray-400 font-medium">ส่ง Report</p>
           </div>
+
         </div>
       </div>
 
@@ -814,6 +815,10 @@ export default function ProfilePage() {
         )}
       </div>
 
+        <div className="mt-4 pt-4 border-t border-gray-50">
+              <LogoutButton />
+            </div>
+            
     </main>
   );
 }
