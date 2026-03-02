@@ -108,17 +108,26 @@ const BOTTOM_NAV: NavItem[] = [
     label: "Requests",
     labelTh: "คำขอ",
     href: "/requests",
-    // badge: 2, // ← เปิด badge เมื่อมีคำขอที่รออนุมัติ
     icon: Icons.requests.outline,
     iconFilled: Icons.requests.filled,
   },
   {
-    label: "Report",
-    labelTh: "รายงาน",
-    href: "/report",
-    icon: Icons.report.outline,
-    iconFilled: Icons.report.filled,
-  },
+  label:   "On-site",
+  labelTh: "On-site",
+  href:    "/onsite",
+  icon: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/>
+      <circle cx="12" cy="10" r="3"/>
+    </svg>
+  ),
+  iconFilled: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/>
+      <circle cx="12" cy="10" r="3"/>
+    </svg>
+  ),
+},
   {
     // ── CTA Center Button ──
     label: "Home",
