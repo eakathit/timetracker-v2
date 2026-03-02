@@ -19,7 +19,7 @@ interface DayLog {
   workType: "in_factory" | "on_site" | "mixed" | "leave" | "holiday" | null;
   status: "on_time" | "late" | "absent" | "holiday" | "leave";
   isReportSent: boolean;
-  otHours: number;
+  otHours: number;             // รวม OT จาก daily_time_logs + ot_requests ที่อนุมัติ
 }
 
 // Row จาก daily_time_logs
@@ -30,6 +30,14 @@ interface TimeLogRow {
   last_check_out: string | null;
   ot_hours: number;
   status: string;
+}
+
+// Row จาก ot_requests
+interface OTRequestRow {
+  request_date: string;
+  start_time: string;
+  end_time: string;
+  hours: number | null;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -47,7 +55,6 @@ const LEAVE_TYPE: Record<string, { label: string; color: string; bg: string }> =
   emergency: { label: "ลาฉุกเฉิน", color: "text-orange-600", bg: "bg-orange-50 border-orange-200" },
 };
 
-// ── แผนกสำหรับ Dropdown ───────────────────────────────────────────────────────
 const DEPARTMENTS = [
   "Mechanic",
   "HR",
@@ -56,7 +63,7 @@ const DEPARTMENTS = [
   "Accounting",
 ];
 
-// ── Mock Leave Quota (ยังไม่มีตาราง leave ใน DB) ─────────────────────────────
+// Mock leave quota (ยังไม่มีตาราง leave quota ใน DB)
 const LEAVE_QUOTA_MOCK = [
   { type: "sick",      used: 3, quota: 30, pending: 1 },
   { type: "annual",   used: 2, quota: 10, pending: 0 },
@@ -66,32 +73,42 @@ const LEAVE_QUOTA_MOCK = [
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 /** แปลง ISO timestamp → "HH:mm" ตาม local timezone */
-function toLocalHHMM(isoString: string | null): string | null {
-  if (!isoString) return null;
-  const d = new Date(isoString);
-  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+function fmtTime(iso: string | null): string {
+  if (!iso) return "-";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso.slice(0, 5);
+  return d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit", hour12: false });
 }
 
-/** หาช่วงวันแรก-วันสุดท้ายของเดือน */
 function getMonthRange(year: number, month: number) {
-  const start   = `${year}-${String(month + 1).padStart(2, "0")}-01`;
+  const start = `${year}-${String(month + 1).padStart(2, "0")}-01`;
   const lastDay = new Date(year, month + 1, 0).getDate();
-  const end     = `${year}-${String(month + 1).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+  const end = `${year}-${String(month + 1).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
   return { start, end };
 }
 
-/** แปลง work_type จาก DB → DayLog.workType */
-function mapWorkType(raw: string): DayLog["workType"] {
-  if (raw === "on_site") return "on_site";
-  if (raw === "mixed")   return "mixed";
-  return "in_factory";
+function classifyStatus(
+  checkIn: string | null,
+  timeLog: TimeLogRow | undefined,
+  isFuture: boolean,
+): DayLog["status"] {
+  if (timeLog?.status) {
+    const s = timeLog.status;
+    if (s === "on_time" || s === "late" || s === "absent" || s === "leave") return s;
+  }
+  if (!checkIn) return isFuture ? "absent" : "absent";
+  const [h, m] = fmtTime(checkIn).split(":").map(Number);
+  return h > 8 || (h === 8 && m > 15) ? "late" : "on_time";
 }
 
-/** คำนวณ status จากเวลา check-in (>08:00 = สาย) */
-function calcStatus(checkIn: string | null): "on_time" | "late" {
-  if (!checkIn) return "on_time";
-  const [h, m] = checkIn.split(":").map(Number);
-  return h > 8 || (h === 8 && m > 0) ? "late" : "on_time";
+/** คำนวณ OT hours จาก time string "HH:mm:ss" หรือ "HH:mm" */
+function calcOTHours(startTime: string, endTime: string): number {
+  const parseMinutes = (t: string) => {
+    const parts = t.split(":").map(Number);
+    return parts[0] * 60 + (parts[1] ?? 0);
+  };
+  const diff = parseMinutes(endTime) - parseMinutes(startTime);
+  return diff > 0 ? Math.round((diff / 60) * 10) / 10 : 0;
 }
 
 function pct(used: number, quota: number) {
@@ -270,7 +287,8 @@ function ReportCalendar({
               {isWork && (
                 <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 z-10 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
                   <div className="bg-gray-800 text-white text-[9px] font-bold px-2 py-1 rounded-lg whitespace-nowrap shadow-xl">
-                    {log.isReportSent ? "✓ ส่งแล้ว" : "✗ ยังไม่ส่ง"}
+                    {log.isReportSent ? "✅ ส่งแล้ว" : "❌ ยังไม่ส่ง"}
+                    <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
                   </div>
                 </div>
               )}
@@ -280,16 +298,12 @@ function ReportCalendar({
       </div>
       <div className="flex items-center gap-4 mt-3 pt-3 border-t border-gray-50">
         <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded bg-violet-100" />
+          <div className="w-2.5 h-2.5 rounded-md bg-violet-100 border border-violet-300" />
           <span className="text-[10px] text-gray-400 font-medium">ส่งแล้ว</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded bg-rose-50" />
+          <div className="w-2.5 h-2.5 rounded-md bg-rose-50 border border-rose-200" />
           <span className="text-[10px] text-gray-400 font-medium">ยังไม่ส่ง</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded bg-gray-50" />
-          <span className="text-[10px] text-gray-400 font-medium">วันหยุด/ลา</span>
         </div>
       </div>
     </div>
@@ -298,44 +312,42 @@ function ReportCalendar({
 
 // ─── List View ────────────────────────────────────────────────────────────────
 function ListView({ logs }: { logs: DayLog[] }) {
-  const workLogs = logs.filter(l => l.checkIn).slice().reverse();
-  if (!workLogs.length) {
-    return <p className="text-sm text-gray-400 text-center py-8">ไม่มีข้อมูลการทำงานในเดือนนี้</p>;
+  const workdays = logs.filter(l => l.status !== "holiday" && l.checkIn);
+  if (!workdays.length) {
+    return (
+      <div className="text-center py-8 text-gray-300">
+        <p className="text-sm">ไม่มีข้อมูลการมาทำงาน</p>
+      </div>
+    );
   }
   return (
-    <div className="divide-y divide-gray-50">
-      {workLogs.map(log => (
-        <div key={log.date} className="flex items-center gap-3 px-1 py-3 hover:bg-gray-50/50 transition-colors">
+    <div className="space-y-1.5">
+      {workdays.map(log => (
+        <div key={log.date} className="flex items-center gap-3 py-2 px-3 rounded-xl hover:bg-gray-50 transition-colors">
           <StatusDot status={log.status} />
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <p className="text-sm font-semibold text-gray-800">
-                {Number(log.date.split("-")[2])} {MONTHS_TH[Number(log.date.split("-")[1]) - 1].slice(0, 3)}
-              </p>
+            <p className="text-xs font-bold text-gray-700 truncate">
+              {new Date(log.date + "T00:00:00").toLocaleDateString("th-TH", {
+                weekday: "short", day: "numeric", month: "short",
+              })}
+            </p>
+            <p className="text-[10px] text-gray-400">
+              {log.checkIn ?? "-"} → {log.checkOut ?? "-"}
               {log.otHours > 0 && (
-                <span className="text-[10px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">
-                  OT +{log.otHours}h
-                </span>
+                <span className="ml-2 text-amber-500 font-bold">+{log.otHours}h OT</span>
               )}
-            </div>
-            <p className="text-xs text-gray-400">
-              {log.checkIn} – {log.checkOut ?? "ยังไม่ออก"}
             </p>
           </div>
-          <div className="flex items-center gap-1.5 flex-shrink-0">
-            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-              log.isReportSent
-                ? "text-sky-600 bg-sky-50 border-sky-200"
-                : "text-gray-400 bg-gray-50 border-gray-200"
-            }`}>
-              {log.isReportSent ? "✓ Report" : "— Report"}
-            </span>
-            {(log.workType === "on_site" || log.workType === "mixed") && (
-              <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-full">
-                {log.workType === "mixed" ? "Mixed" : "On-site"}
-              </span>
-            )}
-          </div>
+          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg ${
+            log.status === "on_time" ? "bg-emerald-50 text-emerald-600" :
+            log.status === "late"    ? "bg-amber-50  text-amber-600"   :
+            log.status === "leave"   ? "bg-violet-50 text-violet-600"  :
+            "bg-rose-50 text-rose-500"
+          }`}>
+            {log.status === "on_time" ? "ตรงเวลา" :
+             log.status === "late"    ? "สาย"     :
+             log.status === "leave"   ? "ลา"      : "ขาด"}
+          </span>
         </div>
       ))}
     </div>
@@ -344,83 +356,51 @@ function ListView({ logs }: { logs: DayLog[] }) {
 
 // ─── Leave Quota Section ──────────────────────────────────────────────────────
 function LeaveQuotaSection() {
-  const today      = new Date();
+  const BAR_COLORS = ["bg-rose-400", "bg-violet-400", "bg-amber-400", "bg-orange-400"];
   const totalUsed  = LEAVE_QUOTA_MOCK.reduce((s, i) => s + i.used, 0);
   const totalQuota = LEAVE_QUOTA_MOCK.reduce((s, i) => s + i.quota, 0);
+  const totalPct   = pct(totalUsed, totalQuota);
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-      <div className="flex items-center justify-between mb-5">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-500 flex items-center justify-center">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: 18, height: 18 }}>
-              <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-              <line x1="16" y1="2" x2="16" y2="6" />
-              <line x1="8" y1="2" x2="8" y2="6" />
-              <line x1="3" y1="10" x2="21" y2="10" />
-            </svg>
-          </div>
-          <div>
-            <h3 className="text-sm font-bold text-gray-700">โควต้าการลาประจำปี</h3>
-            <p className="text-xs text-gray-400">ปี {today.getFullYear() + 543} · ใช้ไปแล้ว {totalUsed} / {totalQuota} วัน</p>
-          </div>
-        </div>
-        <span className="text-xs font-extrabold text-emerald-600 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full">
-          เหลือ {totalQuota - totalUsed} วัน
-        </span>
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      <div className="px-5 py-4 border-b border-gray-50">
+        <h3 className="text-sm font-bold text-gray-700">🏖️ สิทธิ์วันลา</h3>
+        <p className="text-xs text-gray-400 mt-0.5">ใช้ไป {totalUsed} / {totalQuota} วัน ({totalPct}%)</p>
       </div>
-
-      <div className="grid grid-cols-2 gap-3">
+      <div className="p-5 space-y-4">
         {LEAVE_QUOTA_MOCK.map((item, i) => {
-          const cfg       = LEAVE_TYPE[item.type];
-          const remaining = item.quota - item.used;
-          const barColors = ["bg-rose-400", "bg-violet-400", "bg-amber-400", "bg-orange-400"];
+          const cfg = LEAVE_TYPE[item.type];
+          const w   = pct(item.used, item.quota);
           return (
-            <div key={item.type} className={`p-4 rounded-xl border ${cfg.bg}`}>
-              <div className="flex items-center justify-between mb-2">
-                <span className={`text-[11px] font-bold ${cfg.color}`}>{cfg.label}</span>
-                <span className={`text-xs font-extrabold ${cfg.color}`}>{item.used}/{item.quota}</span>
-              </div>
-              <div className="w-full h-2 bg-white/60 rounded-full overflow-hidden mb-2">
-                <div
-                  className={`h-full rounded-full transition-all duration-700 ${barColors[i]}`}
-                  style={{ width: `${pct(item.used, item.quota)}%` }}
-                />
-              </div>
-              <div className="flex items-center justify-between">
-                <span className={`text-[10px] font-medium ${cfg.color} opacity-70`}>เหลือ {remaining} วัน</span>
-                {item.pending > 0 && (
-                  <span className="text-[10px] font-bold text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded-full">
-                    รออนุมัติ {item.pending}
+            <div key={item.type}>
+              <div className="flex justify-between items-center mb-1.5">
+                <span className={`text-xs font-bold ${cfg.color}`}>{cfg.label}</span>
+                <div className="flex items-center gap-2">
+                  {item.pending > 0 && (
+                    <span className="text-[10px] bg-amber-50 text-amber-600 border border-amber-200 px-1.5 py-0.5 rounded-full font-bold">
+                      รอ {item.pending}
+                    </span>
+                  )}
+                  <span className="text-[10px] text-gray-400 font-medium">
+                    {item.used}/{item.quota} วัน
                   </span>
-                )}
+                </div>
+              </div>
+              <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full ${BAR_COLORS[i]} transition-all duration-700`}
+                  style={{ width: `${w}%` }}
+                />
               </div>
             </div>
           );
         })}
-      </div>
-
-      {/* Summary bar */}
-      <div className="mt-4 pt-4 border-t border-gray-50">
-        <div className="flex items-center justify-between mb-1.5">
-          <span className="text-xs font-medium text-gray-400">ภาพรวมการใช้วันลา</span>
-          <span className="text-xs font-bold text-gray-600">{pct(totalUsed, totalQuota)}%</span>
-        </div>
-        <div className="w-full h-2.5 bg-gray-100 rounded-full overflow-hidden flex">
-          {LEAVE_QUOTA_MOCK.map((item, i) => {
-            const w = (item.used / totalQuota) * 100;
-            if (!w) return null;
-            const colors = ["bg-rose-400", "bg-violet-400", "bg-amber-400", "bg-orange-400"];
-            return <div key={item.type} className={`h-full ${colors[i]} transition-all duration-700`} style={{ width: `${w}%` }} />;
-          })}
-        </div>
         <div className="flex items-center gap-3 mt-2 flex-wrap">
           {LEAVE_QUOTA_MOCK.map((item, i) => {
-            const cfg    = LEAVE_TYPE[item.type];
-            const colors = ["bg-rose-400", "bg-violet-400", "bg-amber-400", "bg-orange-400"];
+            const cfg = LEAVE_TYPE[item.type];
             return (
               <div key={item.type} className="flex items-center gap-1">
-                <div className={`w-2 h-2 rounded-full ${colors[i]}`} />
+                <div className={`w-2 h-2 rounded-full ${BAR_COLORS[i]}`} />
                 <span className="text-[10px] text-gray-400">{cfg.label}</span>
               </div>
             );
@@ -442,12 +422,12 @@ export default function ProfilePage() {
   const [activeTab, setActiveTab] = useState<"calendar" | "list">("calendar");
 
   // ── Profile state ─────────────────────────────────────────────────────────────
-  const [isEditing,    setIsEditing]    = useState(false);
-  const [profileForm,  setProfileForm]  = useState({ firstName: "", lastName: "", department: "" });
-  const [userId,       setUserId]       = useState<string | null>(null);
-  const [userEmail,    setUserEmail]    = useState<string>("");
+  const [isEditing,      setIsEditing]      = useState(false);
+  const [profileForm,    setProfileForm]    = useState({ firstName: "", lastName: "", department: "" });
+  const [userId,         setUserId]         = useState<string | null>(null);
+  const [userEmail,      setUserEmail]      = useState<string>("");
   const [profileLoading, setProfileLoading] = useState(true);
-  const [isSaving,     setIsSaving]    = useState(false);
+  const [isSaving,       setIsSaving]       = useState(false);
 
   // ── Calendar / logs state ─────────────────────────────────────────────────────
   const [logs,        setLogs]        = useState<DayLog[]>([]);
@@ -477,8 +457,8 @@ export default function ProfilePage() {
     })();
   }, []);
 
-  // ─── 2. โหลดข้อมูลประจำเดือน ───────────────────────────────────────────────
-  // ดึง 3 ตารางพร้อมกัน: daily_time_logs, holidays, daily_reports
+  // ─── 2. โหลดข้อมูลประจำเดือน ────────────────────────────────────────────────
+  // ดึง 4 ตารางพร้อมกัน: daily_time_logs, holidays, daily_reports, ot_requests
   const fetchMonthLogs = useCallback(async () => {
     if (!userId) return;
     setLogsLoading(true);
@@ -487,7 +467,7 @@ export default function ProfilePage() {
     const todayStr = today.toISOString().split("T")[0];
 
     try {
-      const [timeRes, holidayRes, reportRes] = await Promise.all([
+      const [timeRes, holidayRes, reportRes, otReqRes] = await Promise.all([
         // ── time logs ของ user เดือนนี้
         supabase
           .from("daily_time_logs")
@@ -496,7 +476,7 @@ export default function ProfilePage() {
           .gte("log_date", start)
           .lte("log_date", end),
 
-        // ── วันหยุดทั้งเดือน (เหมือน Calendar page)
+        // ── วันหยุดทั้งเดือน
         supabase
           .from("holidays")
           .select("holiday_date")
@@ -510,6 +490,15 @@ export default function ProfilePage() {
           .eq("user_id", userId)
           .gte("report_date", start)
           .lte("report_date", end),
+
+        // ── [NEW] OT requests ที่ได้รับการอนุมัติแล้ว
+        supabase
+          .from("ot_requests")
+          .select("request_date, start_time, end_time, hours")
+          .eq("user_id", userId)
+          .eq("status", "approved")
+          .gte("request_date", start)
+          .lte("request_date", end),
       ]);
 
       // Build lookup maps
@@ -518,6 +507,16 @@ export default function ProfilePage() {
 
       const holidaySet = new Set<string>((holidayRes.data ?? []).map(h => h.holiday_date));
       const reportSet  = new Set<string>((reportRes.data ?? []).map(r => r.report_date));
+
+      // [NEW] สร้าง map: request_date -> approved OT hours รวม
+      const otRequestMap: Record<string, number> = {};
+      ((otReqRes.data ?? []) as OTRequestRow[]).forEach(r => {
+        // ถ้า column hours มีค่าให้ใช้เลย ถ้าไม่มีให้คำนวณจาก start_time/end_time
+        const h = (r.hours != null && r.hours > 0)
+          ? r.hours
+          : calcOTHours(r.start_time, r.end_time);
+        otRequestMap[r.request_date] = (otRequestMap[r.request_date] ?? 0) + h;
+      });
 
       // สร้าง DayLog ครบทุกวันในเดือน
       const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
@@ -529,39 +528,62 @@ export default function ProfilePage() {
         const isWeekend = dow === 0 || dow === 6;
         const isHoliday = holidaySet.has(dateStr);
         const timeLog   = timeLogMap[dateStr];
+        const isFuture  = dateStr > todayStr;
 
         // วันหยุด / เสาร์-อาทิตย์
         if (isWeekend || isHoliday) {
           result.push({
             date: dateStr, checkIn: null, checkOut: null,
             workType: isHoliday ? "holiday" : null,
-            status: "holiday", isReportSent: false, otHours: 0,
+            status: "holiday",
+            isReportSent: false,
+            otHours: 0,
           });
           continue;
         }
 
-        // มี time log = มาทำงาน
-        if (timeLog) {
-          const checkIn  = toLocalHHMM(timeLog.first_check_in);
-          const checkOut = toLocalHHMM(timeLog.last_check_out);
+        // วันทำงานปกติ
+        const checkIn  = timeLog?.first_check_in  ? fmtTime(timeLog.first_check_in)  : null;
+        const checkOut = timeLog?.last_check_out   ? fmtTime(timeLog.last_check_out)  : null;
+
+        // [NEW] รวม OT จาก daily_time_logs และ ot_requests ที่อนุมัติ
+        const otFromLog = timeLog?.ot_hours ?? 0;
+        const otFromReq = otRequestMap[dateStr] ?? 0;
+        // ใช้ค่าสูงสุดระหว่างสองแหล่ง (กรณี trigger ยัง sync ไม่ได้)
+        const combinedOT = Math.max(otFromLog, otFromReq);
+
+        if (timeLog?.status === "leave") {
           result.push({
-            date: dateStr,
-            checkIn,
-            checkOut,
-            workType:     mapWorkType(timeLog.work_type),
-            status:       calcStatus(checkIn),
+            date: dateStr, checkIn: null, checkOut: null,
+            workType: "leave",
+            status: "leave",
             isReportSent: reportSet.has(dateStr),
-            otHours:      Number(timeLog.ot_hours) || 0,
+            otHours: 0,
           });
           continue;
         }
 
-        // ไม่มี log: วันในอนาคตไม่ตัดสิน, วันที่ผ่านมา = ขาด
+        if (!checkIn && !isFuture) {
+          result.push({
+            date: dateStr, checkIn: null, checkOut: null,
+            workType: null,
+            status: "absent",
+            isReportSent: false,
+            otHours: 0,
+          });
+          continue;
+        }
+
+        if (isFuture && !checkIn) continue;
+
         result.push({
-          date: dateStr, checkIn: null, checkOut: null,
-          workType: null,
-          status: dateStr <= todayStr ? "absent" : "absent",
-          isReportSent: false, otHours: 0,
+          date: dateStr,
+          checkIn,
+          checkOut,
+          workType: timeLog?.work_type as DayLog["workType"] ?? null,
+          status: classifyStatus(timeLog?.first_check_in ?? null, timeLog, isFuture),
+          isReportSent: reportSet.has(dateStr),
+          otHours: combinedOT,
         });
       }
 
@@ -610,12 +632,8 @@ export default function ProfilePage() {
   };
 
   // ─── Derived Stats ────────────────────────────────────────────────────────────
-  const workdays    = useMemo(() =>
-    logs.filter(l => l.status !== "holiday"),
-  [logs]);
-  const presentDays = useMemo(() =>
-    logs.filter(l => l.status === "on_time" || l.status === "late"),
-  [logs]);
+  const workdays    = useMemo(() => logs.filter(l => l.status !== "holiday"), [logs]);
+  const presentDays = useMemo(() => logs.filter(l => l.status === "on_time" || l.status === "late"), [logs]);
   const reportSent  = useMemo(() => logs.filter(l => l.isReportSent), [logs]);
   const reportTotal = useMemo(() =>
     logs.filter(l => l.checkIn !== null && l.status !== "leave" && l.status !== "holiday"),
@@ -667,6 +685,34 @@ export default function ProfilePage() {
                 </div>
                 <span className="absolute bottom-0 right-0 w-4 h-4 bg-emerald-400 rounded-full border-2 border-white" />
               </div>
+              {!isEditing ? (
+                <button
+                  onClick={() => setIsEditing(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-gray-200 text-xs font-bold text-gray-500 hover:border-sky-300 hover:text-sky-600 hover:bg-sky-50 transition-all"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                    <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+                    <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                  </svg>
+                  แก้ไข
+                </button>
+              ) : (
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setIsEditing(false)}
+                    className="px-3 py-1.5 rounded-xl border border-gray-200 text-xs font-bold text-gray-500 hover:bg-gray-50 transition-all"
+                  >
+                    ยกเลิก
+                  </button>
+                  <button
+                    onClick={handleSaveProfile}
+                    disabled={isSaving}
+                    className="px-3 py-1.5 rounded-xl bg-sky-500 text-white text-xs font-bold hover:bg-sky-600 transition-all disabled:opacity-60 shadow-sm"
+                  >
+                    {isSaving ? "กำลังบันทึก..." : "บันทึก"}
+                  </button>
+                </div>
+              )}
             </div>
 
             <div className="mt-4">
@@ -676,100 +722,86 @@ export default function ProfilePage() {
                   <div className="h-3 w-24 bg-gray-100 rounded-lg" />
                 </div>
               ) : isEditing ? (
-                // ── Edit Form ──────────────────────────────────────────────────
-                <div className="space-y-3 mt-4 w-full md:w-2/3 lg:w-1/2">
-                  <input
-                    type="text"
-                    placeholder="ชื่อจริง"
-                    className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm outline-none focus:border-sky-400"
-                    value={profileForm.firstName}
-                    onChange={e => setProfileForm({ ...profileForm, firstName: e.target.value })}
-                  />
-                  <input
-                    type="text"
-                    placeholder="นามสกุล"
-                    className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm outline-none focus:border-sky-400"
-                    value={profileForm.lastName}
-                    onChange={e => setProfileForm({ ...profileForm, lastName: e.target.value })}
-                  />
-                  {/* Department Dropdown */}
-                  <div className="relative">
-                    <select
-                      className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm outline-none focus:border-sky-400 bg-white appearance-none pr-9 text-gray-700"
-                      value={profileForm.department}
-                      onChange={e => setProfileForm({ ...profileForm, department: e.target.value })}
-                    >
-                      <option value="" disabled>-- เลือกแผนก --</option>
-                      {DEPARTMENTS.map(dept => (
-                        <option key={dept} value={dept}>{dept}</option>
-                      ))}
-                    </select>
-                    <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-gray-400">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ width: 14, height: 14 }}>
-                        <polyline points="6 9 12 15 18 9" />
-                      </svg>
+                <div className="space-y-3 mt-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">ชื่อ</label>
+                      <input
+                        type="text"
+                        value={profileForm.firstName}
+                        onChange={e => setProfileForm(p => ({ ...p, firstName: e.target.value }))}
+                        className="mt-1 w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-800 focus:outline-none focus:ring-2 focus:ring-sky-300 focus:border-sky-400 transition-all"
+                        placeholder="ชื่อ"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">นามสกุล</label>
+                      <input
+                        type="text"
+                        value={profileForm.lastName}
+                        onChange={e => setProfileForm(p => ({ ...p, lastName: e.target.value }))}
+                        className="mt-1 w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-800 focus:outline-none focus:ring-2 focus:ring-sky-300 focus:border-sky-400 transition-all"
+                        placeholder="นามสกุล"
+                      />
                     </div>
                   </div>
-                  <div className="flex gap-2 pt-2">
-                    <button
-                      onClick={handleSaveProfile}
-                      disabled={isSaving}
-                      className="px-5 py-2 bg-sky-500 text-white text-sm font-bold rounded-xl hover:bg-sky-600 transition-colors shadow-sm disabled:opacity-50 flex items-center gap-2"
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">แผนก</label>
+                    <select
+                      value={profileForm.department}
+                      onChange={e => setProfileForm(p => ({ ...p, department: e.target.value }))}
+                      className="mt-1 w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-800 focus:outline-none focus:ring-2 focus:ring-sky-300 focus:border-sky-400 transition-all"
                     >
-                      {isSaving && (
-                        <span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                      )}
-                      บันทึกการแก้ไข
-                    </button>
-                    <button
-                      onClick={() => setIsEditing(false)}
-                      disabled={isSaving}
-                      className="px-5 py-2 bg-gray-100 text-gray-600 text-sm font-bold rounded-xl hover:bg-gray-200 transition-colors disabled:opacity-50"
-                    >
-                      ยกเลิก
-                    </button>
+                      <option value="">เลือกแผนก</option>
+                      {DEPARTMENTS.map(d => (
+                        <option key={d} value={d}>{d}</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
               ) : (
-                // ── View Mode ─────────────────────────────────────────────────
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h2 className="text-xl font-extrabold text-gray-800 leading-tight">
-                      {(profileForm.firstName || profileForm.lastName)
-                        ? `${profileForm.firstName} ${profileForm.lastName}`.trim()
-                        : "ยังไม่ได้ตั้งชื่อ"}
-                    </h2>
-                    <p className="text-sm text-gray-400 mt-0.5">{profileForm.department || "ยังไม่ระบุแผนก"}</p>
-                    <p className="text-xs text-gray-300 mt-0.5">{userEmail}</p>
-                  </div>
-                  <button
-                    onClick={() => setIsEditing(true)}
-                    className="text-xs font-bold text-sky-600 bg-sky-50 px-4 py-2 rounded-xl border border-sky-100 hover:bg-sky-100 transition-colors"
-                  >
-                    แก้ไขโปรไฟล์
-                  </button>
+                <div className="mt-2">
+                  <h2 className="text-xl font-extrabold text-gray-800">
+                    {profileForm.firstName || profileForm.lastName
+                      ? `${profileForm.firstName} ${profileForm.lastName}`.trim()
+                      : "ยังไม่ได้ตั้งชื่อ"}
+                  </h2>
+                  <p className="text-sm text-gray-400 mt-0.5">
+                    {profileForm.department || "ยังไม่ได้ระบุแผนก"} · {userEmail}
+                  </p>
                 </div>
               )}
             </div>
+          </div>
+        </div>
 
-            {/* Quick stats strip */}
-            <div className="mt-5 grid grid-cols-3 gap-3 pt-4 border-t border-gray-50">
-              <div className="text-center">
-                <p className="text-lg font-extrabold text-gray-800">{totalLeaveRemaining}</p>
-                <p className="text-[10px] text-gray-400 font-medium">วันลาคงเหลือ</p>
-              </div>
-              <div className="text-center border-x border-gray-100">
-                <p className="text-lg font-extrabold text-amber-500">
-                  {logsLoading ? "..." : otTotal.toFixed(1)}
-                </p>
-                <p className="text-[10px] text-gray-400 font-medium">OT เดือนนี้ (h)</p>
-              </div>
-              <div className="text-center">
-                <p className="text-lg font-extrabold text-sky-500">
-                  {logsLoading ? "..." : `${reportRate}%`}
-                </p>
-                <p className="text-[10px] text-gray-400 font-medium">ส่ง Report</p>
-              </div>
+        {/* ── Quick Stats Strip ── */}
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+          <div className="grid grid-cols-4 divide-x divide-gray-100">
+            <div className="text-center px-2">
+              <p className="text-lg font-extrabold text-emerald-500">
+                {logsLoading ? "..." : String(presentDays.length)}
+              </p>
+              <p className="text-[10px] text-gray-400 font-medium">วันที่มา</p>
+            </div>
+            <div className="text-center px-2">
+              <p className="text-lg font-extrabold text-amber-500">
+                {logsLoading ? "..." : avgCheckIn}
+              </p>
+              <p className="text-[10px] text-gray-400 font-medium">เข้าเฉลี่ย</p>
+            </div>
+            <div className="text-center px-2">
+              {/* OT total รวมจาก ot_requests ที่อนุมัติ + daily_time_logs */}
+              <p className="text-lg font-extrabold text-amber-600">
+                {logsLoading ? "..." : otTotal.toFixed(1)}
+              </p>
+              <p className="text-[10px] text-gray-400 font-medium">OT เดือนนี้ (h)</p>
+            </div>
+            <div className="text-center px-2">
+              <p className="text-lg font-extrabold text-sky-500">
+                {logsLoading ? "..." : `${reportRate}%`}
+              </p>
+              <p className="text-[10px] text-gray-400 font-medium">ส่ง Report</p>
             </div>
           </div>
         </div>
@@ -782,7 +814,10 @@ export default function ProfilePage() {
 
             {/* Month Navigator */}
             <div className="flex items-center justify-between bg-white rounded-2xl border border-gray-100 shadow-sm px-4 py-3">
-              <button onClick={prevMonth} className="w-9 h-9 rounded-xl hover:bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-700 transition-colors">
+              <button
+                onClick={prevMonth}
+                className="w-9 h-9 rounded-xl hover:bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-700 transition-colors"
+              >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4">
                   <polyline points="15 18 9 12 15 6" />
                 </svg>
@@ -814,38 +849,40 @@ export default function ProfilePage() {
                 icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: 20, height: 20 }}><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>}
                 label="วันที่มาทำงาน"
                 value={logsLoading ? "..." : String(presentDays.length)}
-                sub={logsLoading ? undefined : `จาก ${workdays.filter(l => l.status !== "leave").length} วัน`}
-                accent="bg-sky-50 text-sky-500"
-              />
-              <StatCard
-                icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: 20, height: 20 }}><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>}
-                label="เฉลี่ย Check-in"
-                value={logsLoading ? "..." : avgCheckIn}
+                sub={logsLoading ? "" : `จาก ${workdays.filter(l => l.status !== "leave").length} วันทำงาน`}
                 accent="bg-emerald-50 text-emerald-500"
               />
               <StatCard
-                icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: 20, height: 20 }}><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>}
-                label="ส่ง Daily Report"
-                value={logsLoading ? "..." : `${reportSent.length}/${reportTotal.length}`}
-                sub={logsLoading ? undefined : `${reportRate}% ของเดือน`}
-                accent="bg-violet-50 text-violet-500"
+                icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: 20, height: 20 }}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>}
+                label="เข้างานเฉลี่ย"
+                value={logsLoading ? "..." : avgCheckIn}
+                sub="เวลาเฉลี่ย"
+                accent="bg-sky-50 text-sky-500"
               />
               <StatCard
-                icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: 20, height: 20 }}><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/><path d="M17 3.5L21 7"/></svg>}
-                label="OT เดือนนี้"
+                icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: 20, height: 20 }}><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>}
+                label="ชั่วโมง OT"
                 value={logsLoading ? "..." : `${otTotal.toFixed(1)}h`}
+                sub="รวมที่อนุมัติแล้ว"
                 accent="bg-amber-50 text-amber-500"
+              />
+              <StatCard
+                icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: 20, height: 20 }}><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>}
+                label="สิทธิ์ลาคงเหลือ"
+                value={logsLoading ? "..." : `${totalLeaveRemaining} วัน`}
+                sub="จากโควต้าทั้งหมด"
+                accent="bg-violet-50 text-violet-500"
               />
             </div>
 
-            {/* Calendar / List Tabs */}
+            {/* Calendar / List */}
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-              <div className="flex border-b border-gray-100">
+              <div className="flex border-b border-gray-50">
                 {(["calendar", "list"] as const).map(tab => (
                   <button
                     key={tab}
                     onClick={() => setActiveTab(tab)}
-                    className={`flex-1 py-3 text-sm font-bold transition-all border-b-2 ${
+                    className={`flex-1 py-3.5 text-xs font-bold border-b-2 transition-all ${
                       activeTab === tab
                         ? "text-sky-600 border-sky-400 bg-sky-50/50"
                         : "text-gray-400 border-transparent hover:bg-gray-50"

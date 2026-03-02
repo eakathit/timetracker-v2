@@ -115,7 +115,7 @@ const Icons = {
 ),
 };
 
-// ─── Nav config (เพิ่มเมนูได้ตรงนี้เลย) ──────────────────────────────────────
+// ─── Nav config 
 const NAV_GROUPS: NavGroup[] = [
   {
     groupLabel: "Overview",

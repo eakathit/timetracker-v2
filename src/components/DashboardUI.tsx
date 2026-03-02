@@ -19,6 +19,43 @@ type WorkStatus =
   | "ot_working"
   | "ot_completed";
 
+  type DayType = "workday" | "working_sat" | "weekend" | "holiday";
+
+interface DayInfo {
+  dayType: DayType;
+  payMultiplier: number;
+  holidayName: string | null;
+}
+
+async function getDayInfo(dateStr: string): Promise<DayInfo> {
+  const dow = new Date(dateStr).getDay(); // 0=อาทิตย์, 6=เสาร์
+
+  // Query holidays table ก่อน
+  const { data: holiday } = await supabase
+    .from("holidays")
+    .select("name, holiday_type")
+    .eq("holiday_date", dateStr)
+    .maybeSingle();
+
+  if (holiday) {
+    if (holiday.holiday_type === "working_sat") {
+      // เสาร์ทำงาน → ถือเป็นวันทำงานปกติ (1.0x)
+      return { dayType: "working_sat", payMultiplier: 1.0, holidayName: holiday.name };
+    }
+    // national / company / special → วันหยุด (2.0x)
+    return { dayType: "holiday", payMultiplier: 2.0, holidayName: holiday.name };
+  }
+
+  // ไม่มีใน holidays table
+  if (dow === 0 || dow === 6) {
+    // เสาร์/อาทิตย์ปกติ → 2.0x
+    return { dayType: "weekend", payMultiplier: 2.0, holidayName: null };
+  }
+
+  // วันทำงานปกติ จ–ศ → 1.0x
+  return { dayType: "workday", payMultiplier: 1.0, holidayName: null };
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const getLocalToday = () => {
   const d = new Date();
@@ -261,37 +298,55 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
 
   // ── Handlers ──────────────────────────────────────────────────────────────
   const handleCheckIn = async () => {
-    if (!userId || !validateLocation()) return;
-    setIsSubmitting(true);
-    const now   = new Date().toISOString();
-    const today = getLocalToday();
-    const newEvent = {
-      event: workType === "in_factory" ? "arrive_factory" : "arrive_site",
-      timestamp: now,
-      work_type: workType,
-    };
-    const { data: existing } = await supabase
-      .from("daily_time_logs")
-      .select("timeline_events, first_check_in")
-      .eq("user_id", userId).eq("log_date", today).maybeSingle();
+  if (!userId || !validateLocation()) return;
+  setIsSubmitting(true);
 
-    if (existing) {
-      await supabase.from("daily_time_logs")
-        .update({ timeline_events: [...existing.timeline_events, newEvent] })
-        .eq("user_id", userId).eq("log_date", today);
-      setRawCheckIn(existing.first_check_in || now);
-    } else {
-      await supabase.from("daily_time_logs").insert([{
-        user_id: userId, log_date: today, work_type: workType,
-        first_check_in: now, timeline_events: [newEvent],
-      }]);
-      setRawCheckIn(now);
-    }
-    setWorkStatus("working");
-    setIsSubmitting(false);
-    // เมื่อเช็คอินเสร็จ ให้แสดง Popup Daily Report
-    setShowReportPopup(true);
+  const now   = new Date().toISOString();
+  const today = getLocalToday();
+
+  // ── ใหม่: ดึงข้อมูลวันว่าเป็นวันอะไร ──
+  const { dayType, payMultiplier, holidayName } = await getDayInfo(today);
+
+  const newEvent = {
+    event:     workType === "in_factory" ? "arrive_factory" : "arrive_site",
+    timestamp: now,
+    work_type: workType,
   };
+
+  const { data: existing } = await supabase
+    .from("daily_time_logs")
+    .select("timeline_events, first_check_in")
+    .eq("user_id", userId)
+    .eq("log_date", today)
+    .maybeSingle();
+
+  if (existing) {
+    // row มีอยู่แล้ว (check-in ซ้ำในวันเดิม) → แค่เพิ่ม event
+    await supabase
+      .from("daily_time_logs")
+      .update({ timeline_events: [...existing.timeline_events, newEvent] })
+      .eq("user_id", userId)
+      .eq("log_date", today);
+    setRawCheckIn(existing.first_check_in || now);
+  } else {
+    // สร้าง row ใหม่ → ใส่ day_type, pay_multiplier, holiday_name ด้วย
+    await supabase.from("daily_time_logs").insert([{
+      user_id:        userId,
+      log_date:       today,
+      work_type:      workType,
+      first_check_in: now,
+      timeline_events: [newEvent],
+      day_type:       dayType,        // ← ใหม่
+      pay_multiplier: payMultiplier,  // ← ใหม่
+      holiday_name:   holidayName,    // ← ใหม่ (null ถ้าไม่ใช่วันหยุด)
+    }]);
+    setRawCheckIn(now);
+  }
+
+  setWorkStatus("working");
+  setIsSubmitting(false);
+  setShowReportPopup(true);
+};
 
   const handleCheckOut = async () => {
     if (!userId || !validateLocation()) return;
