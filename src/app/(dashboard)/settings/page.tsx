@@ -745,7 +745,7 @@ function ReportManagementSection() {
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-50">
           <div>
             <h3 className="text-sm font-bold text-gray-700">ประเภทงาน (Detail)</h3>
-            <p className="text-xs text-gray-400 mt-0.5">แสดงใน dropdown หน้า My Report · {details.filter((d) => d.active).length}/{details.length} เปิดอยู่</p>
+            <p className="text-xs text-gray-400 mt-0.5">แสดงใน dropdown หน้า Report · {details.filter((d) => d.active).length}/{details.length} เปิดอยู่</p>
           </div>
           <span className="text-xs font-bold text-sky-500 bg-sky-50 px-2.5 py-1 rounded-full">{details.filter((d) => d.active).length} รายการ</span>
         </div>
@@ -878,9 +878,7 @@ function ReportManagementSection() {
 // ─── Holidays Section (ย้ายออกมาอยู่นอกสุด) ────────────────────────────────────────────────────────────
 function HolidaysSection() {
   const HOLIDAY_TYPES = [
-    { value: "national", label: "วันหยุดนักขัตฤกษ์", color: "text-rose-600 bg-rose-50 border-rose-200" },
-    { value: "company", label: "วันหยุดบริษัท", color: "text-orange-600 bg-orange-50 border-orange-200" },
-    { value: "special", label: "วันพิเศษ", color: "text-purple-600 bg-purple-50 border-purple-200" },
+    { value: "national", label: "วันหยุด", color: "text-rose-600 bg-rose-50 border-rose-200" },
     { value: "working_sat", label: "เสาร์ทำงาน", color: "text-sky-600 bg-sky-50 border-sky-200" },
   ];
 
