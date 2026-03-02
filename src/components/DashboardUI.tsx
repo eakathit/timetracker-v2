@@ -99,7 +99,7 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
   const [isInitializing, setIsInitializing] = useState(true);
   const [showReportPopup, setShowReportPopup] = useState(false);
 
-  const [checkInTime, setCheckInTime] = useState<string>("-");   // ← เพิ่ม
+  const [checkInTime, setCheckInTime] = useState<string>("-");   
   const [checkOutTime, setCheckOutTime] = useState<string>("-");
   /* ── Regular times ── */
   const [rawCheckIn,  setRawCheckIn]  = useState<string | null>(null);
