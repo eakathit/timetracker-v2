@@ -9,7 +9,6 @@ const withSerwist = withSerwistInit({
 });
 
 const nextConfig: NextConfig = {
-  // เพิ่มบรรทัดนี้: บอก Next.js ว่าเราตั้งใจใช้ Webpack config (ผ่าน Serwist)
 
 };
 
