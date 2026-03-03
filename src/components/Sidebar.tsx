@@ -80,6 +80,12 @@ const Icons = {
       <path d="M13.73 21a2 2 0 01-3.46 0" />
     </svg>
   ),
+  location: (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/>
+    <circle cx="12" cy="10" r="3"/>
+  </svg>
+),
   settings: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="12" cy="12" r="3" />
@@ -120,11 +126,12 @@ const NAV_GROUPS: NavGroup[] = [
   {
     groupLabel: "Overview",
     items: [
-      { label: "Time Attendance", labelTh: "ลงเวลา", href: "/", icon: Icons.ot },
-      { label: "Requests", labelTh: "คำขอ", href: "/requests", icon: Icons.requests },
-      { label: "Report", labelTh: "รายการ", href: "/report", icon: Icons.chartBar },
-      { label: "Calendar", labelTh: "ปฏิทิน", href: "/calendar", icon: Icons.calendar },
-      { label: "Profile", labelTh: "โปรไฟล์", href: "/profile", icon: Icons.user },
+      { label: "Time Attendance", labelTh: "ลงเวลา",  href: "/",         icon: Icons.ot },
+      { label: "On-site",         labelTh: "On-site",  href: "/onsite",   icon: Icons.location }, // ← เพิ่ม
+      { label: "Requests",        labelTh: "คำขอ",     href: "/requests", icon: Icons.requests },
+      { label: "Report",          labelTh: "รายการ",   href: "/report",   icon: Icons.chartBar },
+      { label: "Calendar",        labelTh: "ปฏิทิน",   href: "/calendar", icon: Icons.calendar }, // ← ยังอยู่
+      { label: "Profile",         labelTh: "โปรไฟล์",  href: "/profile",  icon: Icons.user },
     ],
   },
   {
