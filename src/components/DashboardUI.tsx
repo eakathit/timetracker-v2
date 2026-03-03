@@ -240,16 +240,25 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
 
           // 💡 2. อัปเดตสถานะของปุ่ม (workStatus) ให้ถูกต้องครอบคลุมกรณี OT ด้วย
           const lastEvent = data.timeline_events[data.timeline_events.length - 1];
-          
-          if (lastEvent.event === "ot_end") {
-            setWorkStatus("ot_completed");
-          } else if (lastEvent.event === "ot_start") {
-            setWorkStatus("ot_working");
-          } else if (lastEvent.event === "checkout") {
-            setWorkStatus("completed");
-          } else {
-            setWorkStatus("working");
-          }
+
+if (lastEvent.event === "ot_end") {
+  setWorkStatus("ot_completed");
+} else if (lastEvent.event === "ot_start") {
+  setWorkStatus("ot_working");
+} else if (
+  lastEvent.event === "checkout" ||
+  lastEvent.event === "onsite_checkout"
+) {
+  setWorkStatus("completed");
+} else if (
+  lastEvent.event === "arrive_factory" ||
+  lastEvent.event === "arrive_site"    ||
+  lastEvent.event === "onsite_checkin"
+) {
+  setWorkStatus("working");
+} else {
+  setWorkStatus("working");
+}
         } else {
           setWorkStatus("idle");
         }
