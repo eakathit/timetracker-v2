@@ -214,6 +214,14 @@ export async function getTodayActiveSession(): Promise<
   }
 }
 
+// Halper: คำนวณ status จากเวลา check-in (เหมือน factory)
+function calcAttendanceStatus(checkInIso: string): "on_time" | "late" {
+  const checkIn = new Date(checkInIso);
+  const lateThreshold = new Date(checkIn);
+  lateThreshold.setHours(8, 30, 0, 0); // กำหนดเวลาเริ่มงาน 08:30
+  return checkIn > lateThreshold ? "late" : "on_time";
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 4. Group Check-in
 // ─────────────────────────────────────────────────────────────────────────────
@@ -226,7 +234,6 @@ export async function groupCheckIn(sessionId: string): Promise<ActionResult> {
     const now   = new Date().toISOString();
     const today = getLocalToday();
 
-    // ดึง session
     const { data: sessions, error: sessionErr } = await supabase
       .from("onsite_sessions")
       .select("id, status, site_name, members:onsite_session_members(user_id)")
@@ -238,11 +245,14 @@ export async function groupCheckIn(sessionId: string): Promise<ActionResult> {
       return { success: false, error: "ไม่พบ Session หรือคุณไม่ใช่ Leader" };
     }
     const session = sessions[0];
-    if (session.status !== "open") return { success: false, error: "Session นี้ Check-in ไปแล้ว" };
+    if (session.status !== "open") {
+      return { success: false, error: "Session นี้ Check-in ไปแล้ว" };
+    }
 
-    const memberUserIds = (session.members as { user_id: string }[]).map((m) => m.user_id);
+    const memberUserIds = (session.members as { user_id: string }[]).map(
+      (m) => m.user_id
+    );
 
-    // อัปเดต session status
     const { error: updateErr } = await supabase
       .from("onsite_sessions")
       .update({ status: "checked_in", group_check_in: now })
@@ -250,10 +260,12 @@ export async function groupCheckIn(sessionId: string): Promise<ActionResult> {
 
     if (updateErr) return { success: false, error: updateErr.message };
 
-    // Upsert daily_time_logs ทุก member
     const newEvent: OnsiteTimelineEvent = {
-      event: "onsite_checkin", timestamp: now,
-      session_id: sessionId, site_name: session.site_name, synced_from: "leader",
+      event:       "onsite_checkin",
+      timestamp:   now,
+      session_id:  sessionId,
+      site_name:   session.site_name,
+      synced_from: "leader",
     };
 
     const { data: existingLogs } = await supabase
@@ -266,6 +278,9 @@ export async function groupCheckIn(sessionId: string): Promise<ActionResult> {
       (existingLogs ?? []).map((l) => [l.user_id, l.timeline_events ?? []])
     );
 
+    // ✅ คำนวณ attendance status ที่ถูกต้อง
+    const attendanceStatus = calcAttendanceStatus(now);
+
     const { error: upsertErr } = await supabase
       .from("daily_time_logs")
       .upsert(
@@ -276,7 +291,7 @@ export async function groupCheckIn(sessionId: string): Promise<ActionResult> {
           first_check_in:    now,
           onsite_session_id: sessionId,
           timeline_events:   [...(existingMap.get(uid) ?? []), newEvent],
-          status:            "active",
+          status:            attendanceStatus, // ✅ "on_time" | "late" แทน "active"
         })),
         { onConflict: "user_id,log_date" }
       );
@@ -355,6 +370,7 @@ export async function groupCheckOut(sessionId: string): Promise<ActionResult> {
             work_type:       "on_site",
             last_check_out:  now,
             timeline_events: [...(existingMap.get(uid) ?? []), checkoutEvent],
+            status:          "completed",
           })),
           { onConflict: "user_id,log_date" }
         );
@@ -407,10 +423,14 @@ export async function earlyLeave(sessionId: string, note: string): Promise<Actio
     ];
 
     await supabase
-      .from("daily_time_logs")
-      .update({ last_check_out: now, timeline_events: timeline })
-      .eq("user_id", user.id)
-      .eq("log_date", today);
+  .from("daily_time_logs")
+  .update({
+    last_check_out: now,
+    timeline_events: timeline,
+    status: "completed", // ✅ เพิ่ม
+  })
+  .eq("user_id", user.id)
+  .eq("log_date", today);
 
     return { success: true };
   } catch (err) {

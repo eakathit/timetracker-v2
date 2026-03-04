@@ -19,7 +19,7 @@ type WorkStatus =
   | "ot_working"
   | "ot_completed";
 
-  type DayType = "workday" | "working_sat" | "weekend" | "holiday";
+type DayType = "workday" | "working_sat" | "weekend" | "holiday";
 
 interface DayInfo {
   dayType: DayType;
@@ -40,10 +40,18 @@ async function getDayInfo(dateStr: string): Promise<DayInfo> {
   if (holiday) {
     if (holiday.holiday_type === "working_sat") {
       // เสาร์ทำงาน → ถือเป็นวันทำงานปกติ (1.0x)
-      return { dayType: "working_sat", payMultiplier: 1.0, holidayName: holiday.name };
+      return {
+        dayType: "working_sat",
+        payMultiplier: 1.0,
+        holidayName: holiday.name,
+      };
     }
     // national / company / special → วันหยุด (2.0x)
-    return { dayType: "holiday", payMultiplier: 2.0, holidayName: holiday.name };
+    return {
+      dayType: "holiday",
+      payMultiplier: 2.0,
+      holidayName: holiday.name,
+    };
   }
 
   // ไม่มีใน holidays table
@@ -64,14 +72,22 @@ const getLocalToday = () => {
 
 const fmtTime = (iso: string | null) =>
   iso
-    ? new Date(iso).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })
+    ? new Date(iso).toLocaleTimeString("th-TH", {
+        hour: "2-digit",
+        minute: "2-digit",
+      })
     : "-";
 
 const FACTORY_LAT = 13.625;
 const FACTORY_LNG = 101.025;
 const ALLOWED_RADIUS_METERS = 100;
 
-const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+const calculateDistance = (
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number,
+) => {
   const R = 6371e3;
   const p1 = (lat1 * Math.PI) / 180;
   const p2 = (lat2 * Math.PI) / 180;
@@ -85,22 +101,24 @@ const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: numbe
 // คำนวณชั่วโมงทำงานปกติ (หักพัก 12:00-13:00, จำกัด 08:30-17:30)
 const calculateWorkTime = (inTime: string | null, outTime: string | null) => {
   if (!inTime || !outTime) return { normal: 0 };
-  const checkIn  = new Date(inTime);
+  const checkIn = new Date(inTime);
   const checkOut = new Date(outTime);
   const fix = (h: number, m: number) => {
-    const d = new Date(checkIn); d.setHours(h, m, 0, 0); return d;
+    const d = new Date(checkIn);
+    d.setHours(h, m, 0, 0);
+    return d;
   };
-  const workStart  = fix(8, 30);
-  const workEnd    = fix(17, 30);
+  const workStart = fix(8, 30);
+  const workEnd = fix(17, 30);
   const breakStart = fix(12, 0);
-  const breakEnd   = fix(13, 0);
-  const effStart = checkIn  > workStart ? checkIn  : workStart;
-  const effEnd   = checkOut < workEnd   ? checkOut : workEnd;
+  const breakEnd = fix(13, 0);
+  const effStart = checkIn > workStart ? checkIn : workStart;
+  const effEnd = checkOut < workEnd ? checkOut : workEnd;
   let normalHours = 0;
   if (effEnd > effStart) {
     let ms = effEnd.getTime() - effStart.getTime();
     const bStart = effStart > breakStart ? effStart : breakStart;
-    const bEnd   = effEnd   < breakEnd   ? effEnd   : breakEnd;
+    const bEnd = effEnd < breakEnd ? effEnd : breakEnd;
     if (bEnd > bStart) ms -= bEnd.getTime() - bStart.getTime();
     normalHours = ms / 3_600_000;
   }
@@ -110,14 +128,18 @@ const calculateWorkTime = (inTime: string | null, outTime: string | null) => {
 // คำนวณ OT (หน่วย 30 นาที ปัดลง)
 const calcOtHours = (otStart: string | null, otEnd: string | null): number => {
   if (!otStart || !otEnd) return 0;
-  const mins = (new Date(otEnd).getTime() - new Date(otStart).getTime()) / 60_000;
+  const mins =
+    (new Date(otEnd).getTime() - new Date(otStart).getTime()) / 60_000;
   return Math.floor(mins / 30) * 0.5;
 };
 
 // นับเวลาผ่านไปแบบ live
 const elapsedStr = (isoStart: string | null): string => {
   if (!isoStart) return "00:00:00";
-  const diff = Math.max(0, Math.floor((Date.now() - new Date(isoStart).getTime()) / 1000));
+  const diff = Math.max(
+    0,
+    Math.floor((Date.now() - new Date(isoStart).getTime()) / 1000),
+  );
   const h = Math.floor(diff / 3600);
   const m = Math.floor((diff % 3600) / 60);
   const s = diff % 60;
@@ -126,30 +148,32 @@ const elapsedStr = (isoStart: string | null): string => {
 
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
-  const router = useRouter(); 
+  const router = useRouter();
   /* ── Clock ── */
   const [currentTime, setCurrentTime] = useState("");
 
   /* ── Status ── */
-  const [workStatus, setWorkStatus]     = useState<WorkStatus>("loading");
+  const [workStatus, setWorkStatus] = useState<WorkStatus>("loading");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
   const [showReportPopup, setShowReportPopup] = useState(false);
 
-  const [checkInTime, setCheckInTime] = useState<string>("-");   
+  const [checkInTime, setCheckInTime] = useState<string>("-");
   const [checkOutTime, setCheckOutTime] = useState<string>("-");
   /* ── Regular times ── */
-  const [rawCheckIn,  setRawCheckIn]  = useState<string | null>(null);
+  const [rawCheckIn, setRawCheckIn] = useState<string | null>(null);
   const [rawCheckOut, setRawCheckOut] = useState<string | null>(null);
 
   /* ── OT times ── */
   const [rawOtStart, setRawOtStart] = useState<string | null>(null);
-  const [rawOtEnd,   setRawOtEnd]   = useState<string | null>(null);
-  const [otElapsed,  setOtElapsed]  = useState("00:00:00");
+  const [rawOtEnd, setRawOtEnd] = useState<string | null>(null);
+  const [otElapsed, setOtElapsed] = useState("00:00:00");
 
   /* ── Work-type / location ── */
-  const [workType,    setWorkType]    = useState<"in_factory" | "on_site">("in_factory");
-  const [onSiteRole,  setOnSiteRole]  = useState<"member" | "leader">("member");
+  const [workType, setWorkType] = useState<"in_factory" | "on_site">(
+    "in_factory",
+  );
+  const [onSiteRole, setOnSiteRole] = useState<"member" | "leader">("member");
   const [locationStatus, setLocationStatus] = useState<
     "checking" | "in_range" | "out_of_range" | "error"
   >("checking");
@@ -158,11 +182,11 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
   /* ── Derived ── */
   const workSummary = useMemo(
     () => calculateWorkTime(rawCheckIn, rawCheckOut),
-    [rawCheckIn, rawCheckOut]
+    [rawCheckIn, rawCheckOut],
   );
   const otHours = useMemo(
     () => calcOtHours(rawOtStart, rawOtEnd),
-    [rawOtStart, rawOtEnd]
+    [rawOtStart, rawOtEnd],
   );
 
   // ── Clock tick ────────────────────────────────────────────────────────────
@@ -192,7 +216,12 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
     }
     const watchId = navigator.geolocation.watchPosition(
       ({ coords: { latitude, longitude } }) => {
-        const dist = calculateDistance(FACTORY_LAT, FACTORY_LNG, latitude, longitude);
+        const dist = calculateDistance(
+          FACTORY_LAT,
+          FACTORY_LNG,
+          latitude,
+          longitude,
+        );
         if (dist <= ALLOWED_RADIUS_METERS) {
           setLocationStatus("in_range");
           setDistanceText(`อยู่ในพื้นที่โรงงาน (${Math.round(dist)} ม.)`);
@@ -201,76 +230,98 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
           setDistanceText(`อยู่นอกพื้นที่โรงงาน (${Math.round(dist)} ม.)`);
         }
       },
-      () => { setLocationStatus("error"); setDistanceText("ไม่สามารถระบุตำแหน่งได้"); },
-      { enableHighAccuracy: true, maximumAge: 10000, timeout: 10000 }
+      () => {
+        setLocationStatus("error");
+        setDistanceText("ไม่สามารถระบุตำแหน่งได้");
+      },
+      { enableHighAccuracy: true, maximumAge: 10000, timeout: 10000 },
     );
     return () => navigator.geolocation.clearWatch(watchId);
   }, [workType]);
 
   // ── Fetch today's log ─────────────────────────────────────────────────────
- useEffect(() => {
-    const fetchTodayStatus = async () => {
-      if (!userId) return;
-      const today = getLocalToday();
+  // ── Fetch today's log ─────────────────────────────────────────────────────
+useEffect(() => {
+  const fetchTodayStatus = async () => {
+    if (!userId) return;
+    const today = getLocalToday();
 
-      const { data } = await supabase
-        .from("daily_time_logs")
-        .select("timeline_events, first_check_in, last_check_out")
-        .eq("user_id", userId)
-        .eq("log_date", today)
-        .single();
+    const { data } = await supabase
+      .from("daily_time_logs")
+      // ✅ เพิ่ม work_type ใน select
+      .select("timeline_events, first_check_in, last_check_out, work_type")
+      .eq("user_id", userId)
+      .eq("log_date", today)
+      .single();
 
-      if (data) {
-        if (data.first_check_in) {
-          setRawCheckIn(data.first_check_in);
-          setCheckInTime(new Date(data.first_check_in).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }));
-        }
-        if (data.last_check_out) {
-          setRawCheckOut(data.last_check_out);
-          setCheckOutTime(new Date(data.last_check_out).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }));
-        }
+    if (data) {
+      // ✅ Restore workType จาก DB
+      if (data.work_type === "on_site") {
+        setWorkType("on_site");
+      }
 
-        if (data.timeline_events && data.timeline_events.length > 0) {
-          // 💡 1. ค้นหาข้อมูล OT จากใน JSON Array
-          const otStartEvent = data.timeline_events.find((e: any) => e.event === "ot_start");
-          const otEndEvent = data.timeline_events.find((e: any) => e.event === "ot_end");
+      if (data.first_check_in) {
+        setRawCheckIn(data.first_check_in);
+        setCheckInTime(
+          new Date(data.first_check_in).toLocaleTimeString("th-TH", {
+            hour: "2-digit",
+            minute: "2-digit",
+          })
+        );
+      }
+      if (data.last_check_out) {
+        setRawCheckOut(data.last_check_out);
+        setCheckOutTime(
+          new Date(data.last_check_out).toLocaleTimeString("th-TH", {
+            hour: "2-digit",
+            minute: "2-digit",
+          })
+        );
+      }
 
-          if (otStartEvent) setRawOtStart(otStartEvent.timestamp);
-          if (otEndEvent) setRawOtEnd(otEndEvent.timestamp);
+      if (data.timeline_events && data.timeline_events.length > 0) {
+        const otStartEvent = data.timeline_events.find(
+          (e: any) => e.event === "ot_start"
+        );
+        const otEndEvent = data.timeline_events.find(
+          (e: any) => e.event === "ot_end"
+        );
+        if (otStartEvent) setRawOtStart(otStartEvent.timestamp);
+        if (otEndEvent) setRawOtEnd(otEndEvent.timestamp);
 
-          // 💡 2. อัปเดตสถานะของปุ่ม (workStatus) ให้ถูกต้องครอบคลุมกรณี OT ด้วย
-          const lastEvent = data.timeline_events[data.timeline_events.length - 1];
+        const lastEvent =
+          data.timeline_events[data.timeline_events.length - 1];
 
-if (lastEvent.event === "ot_end") {
-  setWorkStatus("ot_completed");
-} else if (lastEvent.event === "ot_start") {
-  setWorkStatus("ot_working");
-} else if (
-  lastEvent.event === "checkout" ||
-  lastEvent.event === "onsite_checkout"
-) {
-  setWorkStatus("completed");
-} else if (
-  lastEvent.event === "arrive_factory" ||
-  lastEvent.event === "arrive_site"    ||
-  lastEvent.event === "onsite_checkin"
-) {
-  setWorkStatus("working");
-} else {
-  setWorkStatus("working");
-}
+        if (lastEvent.event === "ot_end") {
+          setWorkStatus("ot_completed");
+        } else if (lastEvent.event === "ot_start") {
+          setWorkStatus("ot_working");
+        } else if (
+          lastEvent.event === "checkout" ||
+          lastEvent.event === "onsite_checkout"
+        ) {
+          setWorkStatus("completed");
+        } else if (
+          lastEvent.event === "arrive_factory" ||
+          lastEvent.event === "arrive_site" ||
+          lastEvent.event === "onsite_checkin"
+        ) {
+          setWorkStatus("working");
         } else {
-          setWorkStatus("idle");
+          setWorkStatus("working");
         }
       } else {
         setWorkStatus("idle");
       }
+    } else {
+      setWorkStatus("idle");
+    }
 
-      setIsInitializing(false);
-    };
+    setIsInitializing(false);
+  };
 
-    fetchTodayStatus();
-  }, [userId]);
+  fetchTodayStatus();
+}, [userId]);
 
   // ── Location guard ────────────────────────────────────────────────────────
   const validateLocation = useCallback((): boolean => {
@@ -280,7 +331,9 @@ if (lastEvent.event === "ot_end") {
       return false;
     }
     if (locationStatus !== "in_range") {
-      alert("ไม่สามารถ Check-in / Check-out ได้ เนื่องจากคุณอยู่นอกพื้นที่โรงงาน");
+      alert(
+        "ไม่สามารถ Check-in / Check-out ได้ เนื่องจากคุณอยู่นอกพื้นที่โรงงาน",
+      );
       return false;
     }
     return true;
@@ -289,7 +342,7 @@ if (lastEvent.event === "ot_end") {
   // ── Push event helper ─────────────────────────────────────────────────────
   const pushEvent = async (
     newEvent: Record<string, unknown>,
-    extraUpdate?: Record<string, unknown>
+    extraUpdate?: Record<string, unknown>,
   ) => {
     const { data } = await supabase
       .from("daily_time_logs")
@@ -307,55 +360,57 @@ if (lastEvent.event === "ot_end") {
 
   // ── Handlers ──────────────────────────────────────────────────────────────
   const handleCheckIn = async () => {
-  if (!userId || !validateLocation()) return;
-  setIsSubmitting(true);
+    if (!userId || !validateLocation()) return;
+    setIsSubmitting(true);
 
-  const now   = new Date().toISOString();
-  const today = getLocalToday();
+    const now = new Date().toISOString();
+    const today = getLocalToday();
 
-  // ── ใหม่: ดึงข้อมูลวันว่าเป็นวันอะไร ──
-  const { dayType, payMultiplier, holidayName } = await getDayInfo(today);
+    // ── ใหม่: ดึงข้อมูลวันว่าเป็นวันอะไร ──
+    const { dayType, payMultiplier, holidayName } = await getDayInfo(today);
 
-  const newEvent = {
-    event:     workType === "in_factory" ? "arrive_factory" : "arrive_site",
-    timestamp: now,
-    work_type: workType,
-  };
+    const newEvent = {
+      event: workType === "in_factory" ? "arrive_factory" : "arrive_site",
+      timestamp: now,
+      work_type: workType,
+    };
 
-  const { data: existing } = await supabase
-    .from("daily_time_logs")
-    .select("timeline_events, first_check_in")
-    .eq("user_id", userId)
-    .eq("log_date", today)
-    .maybeSingle();
-
-  if (existing) {
-    // row มีอยู่แล้ว (check-in ซ้ำในวันเดิม) → แค่เพิ่ม event
-    await supabase
+    const { data: existing } = await supabase
       .from("daily_time_logs")
-      .update({ timeline_events: [...existing.timeline_events, newEvent] })
+      .select("timeline_events, first_check_in")
       .eq("user_id", userId)
-      .eq("log_date", today);
-    setRawCheckIn(existing.first_check_in || now);
-  } else {
-    // สร้าง row ใหม่ → ใส่ day_type, pay_multiplier, holiday_name ด้วย
-    await supabase.from("daily_time_logs").insert([{
-      user_id:        userId,
-      log_date:       today,
-      work_type:      workType,
-      first_check_in: now,
-      timeline_events: [newEvent],
-      day_type:       dayType,        // ← ใหม่
-      pay_multiplier: payMultiplier,  // ← ใหม่
-      holiday_name:   holidayName,    // ← ใหม่ (null ถ้าไม่ใช่วันหยุด)
-    }]);
-    setRawCheckIn(now);
-  }
+      .eq("log_date", today)
+      .maybeSingle();
 
-  setWorkStatus("working");
-  setIsSubmitting(false);
-  setShowReportPopup(true);
-};
+    if (existing) {
+      // row มีอยู่แล้ว (check-in ซ้ำในวันเดิม) → แค่เพิ่ม event
+      await supabase
+        .from("daily_time_logs")
+        .update({ timeline_events: [...existing.timeline_events, newEvent] })
+        .eq("user_id", userId)
+        .eq("log_date", today);
+      setRawCheckIn(existing.first_check_in || now);
+    } else {
+      // สร้าง row ใหม่ → ใส่ day_type, pay_multiplier, holiday_name ด้วย
+      await supabase.from("daily_time_logs").insert([
+        {
+          user_id: userId,
+          log_date: today,
+          work_type: workType,
+          first_check_in: now,
+          timeline_events: [newEvent],
+          day_type: dayType, // ← ใหม่
+          pay_multiplier: payMultiplier, // ← ใหม่
+          holiday_name: holidayName, // ← ใหม่ (null ถ้าไม่ใช่วันหยุด)
+        },
+      ]);
+      setRawCheckIn(now);
+    }
+
+    setWorkStatus("working");
+    setIsSubmitting(false);
+    setShowReportPopup(true);
+  };
 
   const handleCheckOut = async () => {
     if (!userId || !validateLocation()) return;
@@ -363,9 +418,12 @@ if (lastEvent.event === "ot_end") {
     const now = new Date().toISOString();
     const { error } = await pushEvent(
       { event: "checkout", timestamp: now, note: "เลิกงาน" },
-      { last_check_out: now, status: "completed" }
+      { last_check_out: now, status: "completed" },
     );
-    if (!error) { setRawCheckOut(now); setWorkStatus("completed"); }
+    if (!error) {
+      setRawCheckOut(now);
+      setWorkStatus("completed");
+    }
     setIsSubmitting(false);
   };
 
@@ -374,7 +432,11 @@ if (lastEvent.event === "ot_end") {
     setIsSubmitting(true);
     const now = new Date().toISOString();
     const { error } = await pushEvent({ event: "ot_start", timestamp: now });
-    if (!error) { setRawOtStart(now); setOtElapsed("00:00:00"); setWorkStatus("ot_working"); }
+    if (!error) {
+      setRawOtStart(now);
+      setOtElapsed("00:00:00");
+      setWorkStatus("ot_working");
+    }
     setIsSubmitting(false);
   };
 
@@ -385,18 +447,36 @@ if (lastEvent.event === "ot_end") {
     const hrs = calcOtHours(rawOtStart, now);
     const { error } = await pushEvent(
       { event: "ot_end", timestamp: now },
-      { ot_hours: hrs }
+      { ot_hours: hrs },
     );
-    if (!error) { setRawOtEnd(now); setWorkStatus("ot_completed"); }
+    if (!error) {
+      setRawOtEnd(now);
+      setWorkStatus("ot_completed");
+    }
     setIsSubmitting(false);
   };
 
   // ── Shared spinner ────────────────────────────────────────────────────────
   const Spinner = () => (
     <>
-      <svg className="animate-spin h-12 w-12 text-white mb-2" fill="none" viewBox="0 0 24 24">
-        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+      <svg
+        className="animate-spin h-12 w-12 text-white mb-2"
+        fill="none"
+        viewBox="0 0 24 24"
+      >
+        <circle
+          className="opacity-25"
+          cx="12"
+          cy="12"
+          r="10"
+          stroke="currentColor"
+          strokeWidth="4"
+        />
+        <path
+          className="opacity-75"
+          fill="currentColor"
+          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+        />
       </svg>
       <span className="text-xl font-semibold mt-2">กำลังบันทึก...</span>
     </>
@@ -405,7 +485,6 @@ if (lastEvent.event === "ot_end") {
   // ══════════════════════════════════════════════════════════════════════════
   return (
     <main className="p-4 md:p-6 pb-24 space-y-6 w-full">
-
       {/* ── 1. HEADER ──────────────────────────────────────────────────────── */}
       <div className="flex justify-between items-center relative gap-4">
         <div className="overflow-hidden">
@@ -430,56 +509,103 @@ if (lastEvent.event === "ot_end") {
 
         {/* IDLE → Check In */}
         {workStatus === "idle" && (
-  <button
-    onClick={handleCheckIn}
-    disabled={isSubmitting || isInitializing}   // ← เพิ่ม isInitializing
-    className={`w-48 h-48 rounded-full flex flex-col items-center justify-center mx-auto shadow-lg transition-all duration-300
-      ${isSubmitting
-        ? "bg-sky-400 text-white opacity-80 cursor-wait"
-        : isInitializing
-          ? "bg-sky-300 text-white cursor-wait"  // ← สีอ่อนกว่า ระหว่าง sync
-          : "bg-sky-400 text-white hover:bg-sky-500 checkin-btn-anim"
+          <button
+            onClick={handleCheckIn}
+            disabled={isSubmitting || isInitializing} // ← เพิ่ม isInitializing
+            className={`w-48 h-48 rounded-full flex flex-col items-center justify-center mx-auto shadow-lg transition-all duration-300
+      ${
+        isSubmitting
+          ? "bg-sky-400 text-white opacity-80 cursor-wait"
+          : isInitializing
+            ? "bg-sky-300 text-white cursor-wait" // ← สีอ่อนกว่า ระหว่าง sync
+            : "bg-sky-400 text-white hover:bg-sky-500 checkin-btn-anim"
       }
     `}
-  >
-    {isSubmitting ? (
-      <>
-        <svg className="animate-spin h-12 w-12 text-white mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-        </svg>
-        <span className="text-xl font-semibold mt-2">กำลังบันทึก...</span>
-      </>
-    ) : (
-      <>
-        <svg className="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-        </svg>
-        <span className="text-2xl font-semibold mt-2">Check In</span>
-      </>
-    )}
-  </button>
-)}
+          >
+            {isSubmitting ? (
+              <>
+                <svg
+                  className="animate-spin h-12 w-12 text-white mb-2"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  />
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  />
+                </svg>
+                <span className="text-xl font-semibold mt-2">
+                  กำลังบันทึก...
+                </span>
+              </>
+            ) : (
+              <>
+                <svg
+                  className="w-16 h-16"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                  />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                  />
+                </svg>
+                <span className="text-2xl font-semibold mt-2">Check In</span>
+              </>
+            )}
+          </button>
+        )}
 
         {/* WORKING → Check Out */}
         {workStatus === "working" && (
-  <button
-    onClick={handleCheckOut}
-    disabled={isSubmitting || isInitializing}   // ← เพิ่ม isInitializing
-    className={`w-48 h-48 rounded-full flex flex-col items-center justify-center mx-auto shadow-lg transition-all duration-300
-      ${isSubmitting
-        ? "bg-rose-400 text-white opacity-80 cursor-wait"
-        : isInitializing
-          ? "bg-rose-300 text-white cursor-wait"   // ← สีอ่อนกว่า ระหว่าง sync
-          : "bg-rose-400 text-white hover:bg-rose-500 active:scale-95"
+          <button
+            onClick={handleCheckOut}
+            disabled={isSubmitting || isInitializing} // ← เพิ่ม isInitializing
+            className={`w-48 h-48 rounded-full flex flex-col items-center justify-center mx-auto shadow-lg transition-all duration-300
+      ${
+        isSubmitting
+          ? "bg-rose-400 text-white opacity-80 cursor-wait"
+          : isInitializing
+            ? "bg-rose-300 text-white cursor-wait" // ← สีอ่อนกว่า ระหว่าง sync
+            : "bg-rose-400 text-white hover:bg-rose-500 active:scale-95"
       }
     `}
-  >
-            {isSubmitting ? <Spinner /> : (
+          >
+            {isSubmitting ? (
+              <Spinner />
+            ) : (
               <>
-                <svg className="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                <svg
+                  className="w-16 h-16"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+                  />
                 </svg>
                 <span className="text-2xl font-semibold mt-2">Check Out</span>
               </>
@@ -492,8 +618,18 @@ if (lastEvent.event === "ot_end") {
           <div className="animate-fade-in flex flex-col items-center">
             {/* Same circle style as others */}
             <div className="w-48 h-48 bg-emerald-500 text-white rounded-full flex flex-col items-center justify-center shadow-lg mx-auto">
-              <svg className="w-16 h-16 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
+              <svg
+                className="w-16 h-16 mb-1"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2.5"
+                  d="M5 13l4 4L19 7"
+                />
               </svg>
               <span className="text-2xl font-bold mt-1">Complete</span>
             </div>
@@ -502,7 +638,9 @@ if (lastEvent.event === "ot_end") {
             <div className="w-full mt-6 space-y-2">
               <div className="flex items-center gap-3">
                 <div className="flex-1 h-px bg-gray-100" />
-                <span className="text-xs font-semibold text-gray-400 uppercase tracking-widest whitespace-nowrap">Overtime</span>
+                <span className="text-xs font-semibold text-gray-400 uppercase tracking-widest whitespace-nowrap">
+                  Overtime
+                </span>
                 <div className="flex-1 h-px bg-gray-100" />
               </div>
               <button
@@ -510,13 +648,46 @@ if (lastEvent.event === "ot_end") {
                 disabled={isSubmitting}
                 className="w-full max-w-xs mx-auto flex items-center justify-center gap-2 py-3 border-2 border-amber-400 text-amber-600 rounded-xl font-semibold hover:bg-amber-400 hover:text-white transition-all duration-200 disabled:opacity-60 disabled:cursor-wait"
               >
-                {isSubmitting
-                  ? <svg className="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-                  : <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" strokeWidth="2"/><polyline points="12 7 12 12 15 14" strokeWidth="2.5" strokeLinecap="round"/></svg>
-                }
+                {isSubmitting ? (
+                  <svg
+                    className="animate-spin w-5 h-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                    />
+                  </svg>
+                ) : (
+                  <svg
+                    className="w-5 h-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle cx="12" cy="12" r="9" strokeWidth="2" />
+                    <polyline
+                      points="12 7 12 12 15 14"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                )}
                 <span>Start OT</span>
               </button>
-              <p className="text-xs text-gray-400 text-center">OT จะถูกนับเป็นหน่วย 30 นาที</p>
+              <p className="text-xs text-gray-400 text-center">
+                OT จะถูกนับเป็นหน่วย 30 นาที
+              </p>
             </div>
           </div>
         )}
@@ -527,8 +698,12 @@ if (lastEvent.event === "ot_end") {
             {/* Live OT elapsed badge */}
             <div className="inline-flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2 mb-4">
               <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-              <span className="font-bold text-amber-700 tabular-nums tracking-wider">{otElapsed}</span>
-              <span className="text-xs text-amber-500 font-medium">OT Elapsed</span>
+              <span className="font-bold text-amber-700 tabular-nums tracking-wider">
+                {otElapsed}
+              </span>
+              <span className="text-xs text-amber-500 font-medium">
+                OT Elapsed
+              </span>
             </div>
 
             {/* Circular End OT button */}
@@ -536,15 +711,32 @@ if (lastEvent.event === "ot_end") {
               onClick={handleEndOT}
               disabled={isSubmitting}
               className={`w-48 h-48 rounded-full flex flex-col items-center justify-center mx-auto shadow-lg transition-all duration-300
-                ${isSubmitting
-                  ? "bg-amber-400 text-white opacity-80 cursor-wait"
-                  : "bg-amber-400 text-white hover:bg-amber-500 ot-btn-anim"}`}
+                ${
+                  isSubmitting
+                    ? "bg-amber-400 text-white opacity-80 cursor-wait"
+                    : "bg-amber-400 text-white hover:bg-amber-500 ot-btn-anim"
+                }`}
             >
-              {isSubmitting ? <Spinner /> : (
+              {isSubmitting ? (
+                <Spinner />
+              ) : (
                 <>
-                  <svg className="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg
+                    className="w-16 h-16"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
                     <circle cx="12" cy="12" r="9" strokeWidth="2" />
-                    <rect x="9" y="9" width="6" height="6" rx="1" fill="currentColor" opacity="0.85" />
+                    <rect
+                      x="9"
+                      y="9"
+                      width="6"
+                      height="6"
+                      rx="1"
+                      fill="currentColor"
+                      opacity="0.85"
+                    />
                   </svg>
                   <span className="text-2xl font-semibold mt-2">End OT</span>
                 </>
@@ -558,13 +750,24 @@ if (lastEvent.event === "ot_end") {
         {workStatus === "ot_completed" && (
           <div className="animate-fade-in flex flex-col items-center">
             <div className="w-48 h-48 bg-amber-400 text-white rounded-full flex flex-col items-center justify-center shadow-lg mx-auto">
-              <svg className="w-16 h-16 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
+              <svg
+                className="w-16 h-16 mb-1"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2.5"
+                  d="M5 13l4 4L19 7"
+                />
               </svg>
               <span className="text-xl font-bold mt-1">OT Complete</span>
             </div>
             <p className="text-gray-500 text-sm mt-4">
-              OT วันนี้ <span className="font-bold text-amber-600">{otHours} ชม.</span>
+              OT วันนี้{" "}
+              <span className="font-bold text-amber-600">{otHours} ชม.</span>
             </p>
           </div>
         )}
@@ -592,39 +795,63 @@ if (lastEvent.event === "ot_end") {
         {/* On-site role options */}
         {workType === "on_site" && (
           <div className="pt-4 border-t border-gray-100 space-y-4 animate-fade-in">
-            <h3 className="font-semibold text-center mb-2 text-gray-700">Select Your Role</h3>
+            <h3 className="font-semibold text-center mb-2 text-gray-700">
+              Select Your Role
+            </h3>
             <div className="flex gap-3">
               {(["member", "leader"] as const).map((r) => (
                 <button
                   key={r}
                   onClick={() => setOnSiteRole(r)}
                   className={`flex-1 py-3 border-2 rounded-xl font-bold transition-all text-sm
-                    ${onSiteRole === r
-                      ? "border-sky-500 text-sky-600 bg-sky-50"
-                      : "border-gray-300 text-gray-500 bg-white"}`}
+                    ${
+                      onSiteRole === r
+                        ? "border-sky-500 text-sky-600 bg-sky-50"
+                        : "border-gray-300 text-gray-500 bg-white"
+                    }`}
                 >
-                  {r === "member"
-                    ? <>Scan QR<br /><span className="text-xs font-normal">(Member)</span></>
-                    : <>Create Room<br /><span className="text-xs font-normal">(Leader)</span></>}
+                  {r === "member" ? (
+                    <>
+                      Scan QR
+                      <br />
+                      <span className="text-xs font-normal">(Member)</span>
+                    </>
+                  ) : (
+                    <>
+                      Create Room
+                      <br />
+                      <span className="text-xs font-normal">(Leader)</span>
+                    </>
+                  )}
                 </button>
               ))}
             </div>
             {onSiteRole === "member" && (
               <button className="w-full bg-sky-500 text-white rounded-lg py-3 flex items-center justify-center gap-2 hover:bg-sky-600 transition-colors">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"
+                  />
                 </svg>
                 Open Camera to Scan QR
               </button>
             )}
             {onSiteRole === "leader" && (
-  <button
-    onClick={() => router.push("/onsite/create")}
-    className="w-full bg-sky-500 text-white rounded-lg py-3 hover:bg-sky-600 transition-colors font-semibold"
-  >
-    Create Check-in Room →
-  </button>
-)}
+              <button
+                onClick={() => router.push("/onsite/create")}
+                className="w-full bg-sky-500 text-white rounded-lg py-3 hover:bg-sky-600 transition-colors font-semibold"
+              >
+                Create Check-in Room →
+              </button>
+            )}
           </div>
         )}
 
@@ -632,15 +859,35 @@ if (lastEvent.event === "ot_end") {
         {workType === "in_factory" && (
           <div className="pt-4 border-t border-gray-100">
             <h3 className="font-semibold mb-3">Location Status</h3>
-            <div className={`flex items-center p-3 rounded-xl ${
-              locationStatus === "in_range"     ? "bg-emerald-50 text-emerald-700" :
-              locationStatus === "out_of_range" ? "bg-red-50 text-red-700" :
-              locationStatus === "error"        ? "bg-orange-50 text-orange-700" :
-                                                  "bg-gray-100 text-gray-700"
-            }`}>
-              <svg className="w-6 h-6 mr-3 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+            <div
+              className={`flex items-center p-3 rounded-xl ${
+                locationStatus === "in_range"
+                  ? "bg-emerald-50 text-emerald-700"
+                  : locationStatus === "out_of_range"
+                    ? "bg-red-50 text-red-700"
+                    : locationStatus === "error"
+                      ? "bg-orange-50 text-orange-700"
+                      : "bg-gray-100 text-gray-700"
+              }`}
+            >
+              <svg
+                className="w-6 h-6 mr-3 opacity-80"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                />
               </svg>
               <div className="flex flex-col">
                 <span className="font-medium text-sm">{distanceText}</span>
@@ -654,21 +901,26 @@ if (lastEvent.event === "ot_end") {
       <div className="card bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
         <h3 className="font-semibold mb-4 text-gray-800">Daily Summary</h3>
         <div className="space-y-4 text-sm">
-
           {/* Check-in */}
           <div className="flex justify-between items-center pb-3 border-b border-gray-100">
             <span className="text-gray-500">เวลาเข้างาน (Check-in):</span>
-            <span className="font-bold text-sky-600 bg-sky-50 px-3 py-1 rounded-lg">{fmtTime(rawCheckIn)}</span>
+            <span className="font-bold text-sky-600 bg-sky-50 px-3 py-1 rounded-lg">
+              {fmtTime(rawCheckIn)}
+            </span>
           </div>
 
           {/* Check-out */}
           <div className="flex justify-between items-center pb-3 border-b border-gray-100">
             <span className="text-gray-500">เวลาออกงาน (Check-out):</span>
-            <span className="font-bold text-red-500 bg-red-50 px-3 py-1 rounded-lg">{fmtTime(rawCheckOut)}</span>
+            <span className="font-bold text-red-500 bg-red-50 px-3 py-1 rounded-lg">
+              {fmtTime(rawCheckOut)}
+            </span>
           </div>
 
           {/* Normal hours */}
-          <div className={`flex justify-between items-center ${rawOtStart ? "pb-3 border-b border-gray-100" : ""}`}>
+          <div
+            className={`flex justify-between items-center ${rawOtStart ? "pb-3 border-b border-gray-100" : ""}`}
+          >
             <span className="text-gray-500">ชั่วโมงทำงานปกติ:</span>
             <span className="font-medium text-gray-800">
               {workSummary.normal > 0 ? `${workSummary.normal} ชม.` : "-"}
@@ -681,21 +933,27 @@ if (lastEvent.event === "ot_end") {
               {/* OT label divider */}
               <div className="flex items-center gap-3">
                 <div className="flex-1 h-px bg-amber-100" />
-                <span className="text-[11px] font-bold text-amber-500 uppercase tracking-widest">Overtime</span>
+                <span className="text-[11px] font-bold text-amber-500 uppercase tracking-widest">
+                  Overtime
+                </span>
                 <div className="flex-1 h-px bg-amber-100" />
               </div>
 
               {/* OT start */}
               <div className="flex justify-between items-center pb-3 border-b border-gray-100">
                 <span className="text-gray-500">เริ่มทำ OT:</span>
-                <span className="font-bold text-amber-600 bg-amber-50 px-3 py-1 rounded-lg">{fmtTime(rawOtStart)}</span>
+                <span className="font-bold text-amber-600 bg-amber-50 px-3 py-1 rounded-lg">
+                  {fmtTime(rawOtStart)}
+                </span>
               </div>
 
               {/* OT end */}
               {rawOtEnd && (
                 <div className="flex justify-between items-center pb-3 border-b border-gray-100">
                   <span className="text-gray-500">จบงาน OT:</span>
-                  <span className="font-bold text-amber-600 bg-amber-50 px-3 py-1 rounded-lg">{fmtTime(rawOtEnd)}</span>
+                  <span className="font-bold text-amber-600 bg-amber-50 px-3 py-1 rounded-lg">
+                    {fmtTime(rawOtEnd)}
+                  </span>
                 </div>
               )}
 
@@ -706,7 +964,9 @@ if (lastEvent.event === "ot_end") {
                     <span className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-pulse" />
                     เวลา OT สะสม:
                   </span>
-                  <span className="font-bold text-amber-600 tabular-nums">{otElapsed}</span>
+                  <span className="font-bold text-amber-600 tabular-nums">
+                    {otElapsed}
+                  </span>
                 </div>
               )}
 
@@ -714,49 +974,77 @@ if (lastEvent.event === "ot_end") {
               {rawOtEnd && (
                 <div className="flex justify-between items-center">
                   <span className="text-gray-500">ชั่วโมง OT:</span>
-                  <span className="font-bold text-amber-600">{otHours} ชม.</span>
+                  <span className="font-bold text-amber-600">
+                    {otHours} ชม.
+                  </span>
                 </div>
               )}
             </>
           )}
         </div>
       </div>
-        
-       {/* ── 5. DAILY REPORT POPUP (MODAL) ─────────────────────────────────── */}
+
+      {/* ── 5. DAILY REPORT POPUP (MODAL) ─────────────────────────────────── */}
       {showReportPopup && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-6 bg-gray-900/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden animate-in slide-in-from-bottom-8 duration-300">
-            
             {/* Modal Header */}
             <div className="px-5 py-4 flex items-center justify-between border-b border-gray-100 bg-sky-50/50">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-sky-100 flex items-center justify-center text-sky-500">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  <svg
+                    className="w-5 h-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                    />
                   </svg>
                 </div>
                 <div>
-                  <h2 className="text-xl font-bold text-gray-800">วางแผนงานวันนี้</h2>
-                  <p className="text-xs text-gray-500">กรอกข้อมูล Daily Report เบื้องต้น</p>
+                  <h2 className="text-xl font-bold text-gray-800">
+                    วางแผนงานวันนี้
+                  </h2>
+                  <p className="text-xs text-gray-500">
+                    กรอกข้อมูล Daily Report เบื้องต้น
+                  </p>
                 </div>
               </div>
-              <button onClick={() => setShowReportPopup(false)} className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 transition-colors">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
+              <button
+                onClick={() => setShowReportPopup(false)}
+                className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 transition-colors"
+              >
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2.5"
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
               </button>
             </div>
 
             {/* Modal Body: เรียกใช้ฟอร์มที่เราแยกออกมาตะกี้! */}
             <div className="p-2 md:p-4 overflow-y-auto flex-1 bg-gray-50/30">
-              <DailyReportForm 
-                hideHeader={true} 
-                onSaved={() => setShowReportPopup(false)} 
+              <DailyReportForm
+                hideHeader={true}
+                onSaved={() => setShowReportPopup(false)}
               />
             </div>
-
           </div>
         </div>
       )}
-
     </main>
   );
 }
