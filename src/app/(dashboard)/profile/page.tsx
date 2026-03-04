@@ -364,7 +364,7 @@ function LeaveQuotaSection() {
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
       <div className="px-5 py-4 border-b border-gray-50">
-        <h3 className="text-sm font-bold text-gray-700">🏖️ สิทธิ์วันลา</h3>
+        <h3 className="text-sm font-bold text-gray-700">สิทธิ์วันลา</h3>
         <p className="text-xs text-gray-400 mt-0.5">ใช้ไป {totalUsed} / {totalQuota} วัน ({totalPct}%)</p>
       </div>
       <div className="p-5 space-y-4">
@@ -550,7 +550,7 @@ export default function ProfilePage() {
         const otFromLog = timeLog?.ot_hours ?? 0;
         const otFromReq = otRequestMap[dateStr] ?? 0;
         // ใช้ค่าสูงสุดระหว่างสองแหล่ง (กรณี trigger ยัง sync ไม่ได้)
-        const combinedOT = Math.max(otFromLog, otFromReq);
+        const combinedOT = otFromLog + otFromReq;
 
         if (timeLog?.status === "leave") {
           result.push({

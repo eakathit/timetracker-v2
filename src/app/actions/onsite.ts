@@ -370,7 +370,6 @@ export async function groupCheckOut(sessionId: string): Promise<ActionResult> {
             work_type:       "on_site",
             last_check_out:  now,
             timeline_events: [...(existingMap.get(uid) ?? []), checkoutEvent],
-            status:          "completed",
           })),
           { onConflict: "user_id,log_date" }
         );
@@ -427,7 +426,6 @@ export async function earlyLeave(sessionId: string, note: string): Promise<Actio
   .update({
     last_check_out: now,
     timeline_events: timeline,
-    status: "completed", // ✅ เพิ่ม
   })
   .eq("user_id", user.id)
   .eq("log_date", today);

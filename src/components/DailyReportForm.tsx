@@ -237,40 +237,64 @@ export default function DailyReportForm({
   const formatDateShort = (d: Date) => `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
   const formatDateFull = (d: Date) => `${DAYS_TH[d.getDay()]} ${d.getDate()} ${MONTHS_TH[d.getMonth()]} ${d.getFullYear() + 543}`;
 
+  const isSubmittingRef = useRef(false);
+
   const handleSubmit = async () => {
-    if (!allUnsavedComplete || !userId) return;
-    try {
-      const targetDate = getLocalISODate(selectedDate);
-      let reportId;
-      const { data: existingReport } = await supabase.from('daily_reports').select('id').eq('user_id', userId).eq('report_date', targetDate).maybeSingle();
-      if (existingReport) {
-        reportId = existingReport.id;
-      } else {
-        const { data: newReport, error } = await supabase.from('daily_reports').insert({ user_id: userId, report_date: targetDate }).select().single();
-        if (error) throw error;
-        reportId = newReport.id;
-      }
+  // ✅ 1. Guard userId และ validation ก่อนเสมอ → TypeScript จะ narrow userId เป็น string
+  if (!allUnsavedComplete || !userId) return;
 
-      const itemsToInsert = completedUnsaved.map(e => ({
-        report_id: reportId, end_user_id: e.endUserId, project_id: e.projectId, detail_id: e.detailId,
-        period_type: e.period === 'some_time' ? 'some_time' : 'fixed',
-        period_label: e.period === 'some_time' ? `${e.startTime} - ${e.endTime} น.` : PERIOD_OPTIONS.find(p => p.value === e.period)?.label,
-        period_start: e.period === 'some_time' ? e.startTime : null, period_end: e.period === 'some_time' ? e.endTime : null
-      }));
+  // ✅ 2. ป้องกัน double-submit หลังจาก narrow type แล้ว
+  if (isSubmittingRef.current || submitted) return;
+  isSubmittingRef.current = true;
 
-      const { error: itemsErr } = await supabase.from('daily_report_items').insert(itemsToInsert);
-      if (itemsErr) throw itemsErr;
+  try {
+    const targetDate = getLocalISODate(selectedDate);
+    let reportId;
+    const { data: existingReport } = await supabase
+      .from('daily_reports').select('id')
+      .eq('user_id', userId).eq('report_date', targetDate).maybeSingle();
 
-      setSubmitted(true);
-      await fetchDailyReports(selectedDate, userId);
-      
-      setTimeout(() => {
-        setSubmitted(false);
-        if (onSaved) onSaved();
-      }, 1500);
+    if (existingReport) {
+      reportId = existingReport.id;
+    } else {
+      const { data: newReport, error } = await supabase
+        .from('daily_reports')
+        .insert({ user_id: userId, report_date: targetDate })
+        .select().single();
+      if (error) throw error;
+      reportId = newReport.id;
+    }
 
-    } catch (error) { alert("เกิดข้อผิดพลาดในการบันทึกข้อมูล"); }
-  };
+    const itemsToInsert = completedUnsaved.map(e => ({
+      report_id: reportId,
+      end_user_id: e.endUserId,
+      project_id: e.projectId,
+      detail_id: e.detailId,
+      period_type: e.period === 'some_time' ? 'some_time' : 'fixed',
+      period_label: e.period === 'some_time'
+        ? `${e.startTime} - ${e.endTime} น.`
+        : PERIOD_OPTIONS.find(p => p.value === e.period)?.label,
+      period_start: e.period === 'some_time' ? e.startTime : null,
+      period_end: e.period === 'some_time' ? e.endTime : null,
+    }));
+
+    const { error: itemsErr } = await supabase.from('daily_report_items').insert(itemsToInsert);
+    if (itemsErr) throw itemsErr;
+
+    setSubmitted(true);
+    await fetchDailyReports(selectedDate, userId); // ✅ ไม่มี error แล้ว
+
+    setTimeout(() => {
+      setSubmitted(false);
+      isSubmittingRef.current = false; // ✅ reset ref
+      if (onSaved) onSaved();
+    }, 1500);
+
+  } catch (error) {
+    isSubmittingRef.current = false; // ✅ reset ref เมื่อ error
+    alert("เกิดข้อผิดพลาดในการบันทึกข้อมูล");
+  }
+};
 
   return (
     <div className="w-full">
@@ -323,9 +347,33 @@ export default function DailyReportForm({
         </button>
 
         {unsavedEntries.length > 0 && !isFetchingReports && (
-          <button onClick={handleSubmit} disabled={!allUnsavedComplete || submitted} className={`w-full py-4 rounded-2xl text-base font-bold flex items-center justify-center gap-2 transition-all duration-300 mt-4 ${allUnsavedComplete ? submitted ? "bg-emerald-500 text-white shadow-lg shadow-emerald-200" : "bg-sky-500 text-white shadow-lg shadow-sky-200 hover:bg-sky-600 active:scale-[0.98]" : "bg-gray-100 text-gray-300 cursor-not-allowed"}`}>
-            {submitted ? (<><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-5 h-5"><polyline points="20 6 9 17 4 12" /></svg>บันทึกสำเร็จแล้ว!</>) : (<><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-5 h-5"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" /><polyline points="17 21 17 13 7 13 7 21" /><polyline points="7 3 7 8 15 8" /></svg>บันทึก Daily Report</>)}
-          </button>
+          <button
+  onClick={handleSubmit}
+  disabled={!allUnsavedComplete || submitted || isSubmittingRef.current}
+  className={`w-full py-4 rounded-2xl text-base font-bold flex items-center justify-center gap-2 transition-all duration-300 mt-4
+    ${allUnsavedComplete
+      ? submitted
+        ? "bg-emerald-500 text-white cursor-not-allowed"
+        : "bg-sky-500 text-white hover:bg-sky-600 active:scale-[0.98]"
+      : "bg-gray-100 text-gray-400 cursor-not-allowed"
+    }`}
+>
+  {submitted ? (
+    <>
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7"/>
+      </svg>
+      บันทึกเรียบร้อย!
+    </>
+  ) : (
+    <>
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/>
+      </svg>
+      บันทึก Daily Report
+    </>
+  )}
+</button>
         )}
       </div>
     </div>

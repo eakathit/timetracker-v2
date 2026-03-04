@@ -65,6 +65,14 @@ async function getDayInfo(dateStr: string): Promise<DayInfo> {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+// ── คำนวณ attendance status จากเวลา check-in ─────────────────────────────────
+function calcAttendanceStatus(checkInIso: string): "on_time" | "late" {
+  const checkIn = new Date(checkInIso);
+  const lateThreshold = new Date(checkIn);
+  lateThreshold.setHours(8, 30, 0, 0);
+  return checkIn > lateThreshold ? "late" : "on_time";
+}
+
 const getLocalToday = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -158,6 +166,10 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
   const [isInitializing, setIsInitializing] = useState(true);
   const [showReportPopup, setShowReportPopup] = useState(false);
 
+  const [popupEndUsers, setPopupEndUsers] = useState<any[]>([]);
+  const [popupProjects, setPopupProjects] = useState<any[]>([]);
+  const [popupDetails, setPopupDetails] = useState<any[]>([]);
+
   const [checkInTime, setCheckInTime] = useState<string>("-");
   const [checkOutTime, setCheckOutTime] = useState<string>("-");
   /* ── Regular times ── */
@@ -239,90 +251,103 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
     return () => navigator.geolocation.clearWatch(watchId);
   }, [workType]);
 
-  // ── Fetch today's log ─────────────────────────────────────────────────────
-  // ── Fetch today's log ─────────────────────────────────────────────────────
-useEffect(() => {
-  const fetchTodayStatus = async () => {
-    if (!userId) return;
-    const today = getLocalToday();
+  // ── Fetch today's log 
+  useEffect(() => {
+    const fetchTodayStatus = async () => {
+      if (!userId) return;
+      const today = getLocalToday();
 
-    const { data } = await supabase
-      .from("daily_time_logs")
-      // ✅ เพิ่ม work_type ใน select
-      .select("timeline_events, first_check_in, last_check_out, work_type")
-      .eq("user_id", userId)
-      .eq("log_date", today)
-      .maybeSingle();
+      const { data } = await supabase
+        .from("daily_time_logs")
+        // ✅ เพิ่ม work_type ใน select
+        .select("timeline_events, first_check_in, last_check_out, work_type")
+        .eq("user_id", userId)
+        .eq("log_date", today)
+        .maybeSingle();
 
-    if (data) {
-      // ✅ Restore workType จาก DB
-      if (data.work_type === "on_site") {
-        setWorkType("on_site");
-      }
+      if (data) {
+        // ✅ Restore workType จาก DB
+        if (data.work_type === "on_site") {
+          setWorkType("on_site");
+        }
 
-      if (data.first_check_in) {
-        setRawCheckIn(data.first_check_in);
-        setCheckInTime(
-          new Date(data.first_check_in).toLocaleTimeString("th-TH", {
-            hour: "2-digit",
-            minute: "2-digit",
-          })
-        );
-      }
-      if (data.last_check_out) {
-        setRawCheckOut(data.last_check_out);
-        setCheckOutTime(
-          new Date(data.last_check_out).toLocaleTimeString("th-TH", {
-            hour: "2-digit",
-            minute: "2-digit",
-          })
-        );
-      }
+        if (data.first_check_in) {
+          setRawCheckIn(data.first_check_in);
+          setCheckInTime(
+            new Date(data.first_check_in).toLocaleTimeString("th-TH", {
+              hour: "2-digit",
+              minute: "2-digit",
+            }),
+          );
+        }
+        if (data.last_check_out) {
+          setRawCheckOut(data.last_check_out);
+          setCheckOutTime(
+            new Date(data.last_check_out).toLocaleTimeString("th-TH", {
+              hour: "2-digit",
+              minute: "2-digit",
+            }),
+          );
+        }
 
-      if (data.timeline_events && data.timeline_events.length > 0) {
-        const otStartEvent = data.timeline_events.find(
-          (e: any) => e.event === "ot_start"
-        );
-        const otEndEvent = data.timeline_events.find(
-          (e: any) => e.event === "ot_end"
-        );
-        if (otStartEvent) setRawOtStart(otStartEvent.timestamp);
-        if (otEndEvent) setRawOtEnd(otEndEvent.timestamp);
+        if (data.timeline_events && data.timeline_events.length > 0) {
+          const otStartEvent = data.timeline_events.find(
+            (e: any) => e.event === "ot_start",
+          );
+          const otEndEvent = data.timeline_events.find(
+            (e: any) => e.event === "ot_end",
+          );
+          if (otStartEvent) setRawOtStart(otStartEvent.timestamp);
+          if (otEndEvent) setRawOtEnd(otEndEvent.timestamp);
 
-        const lastEvent =
-          data.timeline_events[data.timeline_events.length - 1];
+          const lastEvent =
+            data.timeline_events[data.timeline_events.length - 1];
 
-        if (lastEvent.event === "ot_end") {
-          setWorkStatus("ot_completed");
-        } else if (lastEvent.event === "ot_start") {
-          setWorkStatus("ot_working");
-        } else if (
-          lastEvent.event === "checkout" ||
-          lastEvent.event === "onsite_checkout"
-        ) {
-          setWorkStatus("completed");
-        } else if (
-          lastEvent.event === "arrive_factory" ||
-          lastEvent.event === "arrive_site" ||
-          lastEvent.event === "onsite_checkin"
-        ) {
-          setWorkStatus("working");
+          if (lastEvent.event === "ot_end") {
+            setWorkStatus("ot_completed");
+          } else if (lastEvent.event === "ot_start") {
+            setWorkStatus("ot_working");
+          } else if (
+            lastEvent.event === "checkout" ||
+            lastEvent.event === "onsite_checkout"
+          ) {
+            setWorkStatus("completed");
+          } else if (
+            lastEvent.event === "arrive_factory" ||
+            lastEvent.event === "arrive_site" ||
+            lastEvent.event === "onsite_checkin"
+          ) {
+            setWorkStatus("working");
+          } else {
+            setWorkStatus("working");
+          }
         } else {
-          setWorkStatus("working");
+          setWorkStatus("idle");
         }
       } else {
         setWorkStatus("idle");
       }
-    } else {
-      setWorkStatus("idle");
-    }
 
-    setIsInitializing(false);
-  };
+      setIsInitializing(false);
+    };
 
-  fetchTodayStatus();
-}, [userId]);
+    fetchTodayStatus();
+  }, [userId]);
 
+  useEffect(() => {
+    if (!userId) return;
+    (async () => {
+      const [uRes, pRes, dRes] = await Promise.all([
+        supabase.from("end_users").select("*"),
+        supabase.from("projects").select("*"),
+        supabase.from("work_details").select("*"),
+      ]);
+      if (uRes.data) setPopupEndUsers(uRes.data);
+      if (pRes.data) setPopupProjects(pRes.data);
+      if (dRes.data) setPopupDetails(dRes.data);
+    })();
+  }, [userId]);
+  
   // ── Location guard ────────────────────────────────────────────────────────
   const validateLocation = useCallback((): boolean => {
     if (workType === "on_site") return true;
@@ -392,6 +417,8 @@ useEffect(() => {
       setRawCheckIn(existing.first_check_in || now);
     } else {
       // สร้าง row ใหม่ → ใส่ day_type, pay_multiplier, holiday_name ด้วย
+      const attendanceStatus = calcAttendanceStatus(now);
+
       await supabase.from("daily_time_logs").insert([
         {
           user_id: userId,
@@ -399,9 +426,10 @@ useEffect(() => {
           work_type: workType,
           first_check_in: now,
           timeline_events: [newEvent],
-          day_type: dayType, // ← ใหม่
-          pay_multiplier: payMultiplier, // ← ใหม่
-          holiday_name: holidayName, // ← ใหม่ (null ถ้าไม่ใช่วันหยุด)
+          day_type: dayType,
+          pay_multiplier: payMultiplier,
+          holiday_name: holidayName,
+          status: attendanceStatus, // ✅ เพิ่มบรรทัดนี้
         },
       ]);
       setRawCheckIn(now);
@@ -418,7 +446,7 @@ useEffect(() => {
     const now = new Date().toISOString();
     const { error } = await pushEvent(
       { event: "checkout", timestamp: now, note: "เลิกงาน" },
-      { last_check_out: now, status: "completed" },
+      { last_check_out: now }, // ✅ ลบ status: "completed" ออก
     );
     if (!error) {
       setRawCheckOut(now);
@@ -791,7 +819,7 @@ useEffect(() => {
             ))}
           </div>
         </div>
-
+            
         {/* On-site role options */}
         {workType === "on_site" && (
           <div className="pt-4 border-t border-gray-100 space-y-4 animate-fade-in">
@@ -1040,6 +1068,10 @@ useEffect(() => {
               <DailyReportForm
                 hideHeader={true}
                 onSaved={() => setShowReportPopup(false)}
+                userId={userId}
+                initialEndUsers={popupEndUsers}
+                initialProjects={popupProjects}
+                initialDetails={popupDetails}
               />
             </div>
           </div>

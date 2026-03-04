@@ -80,6 +80,23 @@ const LEAVE_CFG: Record<LeaveType, { label: string; icon: string; bg: string; te
 
 const TH_MONTHS = ["", "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
 
+// ── สร้าง array ของ date string ทุกวันระหว่าง start ถึง end ──────────────────
+function getDatesInRange(startDate: string, endDate: string): string[] {
+  const dates: string[] = [];
+  const current = new Date(startDate + "T00:00:00");
+  const end = new Date(endDate + "T00:00:00");
+
+  while (current <= end) {
+    // ข้ามเสาร์-อาทิตย์ (ลาเฉพาะวันทำงาน)
+    const dow = current.getDay();
+    if (dow !== 0 && dow !== 6) {
+      dates.push(current.toISOString().slice(0, 10));
+    }
+    current.setDate(current.getDate() + 1);
+  }
+  return dates;
+}
+
 function fmtDate(d: string) {
   const [y, m, day] = d.split("-").map(Number);
   return `${day} ${TH_MONTHS[m]} ${y + 543}`;
@@ -497,24 +514,77 @@ export default function RequestsPage() {
     await Promise.all([fetchMyRequests(), fetchDeptRequests()]);
   };
 
-  const handleApproveLeave = async (id: string) => {
-    await supabase.from("leave_requests").update({
-      status: "approved",
-      approved_by: profile!.id,
-      actioned_at: new Date().toISOString(),
-    }).eq("id", id);
-    await Promise.all([fetchMyRequests(), fetchDeptRequests()]);
-  };
+  // ✅ โค้ดใหม่
+const handleApproveLeave = async (id: string) => {
+  // 1. Approve leave request
+  await supabase.from("leave_requests").update({
+    status: "approved",
+    approved_by: profile!.id,
+    actioned_at: new Date().toISOString(),
+  }).eq("id", id);
 
-  const handleRejectLeave = async (id: string, reason: string) => {
-    await supabase.from("leave_requests").update({
-      status: "rejected",
-      reject_reason: reason,
-      approved_by: profile!.id,
-      actioned_at: new Date().toISOString(),
-    }).eq("id", id);
-    await Promise.all([fetchMyRequests(), fetchDeptRequests()]);
-  };
+  // 2. หา leave request ที่เพิ่ง approve เพื่อดึง start_date, end_date, user_id
+  const leaveReq = [...deptLeave, ...myLeave].find(r => r.id === id);
+  if (leaveReq) {
+    // สร้าง date range ทุกวันในช่วงลา
+    const leaveDates: string[] = [];
+    // ✅ ใช้ string แยก ไม่ผ่าน new Date() เพื่อหลีกเลี่ยง timezone bug
+    const [sy, sm, sd] = leaveReq.start_date.split("-").map(Number);
+    const [ey, em, ed] = leaveReq.end_date.split("-").map(Number);
+    const start = new Date(sy, sm - 1, sd); // local time ✅
+    const end   = new Date(ey, em - 1, ed);
+
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      leaveDates.push(dateStr);
+    }
+
+    // 3. Upsert daily_time_logs สำหรับทุกวันลา
+    await supabase.from("daily_time_logs").upsert(
+      leaveDates.map(date => ({
+        user_id:   leaveReq.user_id,
+        log_date:  date,       // ✅ string โดยตรง ไม่ผ่าน UTC
+        work_type: "leave",
+        status:    "leave",
+      })),
+      { onConflict: "user_id,log_date" }
+    );
+  }
+
+  await Promise.all([fetchMyRequests(), fetchDeptRequests()]);
+};
+
+ // ✅ handleRejectLeave ที่ดีขึ้น
+const handleRejectLeave = async (id: string, reason: string) => {
+  // ดึงข้อมูลก่อน
+  const { data: leaveReq } = await supabase
+    .from("leave_requests")
+    .select("user_id, start_date, end_date, status")
+    .eq("id", id)
+    .single();
+
+  await supabase.from("leave_requests").update({
+    status: "rejected",
+    reject_reason: reason,
+    approved_by: profile!.id,
+    actioned_at: new Date().toISOString(),
+  }).eq("id", id);
+
+  // ถ้าเคย approve แล้ว (มี daily_time_logs status=leave) ให้ revert เป็น absent
+  if (leaveReq && leaveReq.status === "approved") {
+    const leaveDates = getDatesInRange(leaveReq.start_date, leaveReq.end_date);
+    if (leaveDates.length > 0) {
+      // ลบ rows ที่เป็น leave ออก (เพราะไม่มี check-in จริง)
+      await supabase.from("daily_time_logs")
+        .delete()
+        .eq("user_id", leaveReq.user_id)
+        .eq("status", "leave")
+        .in("log_date", leaveDates);
+    }
+  }
+
+  await Promise.all([fetchMyRequests(), fetchDeptRequests()]);
+};
 
   // ── Computed counts ───────────────────────────────────────────────────────────
   const totalDeptPending = deptOT.length + deptLeave.length;
