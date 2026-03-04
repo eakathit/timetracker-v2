@@ -531,9 +531,9 @@ export default function RequestsPage() {
       <div className="bg-white border-b border-gray-100 px-4 pt-12 pb-4 sticky top-0 z-20">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h1 className="text-xl font-black text-gray-900 tracking-tight">คำขอ</h1>
+            <h1 className="text-xl font-black text-gray-900 tracking-tight">Requests</h1>
             <p className="text-xs text-gray-400 mt-0.5">
-              {dept ? `แผนก${dept}` : "กำลังโหลด..."}
+              {dept ? `แผนก ${dept}` : "กำลังโหลด..."}
               {isManager && <span className="ml-2 text-indigo-400 font-semibold">· Manager</span>}
             </p>
           </div>

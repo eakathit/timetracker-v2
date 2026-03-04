@@ -252,7 +252,7 @@ useEffect(() => {
       .select("timeline_events, first_check_in, last_check_out, work_type")
       .eq("user_id", userId)
       .eq("log_date", today)
-      .single();
+      .maybeSingle();
 
     if (data) {
       // ✅ Restore workType จาก DB
