@@ -147,7 +147,7 @@ export default function BottomNav() {
       <div className="md:hidden h-20" />
 
       <nav className="
-        md:hidden fixed bottom-0 left-0 right-0 z-30
+        md:hidden fixed bottom-0 left-0 right-0 z-40
         bg-white/95 backdrop-blur-xl border-t border-gray-100
         shadow-[0_-4px_24px_rgba(0,0,0,0.08)]
       ">

@@ -211,7 +211,7 @@ export default function OnsitePage() {
   const activeSession = todaySessions.find((s) => s.status !== "closed");
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-28">
+    <div className="min-h-screen bg-gray-50 pb-32">
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <header className="bg-white border-b border-gray-100 px-4 py-4 sticky top-0 z-10">

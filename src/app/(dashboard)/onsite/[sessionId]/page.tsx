@@ -139,7 +139,7 @@ function EarlyLeaveModal({
 }) {
   const [note, setNote] = useState("");
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-end justify-center p-4">
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-6">
       <div className="w-full max-w-sm bg-white rounded-3xl p-6 space-y-4">
         <div className="text-center">
           <div className="w-12 h-12 bg-rose-50 rounded-2xl flex items-center justify-center mx-auto mb-3">
@@ -197,7 +197,7 @@ function GroupCheckoutModal({
   loading:     boolean;
 }) {
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-end justify-center p-4">
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-6">
       <div className="w-full max-w-sm bg-white rounded-3xl p-6 space-y-4">
         <div className="text-center">
           <div className="w-12 h-12 bg-sky-50 rounded-2xl flex items-center justify-center mx-auto mb-3">
@@ -342,7 +342,7 @@ export default function OnsiteSessionPage() {
         />
       )}
 
-      <div className="min-h-screen bg-gray-50 flex flex-col pb-32">
+      <div className="min-h-screen bg-gray-50 flex flex-col pb-52 md:pb-32">
         {/* ── Header ── */}
         <header className="bg-white border-b border-gray-100 px-4 py-4 flex items-center gap-3 sticky top-0 z-10">
           <button
@@ -449,7 +449,7 @@ export default function OnsiteSessionPage() {
         </div>
 
         {/* ── Bottom Action Panel ── */}
-        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-4 py-4 safe-area-pb">
+        <div className="fixed bottom-20 md:bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-4 py-4 shadow-[0_-4px_20px_rgba(0,0,0,0.06)]">
           {/* Leader Actions */}
           {isLeader && session.status === "open" && (
             <button

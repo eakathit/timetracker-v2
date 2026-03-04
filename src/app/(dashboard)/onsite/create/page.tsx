@@ -335,7 +335,7 @@ export default function CreateOnsiteSessionPage() {
       </div>
 
       {/* Bottom CTA */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-4 py-4">
+      <div className="fixed bottom-20 md:bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-4 py-4 shadow-[0_-4px_20px_rgba(0,0,0,0.06)]">
         {/* Summary */}
         <div className="flex items-center justify-between mb-3 px-1">
           <span className="text-xs text-gray-500">
