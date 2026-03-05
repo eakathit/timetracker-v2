@@ -144,7 +144,6 @@ const NAV_GROUPS: NavGroup[] = [
   {
     groupLabel: "System",
     items: [
-      { label: "Notifications", labelTh: "แจ้งเตือน", href: "/notifications", icon: Icons.bell, badge: 5 },
       { label: "Settings", labelTh: "ตั้งค่า", href: "/settings", icon: Icons.settings },
     ],
   },
