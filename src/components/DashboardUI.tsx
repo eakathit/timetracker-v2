@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import DailyReportForm from "@/components/DailyReportForm";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
+import OTWindowCard from "@/components/OTWindowCard";
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface DashboardUIProps {
   userName?: string;
@@ -16,6 +17,7 @@ type WorkStatus =
   | "idle"
   | "working"
   | "completed"
+  | "ot_window"
   | "ot_working"
   | "ot_completed";
 
@@ -180,6 +182,11 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
   const [rawOtStart, setRawOtStart] = useState<string | null>(null);
   const [rawOtEnd, setRawOtEnd] = useState<string | null>(null);
   const [otElapsed, setOtElapsed] = useState("00:00:00");
+  const [otIntent, setOtIntent] = useState(false);
+  const [otTimeReady, setOtTimeReady] = useState(
+  new Date().getHours() >= 18
+);
+
 
   /* ── Work-type / location ── */
   const [workType, setWorkType] = useState<"in_factory" | "on_site">(
@@ -215,6 +222,18 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
     const id = setInterval(() => setOtElapsed(elapsedStr(rawOtStart)), 1000);
     return () => clearInterval(id);
   }, [workStatus, rawOtStart]);
+
+  // ── OT time unlock (18:00) ────────────────────────────────────────────────
+useEffect(() => {
+  if (otTimeReady) return;
+  const id = setInterval(() => {
+    if (new Date().getHours() >= 18) {
+      setOtTimeReady(true);
+      clearInterval(id);
+    }
+  }, 30_000);
+  return () => clearInterval(id);
+}, [otTimeReady]);
 
   // ── Location watch ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -259,17 +278,25 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
 
       const { data } = await supabase
         .from("daily_time_logs")
-        // ✅ เพิ่ม work_type ใน select
-        .select("timeline_events, first_check_in, last_check_out, work_type")
+        .select("first_check_in, last_check_out, work_type, timeline_events, ot_hours, auto_checked_out, ot_intent")
         .eq("user_id", userId)
         .eq("log_date", today)
         .maybeSingle();
 
-      if (data) {
-        // ✅ Restore workType จาก DB
-        if (data.work_type === "on_site") {
-          setWorkType("on_site");
-        }
+        if (data) {
+  // ✅ เช็ค auto_checked_out ก่อนเลย (ต้องอยู่ในนี้)
+  if (data.auto_checked_out && !data.ot_hours) {
+  setWorkStatus("completed");  // ← กลับไป completed ปกติ
+  setRawCheckIn(data.first_check_in);
+  setRawCheckOut(data.last_check_out);
+  setIsInitializing(false);
+  return;
+}
+
+  // ✅ Restore workType จาก DB
+  if (data.work_type === "on_site") {
+    setWorkType("on_site");
+  }
 
         if (data.first_check_in) {
           setRawCheckIn(data.first_check_in);
@@ -644,7 +671,6 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
         {/* COMPLETED → ✅ + Start OT button */}
         {workStatus === "completed" && (
           <div className="animate-fade-in flex flex-col items-center">
-            {/* Same circle style as others */}
             <div className="w-48 h-48 bg-emerald-500 text-white rounded-full flex flex-col items-center justify-center shadow-lg mx-auto">
               <svg
                 className="w-16 h-16 mb-1"
@@ -662,7 +688,7 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
               <span className="text-2xl font-bold mt-1">Complete</span>
             </div>
 
-            {/* Start OT – uses same border-2 outline style as original "Request OT" */}
+            {/* Start OT */}
             <div className="w-full mt-6 space-y-2">
               <div className="flex items-center gap-3">
                 <div className="flex-1 h-px bg-gray-100" />
@@ -671,59 +697,51 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
                 </span>
                 <div className="flex-1 h-px bg-gray-100" />
               </div>
+
               <button
                 onClick={handleStartOT}
-                disabled={isSubmitting}
-                className="w-full max-w-xs mx-auto flex items-center justify-center gap-2 py-3 border-2 border-amber-400 text-amber-600 rounded-xl font-semibold hover:bg-amber-400 hover:text-white transition-all duration-200 disabled:opacity-60 disabled:cursor-wait"
+                disabled={isSubmitting || !otTimeReady}
+                className={`w-full max-w-xs mx-auto flex items-center justify-center gap-2 py-3
+                  border-2 rounded-xl font-semibold transition-all duration-200
+                  disabled:cursor-not-allowed
+                  ${otTimeReady
+                    ? "border-amber-400 text-amber-600 hover:bg-amber-400 hover:text-white disabled:opacity-60"
+                    : "border-gray-200 text-gray-300 bg-gray-50"
+                  }`}
               >
                 {isSubmitting ? (
-                  <svg
-                    className="animate-spin w-5 h-5"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    />
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                    />
+                  <svg className="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                  </svg>
+                ) : otTimeReady ? (
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="9" strokeWidth="2"/>
+                    <polyline points="12 7 12 12 15 14" strokeWidth="2.5" strokeLinecap="round"/>
                   </svg>
                 ) : (
-                  <svg
-                    className="w-5 h-5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle cx="12" cy="12" r="9" strokeWidth="2" />
-                    <polyline
-                      points="12 7 12 12 15 14"
-                      strokeWidth="2.5"
-                      strokeLinecap="round"
-                    />
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <rect x="3" y="11" width="18" height="11" rx="2" strokeWidth="2"/>
+                    <path strokeLinecap="round" strokeWidth="2" d="M7 11V7a5 5 0 0110 0v4"/>
                   </svg>
                 )}
-                <span>Start OT</span>
+                <span>
+                  {otTimeReady ? "Start OT" : "Start OT (18:00 น.)"}
+                </span>
               </button>
+
               <p className="text-xs text-gray-400 text-center">
-                OT จะถูกนับเป็นหน่วย 30 นาที
+                {otTimeReady
+                  ? "OT จะถูกนับเป็นหน่วย 30 นาที"
+                  : "ปุ่มจะเปิดใช้งานเวลา 18:00 น."}
               </p>
             </div>
           </div>
         )}
 
-        {/* OT WORKING → End OT  (ปุ่มกลมเหมือนเดิม, สี amber) */}
+        {/* OT WORKING → End OT */}
         {workStatus === "ot_working" && (
           <div className="animate-fade-in flex flex-col items-center">
-            {/* Live OT elapsed badge */}
             <div className="inline-flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2 mb-4">
               <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
               <span className="font-bold text-amber-700 tabular-nums tracking-wider">
@@ -734,37 +752,22 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
               </span>
             </div>
 
-            {/* Circular End OT button */}
             <button
               onClick={handleEndOT}
               disabled={isSubmitting}
               className={`w-48 h-48 rounded-full flex flex-col items-center justify-center mx-auto shadow-lg transition-all duration-300
-                ${
-                  isSubmitting
-                    ? "bg-amber-400 text-white opacity-80 cursor-wait"
-                    : "bg-amber-400 text-white hover:bg-amber-500 ot-btn-anim"
+                ${isSubmitting
+                  ? "bg-amber-400 text-white opacity-80 cursor-wait"
+                  : "bg-amber-400 text-white hover:bg-amber-500 ot-btn-anim"
                 }`}
             >
               {isSubmitting ? (
                 <Spinner />
               ) : (
                 <>
-                  <svg
-                    className="w-16 h-16"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle cx="12" cy="12" r="9" strokeWidth="2" />
-                    <rect
-                      x="9"
-                      y="9"
-                      width="6"
-                      height="6"
-                      rx="1"
-                      fill="currentColor"
-                      opacity="0.85"
-                    />
+                  <svg className="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="9" strokeWidth="2"/>
+                    <rect x="9" y="9" width="6" height="6" rx="1" fill="currentColor" opacity="0.85"/>
                   </svg>
                   <span className="text-2xl font-semibold mt-2">End OT</span>
                 </>
@@ -778,18 +781,8 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
         {workStatus === "ot_completed" && (
           <div className="animate-fade-in flex flex-col items-center">
             <div className="w-48 h-48 bg-amber-400 text-white rounded-full flex flex-col items-center justify-center shadow-lg mx-auto">
-              <svg
-                className="w-16 h-16 mb-1"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2.5"
-                  d="M5 13l4 4L19 7"
-                />
+              <svg className="w-16 h-16 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7"/>
               </svg>
               <span className="text-xl font-bold mt-1">OT Complete</span>
             </div>

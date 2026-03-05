@@ -221,6 +221,7 @@ function TableSkeleton() {
   );
 }
 
+
 // ════════════════════════════════════════════════════════
 //  DRILL-DOWN PANEL (รายละเอียดรายบุคคล)
 // ════════════════════════════════════════════════════════
@@ -241,6 +242,64 @@ function DrillDownPanel({
   att: AttendanceStat;
   onClose: () => void;
 }) {
+  const [exporting, setExporting] = useState(false);
+
+  const handleExportIndividual = async () => {
+  setExporting(true);
+  try {
+    const { utils, writeFile } = await import("xlsx");
+
+    const title = `${emp.first_name} ${emp.last_name} — ${MONTHS_TH[month]} ${year + 543}`;
+
+    const header = [
+      [title],
+      [],
+      ["วันที่", "วัน", "สถานะ", "เข้างาน", "ออกงาน"],
+    ];
+
+    const STATUS_TEXT: Record<string, string> = {
+      present: "มาปกติ",
+      late:    "มาสาย",
+      absent:  "ขาดงาน",
+      leave:   "ลา",
+      holiday: "วันหยุด",
+      weekend: "เสาร์-อา",
+    };
+
+    const data = dailyLogs.map(log => [
+      log.date,
+      DAYS_SHORT[log.dow],
+      STATUS_TEXT[log.status] ?? log.status,
+      log.checkIn,
+      log.checkOut,
+    ]);
+
+    // Summary row
+    const summary = [
+      [],
+      ["สรุป", "", "", "", ""],
+      ["วันมาทำงาน",  "", att.present,       "", ""],
+      ["มาสาย",       "", att.late,           "", ""],
+      ["ขาดงาน",      "", att.absent,         "", ""],
+      ["ลา",          "", att.leave,          "", ""],
+      ["เข้าเฉลี่ย",  "", att.avgIn,          "", ""],
+      ["ออกเฉลี่ย",   "", att.avgOut,         "", ""],
+      ["OT รวม (ชม.)", "", att.totalOT,       "", ""],
+    ];
+
+    const ws = utils.aoa_to_sheet([...header, ...data, ...summary]);
+    ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 4 } }];
+    ws["!cols"] = [12, 6, 10, 10, 10].map(w => ({ wch: w }));
+
+    const wb = utils.book_new();
+    const sheetName = `${emp.first_name}_${MONTHS_TH[month].slice(0, 3)}`;
+    utils.book_append_sheet(wb, ws, sheetName);
+    writeFile(wb, `attendance_${emp.first_name}_${emp.last_name}_${year}_${String(month + 1).padStart(2, "0")}.xlsx`);
+  } finally {
+    setExporting(false);
+  }
+};
+
   const counts = useMemo(
     () =>
       dailyLogs.reduce<Record<string, number>>((acc, l) => {
@@ -386,22 +445,24 @@ function DrillDownPanel({
       </div>
 
       {/* Footer export */}
-      <div className="px-5 py-3 border-t border-gray-50 bg-gray-50/50 flex justify-end">
-        <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500 text-white text-xs font-bold shadow-sm hover:bg-emerald-600 transition-colors">
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            className="w-3.5 h-3.5"
-          >
-            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
-            <polyline points="7 10 12 15 17 10" />
-            <line x1="12" y1="15" x2="12" y2="3" />
-          </svg>
-          Export รายบุคคล
-        </button>
-      </div>
+<div className="px-5 py-3 border-t border-gray-50 bg-gray-50/50 flex justify-end">
+  <button
+    onClick={handleExportIndividual}
+    disabled={exporting}
+    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500 text-white text-xs font-bold shadow-sm hover:bg-emerald-600 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+  >
+    {exporting ? (
+      <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+    ) : (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+        <polyline points="7 10 12 15 17 10"/>
+        <line x1="12" y1="15" x2="12" y2="3"/>
+      </svg>
+    )}
+    {exporting ? "กำลัง Export..." : "Export รายบุคคล"}
+  </button>
+</div>
     </div>
   );
 }
@@ -409,6 +470,62 @@ function DrillDownPanel({
 // ════════════════════════════════════════════════════════
 //  MAIN PAGE
 // ════════════════════════════════════════════════════════
+// ─── Export Excel (HR Attendance) ────────────────────────────────────────────
+async function exportHRExcel(
+  employees: Employee[],
+  attendances: Record<string, AttendanceStat>,
+  year: number,
+  month: number,
+) {
+  const { utils, writeFile } = await import("xlsx");
+
+  const title = `HR ATTENDANCE SUMMARY — ${MONTHS_TH[month]} ${year + 543}`;
+
+  const header = [
+    [title],
+    [],
+    [
+      "ชื่อ-นามสกุล", "แผนก",
+      "วันทำงาน", "มาทำงาน", "มาสาย", "ขาดงาน", "ลา",
+      "ชม.ปกติ", "OT (ชม.)",
+      "เข้าเฉลี่ย", "ออกเฉลี่ย",
+    ],
+  ];
+
+  const data = employees.map(emp => {
+    const att = attendances[emp.id];
+    if (!att) return [
+      `${emp.first_name} ${emp.last_name}`, emp.department,
+      0, 0, 0, 0, 0, 0, 0, "–", "–",
+    ];
+    return [
+      `${emp.first_name} ${emp.last_name}`,
+      emp.department,
+      att.workdays,
+      att.present,
+      att.late,
+      att.absent,
+      att.leave,
+      att.totalRegHours,
+      att.totalOT,
+      att.avgIn,
+      att.avgOut,
+    ];
+  });
+
+  const ws = utils.aoa_to_sheet([...header, ...data]);
+
+  // Merge title row
+  ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 10 } }];
+
+  // Column widths
+  ws["!cols"] = [20, 14, 9, 9, 9, 9, 6, 9, 9, 10, 10].map(w => ({ wch: w }));
+
+  const wb = utils.book_new();
+  utils.book_append_sheet(wb, ws, `${MONTHS_TH[month].slice(0, 3)}_${year + 543}`);
+  writeFile(wb, `hr_attendance_${year}_${String(month + 1).padStart(2, "0")}.xlsx`);
+}
+
 export default function HRAttendancePage() {
   const today = new Date();
   const [viewYear, setViewYear] = useState(today.getFullYear());
@@ -423,6 +540,7 @@ export default function HRAttendancePage() {
   const [holidays, setHolidays] = useState<Set<string>>(new Set());
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequestRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [exporting,  setExporting]  = useState(false);
 
   // ── Month range ───────────────────────────────────────
   const { start, end } = useMemo(
@@ -709,7 +827,15 @@ const leaveMap = useMemo(() => {
       setViewMonth(0);
     } else setViewMonth((m) => m + 1);
   };
-
+  const handleExport = async () => {
+  if (employees.length === 0) return;
+  setExporting(true);
+  try {
+    await exportHRExcel(filtered, attendances, viewYear, viewMonth);
+  } finally {
+    setExporting(false);
+  }
+};
   const selectedEmp = selectedId
     ? (employees.find((e) => e.id === selectedId) ?? null)
     : null;
@@ -733,20 +859,22 @@ const leaveMap = useMemo(() => {
             </h1>
           </div>
           {/* Export button */}
-          <button className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-500 text-white text-sm font-bold shadow-sm hover:bg-emerald-600 active:scale-95 transition-all">
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              className="w-4 h-4"
-            >
-              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
-              <polyline points="7 10 12 15 17 10" />
-              <line x1="12" y1="15" x2="12" y2="3" />
-            </svg>
-            <span className="hidden sm:inline">Export Excel</span>
-          </button>
+          <button
+  onClick={handleExport}
+  disabled={exporting || loading || employees.length === 0}
+  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-500 text-white text-sm font-bold shadow-sm hover:bg-emerald-600 active:scale-95 transition-all disabled:bg-gray-300 disabled:cursor-not-allowed"
+>
+  {exporting ? (
+    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+  ) : (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+      <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+      <polyline points="7 10 12 15 17 10"/>
+      <line x1="12" y1="15" x2="12" y2="3"/>
+    </svg>
+  )}
+  <span className="hidden sm:inline">{exporting ? "กำลัง Export..." : "Export Excel"}</span>
+</button>
         </div>
 
         {/* Month nav + dept filter */}
