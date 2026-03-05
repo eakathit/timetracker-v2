@@ -634,6 +634,16 @@ function ReportManagementSection() {
   const [newProjNo, setNewProjNo] = useState("");
   const [newProjName, setNewProjName] = useState("");
 
+  // ── Edit End User ──────────────────────────────────────────────────────────────
+const [editEuId, setEditEuId] = useState<string | null>(null);
+const [editEuName, setEditEuName] = useState("");
+const [editEuColor, setEditEuColor] = useState(END_USER_COLORS[0]);
+
+// ── Edit Project ───────────────────────────────────────────────────────────────
+const [editProjId, setEditProjId] = useState<string | null>(null);
+const [editProjNo, setEditProjNo] = useState("");
+const [editProjName, setEditProjName] = useState("");
+
   const toggleEuExpanded = (id: string) =>
     setEndUsers((prev) => prev.map((e) => e.id === id ? { ...e, expanded: !e.expanded } : e));
 
@@ -684,6 +694,62 @@ function ReportManagementSection() {
       ...e, projects: e.projects.filter((p) => p.id !== projId)
     }));
   };
+
+  const openEditEu = (eu: EndUser) => {
+  setEditEuId(eu.id);
+  setEditEuName(eu.name);
+  setEditEuColor(eu.color);
+  setAddProjFor(null); // ปิด form เพิ่มโปรเจคถ้าเปิดอยู่
+};
+
+const updateEndUser = async () => {
+  const trimmed = editEuName.trim();
+  if (!trimmed || !editEuId) return;
+  const { error } = await supabase
+    .from("end_users")
+    .update({ name: trimmed, color: editEuColor })
+    .eq("id", editEuId);
+  if (!error) {
+    setEndUsers((prev) =>
+      prev.map((e) =>
+        e.id === editEuId ? { ...e, name: trimmed, color: editEuColor } : e
+      )
+    );
+    setEditEuId(null);
+  }
+};
+
+const openEditProj = (proj: Project) => {
+  setEditProjId(proj.id);
+  setEditProjNo(proj.no);
+  setEditProjName(proj.name);
+};
+
+const updateProject = async (euId: string) => {
+  const no = editProjNo.trim();
+  if (!no || !editProjId) return;
+  const { error } = await supabase
+    .from("projects")
+    .update({ project_no: no, name: editProjName.trim() || null })
+    .eq("id", editProjId);
+  if (!error) {
+    setEndUsers((prev) =>
+      prev.map((e) =>
+        e.id !== euId
+          ? e
+          : {
+              ...e,
+              projects: e.projects.map((p) =>
+                p.id === editProjId
+                  ? { ...p, no, name: editProjName.trim() }
+                  : p
+              ),
+            }
+      )
+    );
+    setEditProjId(null);
+  }
+};
 
   if (loading) return <div className="py-10 text-center text-sm text-gray-400 animate-pulse">กำลังโหลดข้อมูล...</div>;
 
@@ -767,16 +833,58 @@ function ReportManagementSection() {
                     <p className="text-sm font-bold text-gray-800">{eu.name}</p>
                     <p className="text-xs text-gray-400">{activeProj} โปรเจคเปิดอยู่ · {eu.projects.length} ทั้งหมด</p>
                   </div>
-                  <button onClick={() => { setAddProjFor(addProjFor === eu.id ? null : eu.id); setNewProjNo(""); setNewProjName(""); }} className="w-8 h-8 rounded-lg flex items-center justify-center text-sky-400 hover:bg-sky-50 transition-colors" title="เพิ่มโปรเจค">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                  </button>
-                  <button onClick={() => removeEndUser(eu.id)} className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-200 hover:text-rose-400 hover:bg-rose-50 transition-colors">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
-                  </button>
-                  <button onClick={() => toggleEuExpanded(eu.id)} className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-100 transition-colors">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className={`w-4 h-4 transition-transform duration-200 ${eu.expanded ? "rotate-180" : ""}`}><polyline points="6 9 12 15 18 9"/></svg>
-                  </button>
+                 <button
+  onClick={() => openEditEu(eu)}
+  className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-300 hover:text-amber-400 hover:bg-amber-50 transition-colors"
+  title="แก้ไข End User"
+>
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+    <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+    <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+  </svg>
+</button>
                 </div>
+                {editEuId === eu.id && (
+  <div className="mx-4 mb-3 p-3 bg-amber-50 border border-amber-200 rounded-xl space-y-2">
+    <p className="text-xs font-bold text-amber-600">แก้ไข End User</p>
+    <input
+      value={editEuName}
+      onChange={(e) => setEditEuName(e.target.value)}
+      onKeyDown={(e) => e.key === "Enter" && updateEndUser()}
+      placeholder="ชื่อลูกค้า"
+      className="w-full px-3 py-2 text-sm bg-white border border-amber-200 rounded-xl outline-none focus:border-amber-400 placeholder-gray-300"
+    />
+    <div>
+      <p className="text-xs text-gray-400 mb-2">เลือกสี</p>
+      <div className="flex gap-2">
+        {END_USER_COLORS.map((c) => (
+          <button
+            key={c}
+            onClick={() => setEditEuColor(c)}
+            className={`w-8 h-8 rounded-xl ${c} transition-transform hover:scale-110 ${
+              editEuColor === c ? "ring-2 ring-offset-2 ring-amber-400 scale-110" : ""
+            }`}
+          />
+        ))}
+      </div>
+    </div>
+    <div className="flex gap-2">
+      <button
+        onClick={() => setEditEuId(null)}
+        className="flex-1 py-2 rounded-xl border border-gray-200 text-xs font-semibold text-gray-500 hover:bg-gray-50 transition-colors"
+      >
+        ยกเลิก
+      </button>
+      <button
+        onClick={updateEndUser}
+        disabled={!editEuName.trim()}
+        className="flex-1 py-2 rounded-xl bg-amber-500 text-white text-xs font-bold hover:bg-amber-600 disabled:bg-gray-200 disabled:text-gray-400 transition-colors"
+      >
+        บันทึก
+      </button>
+    </div>
+  </div>
+)}
 
                 {addProjFor === eu.id && (
                   <div className="mx-4 mb-3 p-3 bg-sky-50 border border-sky-200 rounded-xl space-y-2">
@@ -798,22 +906,76 @@ function ReportManagementSection() {
                       <div className="px-5 py-4 text-center"><p className="text-xs text-gray-400">ยังไม่มีโปรเจค กด + เพื่อเพิ่ม</p></div>
                     ) : (
                       <div className="divide-y divide-gray-50">
-                        {eu.projects.map((proj) => (
-                          <div key={proj.id} className={`flex items-center gap-3 px-5 py-3 transition-colors ${!proj.active ? "bg-gray-50/70" : ""}`}>
-                            <span className={`flex-shrink-0 px-2.5 py-1 rounded-lg text-xs font-bold border transition-colors ${proj.active ? `${eu.color.replace("bg-", "bg-").replace("500", "50")} border-current text-current` : "bg-gray-100 border-gray-200 text-gray-400"}`} style={proj.active ? { color: "", backgroundColor: "" } : {}}>
-                              <span className={proj.active ? eu.color.replace("bg-", "text-") : "text-gray-400"}>#{proj.no}</span>
-                            </span>
-                            <span className={`flex-1 text-sm min-w-0 truncate ${proj.active ? "text-gray-700 font-medium" : "text-gray-400 line-through font-normal"}`}>{proj.name}</span>
-                            {!proj.active && <span className="text-[10px] font-bold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full flex-shrink-0">สำเร็จแล้ว</span>}
-                            <button onClick={() => toggleProject(eu.id, proj.id)} title={proj.active ? "ปิดโปรเจค (สำเร็จแล้ว)" : "เปิดโปรเจคอีกครั้ง"} className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors flex-shrink-0 ${proj.active ? "text-emerald-400 hover:bg-emerald-50" : "text-gray-300 hover:bg-gray-100 hover:text-gray-500"}`}>
-                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="w-4 h-4">{proj.active ? <><path d="M9 12l2 2 4-4"/><path d="M21 12c0 4.97-4.03 9-9 9S3 16.97 3 12 7.03 3 12 3s9 4.03 9 9z"/></> : <><circle cx="12" cy="12" r="9"/><line x1="8" y1="12" x2="16" y2="12"/></>}</svg>
-                            </button>
-                            <button onClick={() => removeProject(eu.id, proj.id)} className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-200 hover:text-rose-400 hover:bg-rose-50 transition-colors flex-shrink-0">
-                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                            </button>
-                          </div>
-                        ))}
-                      </div>
+  {eu.projects.map((proj) => (
+    <div key={proj.id}>
+      {editProjId === proj.id ? (
+        /* ── Edit Project Form ── */
+        <div className="px-4 py-2.5 bg-amber-50 border-b border-amber-100 space-y-2">
+          <p className="text-xs font-bold text-amber-600">แก้ไขโปรเจค</p>
+          <div className="flex gap-2">
+            <input
+              value={editProjNo}
+              onChange={(e) => setEditProjNo(e.target.value)}
+              placeholder="Project No."
+              className="w-28 px-3 py-1.5 text-sm bg-white border border-amber-200 rounded-xl outline-none focus:border-amber-400 placeholder-gray-300"
+            />
+            <input
+              value={editProjName}
+              onChange={(e) => setEditProjName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && updateProject(eu.id)}
+              placeholder="ชื่อโปรเจค..."
+              className="flex-1 px-3 py-1.5 text-sm bg-white border border-amber-200 rounded-xl outline-none focus:border-amber-400 placeholder-gray-300"
+            />
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setEditProjId(null)}
+              className="flex-1 py-1.5 rounded-xl border border-gray-200 text-xs font-semibold text-gray-500 hover:bg-gray-50 transition-colors"
+            >
+              ยกเลิก
+            </button>
+            <button
+              onClick={() => updateProject(eu.id)}
+              disabled={!editProjNo.trim()}
+              className="flex-1 py-1.5 rounded-xl bg-amber-500 text-white text-xs font-bold hover:bg-amber-600 disabled:bg-gray-200 disabled:text-gray-400 transition-colors"
+            >
+              บันทึก
+            </button>
+          </div>
+        </div>
+      ) : (
+        /* ── Project Row ปกติ (เดิม + เพิ่มปุ่ม Edit) ── */
+        <div className={`flex items-center gap-3 px-5 py-3 transition-colors ${!proj.active ? "bg-gray-50/70" : ""}`}>
+          <span className={`flex-shrink-0 px-2.5 py-1 rounded-lg text-xs font-bold border transition-colors ${proj.active ? `${eu.color.replace("bg-", "bg-").replace("500", "50")} border-current text-current` : "bg-gray-100 border-gray-200 text-gray-400"}`} style={proj.active ? { color: "", backgroundColor: "" } : {}}>
+            <span className={proj.active ? eu.color.replace("bg-", "text-") : "text-gray-400"}>#{proj.no}</span>
+          </span>
+          <span className={`flex-1 text-sm min-w-0 truncate ${proj.active ? "text-gray-700 font-medium" : "text-gray-400 line-through font-normal"}`}>{proj.name}</span>
+          {!proj.active && <span className="text-[10px] font-bold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full flex-shrink-0">สำเร็จแล้ว</span>}
+
+          {/* ✅ ปุ่ม Edit — เพิ่มใหม่ */}
+          <button
+            onClick={() => openEditProj(proj)}
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-200 hover:text-amber-400 hover:bg-amber-50 transition-colors flex-shrink-0"
+            title="แก้ไขโปรเจค"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+              <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+              <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+            </svg>
+          </button>
+
+          {/* ปุ่ม Toggle + Delete — เดิม ไม่เปลี่ยน */}
+          <button onClick={() => toggleProject(eu.id, proj.id)} title={proj.active ? "ปิดโปรเจค (สำเร็จแล้ว)" : "เปิดโปรเจคอีกครั้ง"} className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors flex-shrink-0 ${proj.active ? "text-emerald-400 hover:bg-emerald-50" : "text-gray-300 hover:bg-gray-100 hover:text-gray-500"}`}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="w-4 h-4">{proj.active ? <><polyline points="20 6 9 17 4 12"/></> : <><polyline points="20 6 9 17 4 12"/></>}</svg>
+          </button>
+          <button onClick={() => removeProject(eu.id, proj.id)} className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-200 hover:text-rose-400 hover:bg-rose-50 transition-colors flex-shrink-0">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
+          </button>
+        </div>
+      )}
+    </div>
+  ))}
+</div>
                     )}
                   </div>
                 )}
