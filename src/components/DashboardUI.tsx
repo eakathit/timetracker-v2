@@ -183,10 +183,7 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
   const [rawOtEnd, setRawOtEnd] = useState<string | null>(null);
   const [otElapsed, setOtElapsed] = useState("00:00:00");
   const [otIntent, setOtIntent] = useState(false);
-  const [otTimeReady, setOtTimeReady] = useState(
-  new Date().getHours() >= 18
-);
-
+  const [otTimeReady, setOtTimeReady] = useState(new Date().getHours() >= 18);
 
   /* ── Work-type / location ── */
   const [workType, setWorkType] = useState<"in_factory" | "on_site">(
@@ -224,24 +221,24 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
   }, [workStatus, rawOtStart]);
 
   // ── OT time unlock (18:00) ────────────────────────────────────────────────
-useEffect(() => {
-  if (otTimeReady) return;
+  useEffect(() => {
+    if (otTimeReady) return;
 
-  const now = new Date();
-  const target = new Date();
-  target.setHours(18, 0, 0, 0);
-  const msUntil18 = target.getTime() - now.getTime();
+    const now = new Date();
+    const target = new Date();
+    target.setHours(18, 0, 0, 0);
+    const msUntil18 = target.getTime() - now.getTime();
 
-  if (msUntil18 <= 0) {
-    // เลย 18:00 แล้ว (เช่น refresh หน้าหลัง 18:00) → unlock ทันที
-    setOtTimeReady(true);
-    return;
-  }
+    if (msUntil18 <= 0) {
+      // เลย 18:00 แล้ว (เช่น refresh หน้าหลัง 18:00) → unlock ทันที
+      setOtTimeReady(true);
+      return;
+    }
 
-  // fire ตรงเวลา 18:00:00 พอดี
-  const id = setTimeout(() => setOtTimeReady(true), msUntil18);
-  return () => clearTimeout(id);
-}, [otTimeReady]);
+    // fire ตรงเวลา 18:00:00 พอดี
+    const id = setTimeout(() => setOtTimeReady(true), msUntil18);
+    return () => clearTimeout(id);
+  }, [otTimeReady]);
 
   // ── Location watch ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -278,7 +275,7 @@ useEffect(() => {
     return () => navigator.geolocation.clearWatch(watchId);
   }, [workType]);
 
-  // ── Fetch today's log 
+  // ── Fetch today's log
   useEffect(() => {
     const fetchTodayStatus = async () => {
       if (!userId) return;
@@ -286,25 +283,22 @@ useEffect(() => {
 
       const { data } = await supabase
         .from("daily_time_logs")
-        .select("first_check_in, last_check_out, work_type, timeline_events, ot_hours, auto_checked_out, ot_intent")
+        .select(
+          "first_check_in, last_check_out, work_type, timeline_events, ot_hours, auto_checked_out, ot_intent",
+        )
         .eq("user_id", userId)
         .eq("log_date", today)
         .maybeSingle();
 
-        if (data) {
-  // ✅ เช็ค auto_checked_out ก่อนเลย (ต้องอยู่ในนี้)
-  if (data.auto_checked_out && !data.ot_hours) {
-  setWorkStatus("completed");  // ← กลับไป completed ปกติ
-  setRawCheckIn(data.first_check_in);
-  setRawCheckOut(data.last_check_out);
-  setIsInitializing(false);
-  return;
-}
-
-  // ✅ Restore workType จาก DB
-  if (data.work_type === "on_site") {
-    setWorkType("on_site");
-  }
+      if (data) {
+        // ✅ เช็ค auto_checked_out ก่อนเลย (ต้องอยู่ในนี้)
+        if (data.auto_checked_out && !data.ot_hours) {
+          setWorkStatus("completed"); // ← กลับไป completed ปกติ
+          setRawCheckIn(data.first_check_in);
+          setRawCheckOut(data.last_check_out);
+          setIsInitializing(false);
+          return;
+        }
 
         if (data.first_check_in) {
           setRawCheckIn(data.first_check_in);
@@ -343,15 +337,15 @@ useEffect(() => {
           } else if (lastEvent.event === "ot_start") {
             setWorkStatus("ot_working");
           } else if (
-          lastEvent.event === "checkout" ||
-          lastEvent.event === "onsite_checkout"
-        ) {
-          setWorkStatus("completed");
-        } else if (lastEvent.event === "auto_checkout") {
-          // ✅ Cron auto-checkout 17:30 → restore เป็น completed
-          setWorkStatus("completed");
-        } else if (
-          lastEvent.event === "arrive_factory" ||
+            lastEvent.event === "checkout" ||
+            lastEvent.event === "onsite_checkout"
+          ) {
+            setWorkStatus("completed");
+          } else if (lastEvent.event === "auto_checkout") {
+            // ✅ Cron auto-checkout 17:30 → restore เป็น completed
+            setWorkStatus("completed");
+          } else if (
+            lastEvent.event === "arrive_factory" ||
             lastEvent.event === "arrive_site" ||
             lastEvent.event === "onsite_checkin"
           ) {
@@ -372,46 +366,46 @@ useEffect(() => {
     fetchTodayStatus();
   }, [userId]);
 
-// ── Realtime: รับ auto_checkout จาก Vercel Cron ──────────────────────────
-useEffect(() => {
-  if (!userId) return;
-  const today = getLocalToday();
+  // ── Realtime: รับ auto_checkout จาก Vercel Cron ──────────────────────────
+  useEffect(() => {
+    if (!userId) return;
+    const today = getLocalToday();
 
-  const channel = supabase
-    .channel(`auto-checkout:${userId}`)
-    .on(
-      "postgres_changes",
-      {
-        event: "UPDATE",
-        schema: "public",
-        table: "daily_time_logs",
-        filter: `user_id=eq.${userId}`,
-      },
-      (payload) => {
-        const row = payload.new as any;
+    const channel = supabase
+      .channel(`auto-checkout:${userId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "daily_time_logs",
+          filter: `user_id=eq.${userId}`,
+        },
+        (payload) => {
+          const row = payload.new as any;
 
-        // กรองเฉพาะวันนี้เท่านั้น
-        if (row.log_date !== today) return;
+          // กรองเฉพาะวันนี้เท่านั้น
+          if (row.log_date !== today) return;
 
-        // Cron auto-checkout เข้ามา → อัปเดต UI ทันที
-        if (row.auto_checked_out && row.last_check_out) {
-          setRawCheckOut(row.last_check_out);
-          setCheckOutTime(
-            new Date(row.last_check_out).toLocaleTimeString("th-TH", {
-              hour: "2-digit",
-              minute: "2-digit",
-            })
-          );
-          setWorkStatus("completed");
-        }
-      }
-    )
-    .subscribe();
+          // Cron auto-checkout เข้ามา → อัปเดต UI ทันที
+          if (row.auto_checked_out && row.last_check_out) {
+            setRawCheckOut(row.last_check_out);
+            setCheckOutTime(
+              new Date(row.last_check_out).toLocaleTimeString("th-TH", {
+                hour: "2-digit",
+                minute: "2-digit",
+              }),
+            );
+            setWorkStatus("completed");
+          }
+        },
+      )
+      .subscribe();
 
-  return () => {
-    supabase.removeChannel(channel);
-  };
-}, [userId]);
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [userId]);
 
   useEffect(() => {
     if (!userId) return;
@@ -426,7 +420,7 @@ useEffect(() => {
       if (dRes.data) setPopupDetails(dRes.data);
     })();
   }, [userId]);
-  
+
   // ── Location guard ────────────────────────────────────────────────────────
   const validateLocation = useCallback((): boolean => {
     if (workType === "on_site") return true;
@@ -756,30 +750,69 @@ useEffect(() => {
                 className={`w-full max-w-xs mx-auto flex items-center justify-center gap-2 py-3
                   border-2 rounded-xl font-semibold transition-all duration-200
                   disabled:cursor-not-allowed
-                  ${otTimeReady
-                    ? "border-amber-400 text-amber-600 hover:bg-amber-400 hover:text-white disabled:opacity-60"
-                    : "border-gray-200 text-gray-300 bg-gray-50"
+                  ${
+                    otTimeReady
+                      ? "border-amber-400 text-amber-600 hover:bg-amber-400 hover:text-white disabled:opacity-60"
+                      : "border-gray-200 text-gray-300 bg-gray-50"
                   }`}
               >
                 {isSubmitting ? (
-                  <svg className="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                  <svg
+                    className="animate-spin w-5 h-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                    />
                   </svg>
                 ) : otTimeReady ? (
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <circle cx="12" cy="12" r="9" strokeWidth="2"/>
-                    <polyline points="12 7 12 12 15 14" strokeWidth="2.5" strokeLinecap="round"/>
+                  <svg
+                    className="w-5 h-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle cx="12" cy="12" r="9" strokeWidth="2" />
+                    <polyline
+                      points="12 7 12 12 15 14"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                    />
                   </svg>
                 ) : (
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <rect x="3" y="11" width="18" height="11" rx="2" strokeWidth="2"/>
-                    <path strokeLinecap="round" strokeWidth="2" d="M7 11V7a5 5 0 0110 0v4"/>
+                  <svg
+                    className="w-5 h-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <rect
+                      x="3"
+                      y="11"
+                      width="18"
+                      height="11"
+                      rx="2"
+                      strokeWidth="2"
+                    />
+                    <path
+                      strokeLinecap="round"
+                      strokeWidth="2"
+                      d="M7 11V7a5 5 0 0110 0v4"
+                    />
                   </svg>
                 )}
-                <span>
-                  {otTimeReady ? "Start OT" : "Start OT (18:00 น.)"}
-                </span>
+                <span>{otTimeReady ? "Start OT" : "Start OT (18:00 น.)"}</span>
               </button>
 
               <p className="text-xs text-gray-400 text-center">
@@ -808,18 +841,32 @@ useEffect(() => {
               onClick={handleEndOT}
               disabled={isSubmitting}
               className={`w-48 h-48 rounded-full flex flex-col items-center justify-center mx-auto shadow-lg transition-all duration-300
-                ${isSubmitting
-                  ? "bg-amber-400 text-white opacity-80 cursor-wait"
-                  : "bg-amber-400 text-white hover:bg-amber-500 ot-btn-anim"
+                ${
+                  isSubmitting
+                    ? "bg-amber-400 text-white opacity-80 cursor-wait"
+                    : "bg-amber-400 text-white hover:bg-amber-500 ot-btn-anim"
                 }`}
             >
               {isSubmitting ? (
                 <Spinner />
               ) : (
                 <>
-                  <svg className="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <circle cx="12" cy="12" r="9" strokeWidth="2"/>
-                    <rect x="9" y="9" width="6" height="6" rx="1" fill="currentColor" opacity="0.85"/>
+                  <svg
+                    className="w-16 h-16"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle cx="12" cy="12" r="9" strokeWidth="2" />
+                    <rect
+                      x="9"
+                      y="9"
+                      width="6"
+                      height="6"
+                      rx="1"
+                      fill="currentColor"
+                      opacity="0.85"
+                    />
                   </svg>
                   <span className="text-2xl font-semibold mt-2">End OT</span>
                 </>
@@ -833,8 +880,18 @@ useEffect(() => {
         {workStatus === "ot_completed" && (
           <div className="animate-fade-in flex flex-col items-center">
             <div className="w-48 h-48 bg-amber-400 text-white rounded-full flex flex-col items-center justify-center shadow-lg mx-auto">
-              <svg className="w-16 h-16 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7"/>
+              <svg
+                className="w-16 h-16 mb-1"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2.5"
+                  d="M5 13l4 4L19 7"
+                />
               </svg>
               <span className="text-xl font-bold mt-1">OT Complete</span>
             </div>
@@ -844,130 +901,29 @@ useEffect(() => {
             </p>
           </div>
         )}
+
+        {/* ✅ เพิ่มตรงนี้ — Location Status */}
+      <div className="mt-4 pt-4 border-t border-gray-100">
+        <div className={`flex items-center gap-2 p-3 rounded-xl text-sm
+          ${locationStatus === "in_range"
+            ? "bg-emerald-50 text-emerald-700"
+            : locationStatus === "out_of_range"
+              ? "bg-red-50 text-red-700"
+              : locationStatus === "error"
+                ? "bg-orange-50 text-orange-700"
+                : "bg-gray-100 text-gray-500"
+          }`}
+        >
+          <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
+              d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
+              d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+          </svg>
+          <span className="text-xs font-medium">{distanceText}</span>
+        </div>
       </div>
 
-      {/* ── 3. WORK TYPE & LOCATION CARD ───────────────────────────────────── */}
-      <div className="card space-y-4 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-        <div>
-          <h3 className="font-semibold mb-3">Work Type</h3>
-          <div className="flex bg-gray-100 rounded-xl p-1">
-            {(["in_factory", "on_site"] as const).map((t) => (
-              <button
-                key={t}
-                onClick={() => setWorkType(t)}
-                disabled={workStatus !== "idle" && workStatus !== "loading"}
-                className={`flex-1 p-2 rounded-lg transition-all text-sm font-medium disabled:cursor-not-allowed
-                  ${workType === t ? "bg-sky-500 text-white shadow" : "text-gray-600"}`}
-              >
-                {t === "in_factory" ? "Factory" : "On-site"}
-              </button>
-            ))}
-          </div>
-        </div>
-            
-        {/* On-site role options */}
-        {workType === "on_site" && (
-          <div className="pt-4 border-t border-gray-100 space-y-4 animate-fade-in">
-            <h3 className="font-semibold text-center mb-2 text-gray-700">
-              Select Your Role
-            </h3>
-            <div className="flex gap-3">
-              {(["member", "leader"] as const).map((r) => (
-                <button
-                  key={r}
-                  onClick={() => setOnSiteRole(r)}
-                  className={`flex-1 py-3 border-2 rounded-xl font-bold transition-all text-sm
-                    ${
-                      onSiteRole === r
-                        ? "border-sky-500 text-sky-600 bg-sky-50"
-                        : "border-gray-300 text-gray-500 bg-white"
-                    }`}
-                >
-                  {r === "member" ? (
-                    <>
-                      Scan QR
-                      <br />
-                      <span className="text-xs font-normal">(Member)</span>
-                    </>
-                  ) : (
-                    <>
-                      Create Room
-                      <br />
-                      <span className="text-xs font-normal">(Leader)</span>
-                    </>
-                  )}
-                </button>
-              ))}
-            </div>
-            {onSiteRole === "member" && (
-              <button className="w-full bg-sky-500 text-white rounded-lg py-3 flex items-center justify-center gap-2 hover:bg-sky-600 transition-colors">
-                <svg
-                  className="w-5 h-5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"
-                  />
-                </svg>
-                Open Camera to Scan QR
-              </button>
-            )}
-            {onSiteRole === "leader" && (
-              <button
-                onClick={() => router.push("/onsite/create")}
-                className="w-full bg-sky-500 text-white rounded-lg py-3 hover:bg-sky-600 transition-colors font-semibold"
-              >
-                Create Check-in Room →
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* Location status (factory only) */}
-        {workType === "in_factory" && (
-          <div className="pt-4 border-t border-gray-100">
-            <h3 className="font-semibold mb-3">Location Status</h3>
-            <div
-              className={`flex items-center p-3 rounded-xl ${
-                locationStatus === "in_range"
-                  ? "bg-emerald-50 text-emerald-700"
-                  : locationStatus === "out_of_range"
-                    ? "bg-red-50 text-red-700"
-                    : locationStatus === "error"
-                      ? "bg-orange-50 text-orange-700"
-                      : "bg-gray-100 text-gray-700"
-              }`}
-            >
-              <svg
-                className="w-6 h-6 mr-3 opacity-80"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
-                />
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
-                />
-              </svg>
-              <div className="flex flex-col">
-                <span className="font-medium text-sm">{distanceText}</span>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* ── 4. DAILY SUMMARY CARD ───────────────────────────────────────────── */}
