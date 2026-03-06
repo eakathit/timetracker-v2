@@ -1383,18 +1383,31 @@ function ReportManagementSection() {
             </div>
             <div>
               <p className="text-xs text-gray-400 mb-2">เลือกสี</p>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2 mb-2">
                 {END_USER_COLORS.map((c) => (
                   <button
                     key={c}
-                    onClick={() => setEditEuColor(c)}
-                    className={`w-8 h-8 rounded-xl ${c} transition-transform hover:scale-110 ${
+                    onClick={() => setEditEuColor(c)} // ✅
+                    style={{ backgroundColor: c }}
+                    className={`w-7 h-7 rounded-lg transition-transform hover:scale-110 ${
                       editEuColor === c
-                        ? "ring-2 ring-offset-2 ring-amber-400 scale-110"
-                        : ""
+                        ? "ring-2 ring-offset-2 ring-gray-400 scale-110"
+                        : "" // ✅
                     }`}
                   />
                 ))}
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={editEuColor} // ✅
+                  onChange={(e) => setEditEuColor(e.target.value)} // ✅
+                  className="w-8 h-8 rounded-lg border border-gray-200 cursor-pointer p-0.5 bg-white"
+                />
+                <span className="text-xs text-gray-400">หรือเลือกสีเอง</span>
+                <span className="text-xs font-mono text-gray-500 bg-gray-50 px-2 py-1 rounded-lg border border-gray-100">
+                  {editEuColor} {/* ✅ */}
+                </span>
               </div>
             </div>
             <div className="flex gap-2">
@@ -1523,34 +1536,35 @@ function ReportManagementSection() {
                       className="w-full px-3 py-2 text-sm bg-white border border-amber-200 rounded-xl outline-none focus:border-amber-400 placeholder-gray-300"
                     />
                     <div>
-  <p className="text-xs text-gray-400 mb-2">เลือกสี</p>
-  {/* Preset swatches */}
-  <div className="flex flex-wrap gap-2 mb-2">
-    {END_USER_COLORS.map((c) => (
-      <button
-        key={c}
-        onClick={() => setNewEuColor(c)}
-        style={{ backgroundColor: c }}
-        className={`w-7 h-7 rounded-lg transition-transform hover:scale-110 ${
-          newEuColor === c ? "ring-2 ring-offset-2 ring-gray-400 scale-110" : ""
-        }`}
-      />
-    ))}
-  </div>
-  {/* Custom color picker */}
-  <div className="flex items-center gap-2">
-    <input
-      type="color"
-      value={newEuColor}
-      onChange={(e) => setNewEuColor(e.target.value)}
-      className="w-8 h-8 rounded-lg border border-gray-200 cursor-pointer p-0.5 bg-white"
-    />
-    <span className="text-xs text-gray-400">หรือเลือกสีเอง</span>
-    <span className="text-xs font-mono text-gray-500 bg-gray-50 px-2 py-1 rounded-lg border border-gray-100">
-      {newEuColor}
-    </span>
-  </div>
-</div>
+                      <p className="text-xs text-gray-400 mb-2">เลือกสี</p>
+                      {/* Preset swatches */}
+                      <div className="flex flex-wrap gap-2 mb-2">
+                        {END_USER_COLORS.map((c) => (
+                          <button
+                            key={c}
+                            onClick={() => setEditEuColor(c)} // ✅
+                            style={{ backgroundColor: c }}
+                            className={`w-7 h-7 rounded-lg transition-transform hover:scale-110 ${
+                              editEuColor === c // ✅
+                                ? "ring-2 ring-offset-2 ring-gray-400 scale-110"
+                                : ""
+                            }`}
+                          />
+                        ))}
+                      </div>
+                      {/* Custom color picker */}
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={editEuColor} // ✅
+                          onChange={(e) => setEditEuColor(e.target.value)} // ✅
+                          className="w-8 h-8 rounded-lg border border-gray-200 cursor-pointer p-0.5 bg-white"
+                        />
+                        <span className="text-xs text-gray-400">
+                          หรือเลือกสีเอง
+                        </span>
+                      </div>
+                    </div>
                     <div className="flex gap-2">
                       <button
                         onClick={() => setEditEuId(null)}
@@ -1670,27 +1684,20 @@ function ReportManagementSection() {
                                 className={`flex items-center gap-3 px-5 py-3 transition-colors ${!proj.active ? "bg-gray-50/70" : ""}`}
                               >
                                 <span
-                                  className={`flex-shrink-0 px-2.5 py-1 rounded-lg text-xs font-bold border transition-colors ${proj.active ? `${eu.color.replace("bg-", "bg-").replace("500", "50")} border-current text-current` : "bg-gray-100 border-gray-200 text-gray-400"}`}
+                                  className="flex-shrink-0 px-2.5 py-1 rounded-lg text-xs font-bold transition-colors"
                                   style={
                                     proj.active
-                                      ? { color: "", backgroundColor: "" }
-                                      : {}
+                                      ? {
+                                          backgroundColor: eu.color + "25", // พื้นโปร่งแสงเล็กน้อย
+                                          color: "#1f2937",
+                                        }
+                                      : {
+                                          backgroundColor: "#f3f4f6",
+                                          color: "#9ca3af",
+                                        }
                                   }
                                 >
-                                  <span
-  className="flex-shrink-0 px-2.5 py-1 rounded-lg text-xs font-bold border transition-colors"
-  style={proj.active ? {
-    backgroundColor: eu.color + "20",
-    borderColor: eu.color,
-    color: eu.color,
-  } : {
-    backgroundColor: "#f3f4f6",
-    borderColor: "#e5e7eb",
-    color: "#9ca3af",
-  }}
->
-  #{proj.no}
-</span>
+                                  #{proj.no}
                                 </span>
                                 <span
                                   className={`flex-1 text-sm min-w-0 truncate ${proj.active ? "text-gray-700 font-medium" : "text-gray-400 line-through font-normal"}`}
