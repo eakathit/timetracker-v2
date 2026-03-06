@@ -1523,38 +1523,34 @@ function ReportManagementSection() {
                       className="w-full px-3 py-2 text-sm bg-white border border-amber-200 rounded-xl outline-none focus:border-amber-400 placeholder-gray-300"
                     />
                     <div>
-                      <p className="text-xs text-gray-400 mb-2">เลือกสี</p>
-                      {/* Preset swatches */}
-                      <div className="flex flex-wrap gap-2 mb-2">
-                        {END_USER_COLORS.map((c) => (
-                          <button
-                            key={c}
-                            onClick={() => setEditEuColor(c)} // ใช้ setNewEuColor สำหรับ Add form
-                            style={{ backgroundColor: c }}
-                            className={`w-7 h-7 rounded-lg transition-transform hover:scale-110 ${
-                              editEuColor === c // ใช้ newEuColor สำหรับ Add form
-                                ? "ring-2 ring-offset-2 ring-gray-400 scale-110"
-                                : ""
-                            }`}
-                          />
-                        ))}
-                      </div>
-                      {/* Custom color picker */}
-                      <div className="flex items-center gap-2 mt-1">
-                        <input
-                          type="color"
-                          value={editEuColor} // ใช้ newEuColor สำหรับ Add form
-                          onChange={(e) => setEditEuColor(e.target.value)} // setNewEuColor สำหรับ Add form
-                          className="w-8 h-8 rounded-lg border border-gray-200 cursor-pointer p-0.5 bg-white"
-                        />
-                        <span className="text-xs text-gray-400">
-                          หรือเลือกสีเอง
-                        </span>
-                        <span className="text-xs font-mono text-gray-500 bg-gray-50 px-2 py-1 rounded-lg border border-gray-100">
-                          {editEuColor} {/* newEuColor สำหรับ Add form */}
-                        </span>
-                      </div>
-                    </div>
+  <p className="text-xs text-gray-400 mb-2">เลือกสี</p>
+  {/* Preset swatches */}
+  <div className="flex flex-wrap gap-2 mb-2">
+    {END_USER_COLORS.map((c) => (
+      <button
+        key={c}
+        onClick={() => setNewEuColor(c)}
+        style={{ backgroundColor: c }}
+        className={`w-7 h-7 rounded-lg transition-transform hover:scale-110 ${
+          newEuColor === c ? "ring-2 ring-offset-2 ring-gray-400 scale-110" : ""
+        }`}
+      />
+    ))}
+  </div>
+  {/* Custom color picker */}
+  <div className="flex items-center gap-2">
+    <input
+      type="color"
+      value={newEuColor}
+      onChange={(e) => setNewEuColor(e.target.value)}
+      className="w-8 h-8 rounded-lg border border-gray-200 cursor-pointer p-0.5 bg-white"
+    />
+    <span className="text-xs text-gray-400">หรือเลือกสีเอง</span>
+    <span className="text-xs font-mono text-gray-500 bg-gray-50 px-2 py-1 rounded-lg border border-gray-100">
+      {newEuColor}
+    </span>
+  </div>
+</div>
                     <div className="flex gap-2">
                       <button
                         onClick={() => setEditEuId(null)}
