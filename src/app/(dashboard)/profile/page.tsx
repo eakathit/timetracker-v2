@@ -116,20 +116,27 @@ function pct(used: number, quota: number) {
 }
 
 // ─── Sub Components ───────────────────────────────────────────────────────────
+// ใหม่
 function StatCard({
-  icon, label, value, sub, accent,
+  icon, label, value, sub, accent, comingSoon,
 }: {
-  icon: React.ReactNode; label: string; value: string; sub?: string; accent: string;
+  icon: React.ReactNode; label: string; value: string; sub?: string; accent: string; comingSoon?: boolean;
 }) {
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex items-center gap-4">
+    <div className={`relative bg-white rounded-2xl border shadow-sm p-4 flex items-center gap-4 overflow-hidden ${comingSoon ? "border-gray-100 opacity-75" : "border-gray-100"}`}>
+      {/* Coming Soon overlay badge */}
+      {comingSoon && (
+        <span className="absolute top-2 right-2 text-[9px] font-black tracking-wider uppercase bg-amber-100 text-amber-600 border border-amber-200 px-1.5 py-0.5 rounded-lg">
+          Coming Soon
+        </span>
+      )}
       <div className={`w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 ${accent}`}>
         {icon}
       </div>
       <div className="min-w-0">
         <p className="text-xs text-gray-400 font-medium truncate">{label}</p>
-        <p className="text-2xl font-extrabold text-gray-800 leading-tight">{value}</p>
-        {sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
+        <p className={`text-2xl font-extrabold leading-tight ${comingSoon ? "text-gray-300" : "text-gray-800"}`}>{value}</p>
+        {sub && <p className={`text-xs mt-0.5 ${comingSoon ? "text-gray-300" : "text-gray-400"}`}>{sub}</p>}
       </div>
     </div>
   );
@@ -364,10 +371,22 @@ function LeaveQuotaSection() {
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
       <div className="px-5 py-4 border-b border-gray-50">
-        <h3 className="text-sm font-bold text-gray-700">สิทธิ์วันลา</h3>
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="text-sm font-bold text-gray-700">สิทธิ์วันลา</h3>
+          <span className="text-[9px] font-black tracking-wider uppercase bg-amber-100 text-amber-600 border border-amber-200 px-2 py-0.5 rounded-lg flex-shrink-0">
+            Coming Soon
+          </span>
+        </div>
         <p className="text-xs text-gray-400 mt-0.5">ใช้ไป {totalUsed} / {totalQuota} วัน ({totalPct}%)</p>
       </div>
-      <div className="p-5 space-y-4">
+      {/* Mock data notice */}
+      <div className="mx-5 mt-4 px-3 py-2 rounded-xl bg-amber-50 border border-amber-100 flex items-center gap-2">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-amber-500 flex-shrink-0">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        <p className="text-[11px] text-amber-600 font-medium">ข้อมูลนี้เป็น Mock Data · ฟีเจอร์อยู่ระหว่างพัฒนา</p>
+      </div>
+      <div className="p-5 space-y-4 opacity-50">
         {LEAVE_QUOTA_MOCK.map((item, i) => {
           const cfg = LEAVE_TYPE[item.type];
           const w   = pct(item.used, item.quota);
@@ -867,12 +886,13 @@ export default function ProfilePage() {
                 accent="bg-amber-50 text-amber-500"
               />
               <StatCard
-                icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: 20, height: 20 }}><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>}
-                label="สิทธิ์ลาคงเหลือ"
-                value={logsLoading ? "..." : `${totalLeaveRemaining} วัน`}
-                sub="จากโควต้าทั้งหมด"
-                accent="bg-violet-50 text-violet-500"
-              />
+  icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: 20, height: 20 }}><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>}
+  label="สิทธิ์ลาคงเหลือ"
+  value="— วัน"
+  sub="ยังไม่เปิดใช้งาน"
+  accent="bg-violet-50 text-violet-300"
+  comingSoon
+/>
             </div>
 
             {/* Calendar / List */}
