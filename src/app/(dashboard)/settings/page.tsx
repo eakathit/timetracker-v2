@@ -995,7 +995,8 @@ function ReportManagementSection() {
 
   // ── Detail actions ────────────────────────────────────────────────────────────
   const [newDetail, setNewDetail] = useState("");
-
+  const [detailSearch, setDetailSearch] = useState("");
+  
   const addDetail = async () => {
     const trimmed = newDetail.trim();
     if (!trimmed) return;
@@ -1081,13 +1082,17 @@ function ReportManagementSection() {
   };
 
   const removeEndUser = async (id: string) => {
-    if (
-      !confirm("ลบลูกค้านี้จะลบโปรเจกต์ทั้งหมดที่เกี่ยวข้องด้วย ยืนยันหรือไม่?")
-    )
-      return;
-    await supabase.from("end_users").delete().eq("id", id);
-    setEndUsers((prev) => prev.filter((e) => e.id !== id));
-  };
+  if (!confirm("ลบลูกค้านี้จะลบโปรเจกต์ทั้งหมดที่เกี่ยวข้องด้วย ยืนยันหรือไม่?")) return;
+  
+  const { error } = await supabase.from("end_users").delete().eq("id", id);
+  
+  if (error) {
+    alert("ไม่สามารถลบได้: " + error.message);
+    return;
+  }
+  
+  setEndUsers((prev) => prev.filter((e) => e.id !== id));
+};
 
   const addProject = async (euId: string) => {
     const no = newProjNo.trim();
@@ -1250,73 +1255,77 @@ function ReportManagementSection() {
           </span>
         </div>
 
-        <div className="divide-y divide-gray-50">
-          {details.map((d) => (
-            <div
-              key={d.id}
-              className={`flex items-center gap-3 px-5 py-3 transition-colors ${!d.active ? "bg-gray-50/60" : ""}`}
-            >
-              <span className="text-gray-200 cursor-grab flex-shrink-0">
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  className="w-4 h-4"
-                >
-                  <line x1="9" y1="6" x2="15" y2="6" />
-                  <line x1="9" y1="12" x2="15" y2="12" />
-                  <line x1="9" y1="18" x2="15" y2="18" />
-                </svg>
-              </span>
-              <span
-                className={`flex-1 text-sm font-medium ${d.active ? "text-gray-700" : "text-gray-400 line-through"}`}
-              >
-                {d.label}
-              </span>
-              <button
-                onClick={() => toggleDetail(d.id)}
-                className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${d.active ? "text-sky-400 hover:bg-sky-50" : "text-gray-300 hover:bg-gray-100"}`}
-                title={d.active ? "ซ่อน" : "แสดง"}
-              >
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  className="w-4 h-4"
-                >
-                  {d.active ? (
-                    <>
-                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                      <circle cx="12" cy="12" r="3" />
-                    </>
-                  ) : (
-                    <>
-                      <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24" />
-                      <line x1="1" y1="1" x2="23" y2="23" />
-                    </>
-                  )}
-                </svg>
-              </button>
-              <button
-                onClick={() => removeDetail(d.id)}
-                className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-200 hover:text-rose-400 hover:bg-rose-50 transition-colors"
-              >
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  className="w-4 h-4"
-                >
-                  <polyline points="3 6 5 6 21 6" />
-                  <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a1 1 0 011-1h4a1 1 0 011 1v2" />
-                </svg>
-              </button>
-            </div>
-          ))}
-        </div>
+        {/* Search — แสดงเมื่อมีมากกว่า 6 รายการ */}
+{details.length > 6 && (
+  <div className="px-5 py-2.5 border-b border-gray-50">
+    <div className="relative">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+        className="w-3.5 h-3.5 text-gray-300 absolute left-3 top-1/2 -translate-y-1/2">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      <input
+        type="text"
+        value={detailSearch}
+        onChange={(e) => setDetailSearch(e.target.value)}
+        placeholder="ค้นหาประเภทงาน..."
+        className="w-full pl-8 pr-3 py-2 text-sm bg-gray-50 border border-gray-100 rounded-xl outline-none focus:border-sky-300 focus:ring-2 focus:ring-sky-50 placeholder-gray-300 transition-colors"
+      />
+    </div>
+  </div>
+)}
+
+{/* List — จำกัดความสูง + scroll */}
+<div className="divide-y divide-gray-50 overflow-y-auto" style={{ maxHeight: "320px" }}>
+  {details
+    .filter((d) => d.label.toLowerCase().includes(detailSearch.toLowerCase()))
+    .map((d) => (
+      <div
+        key={d.id}
+        className={`flex items-center gap-3 px-5 py-3 transition-colors ${!d.active ? "bg-gray-50/60" : ""}`}
+      >
+        <span className="text-gray-200 cursor-grab flex-shrink-0">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+            <line x1="9" y1="6" x2="15" y2="6" />
+            <line x1="9" y1="12" x2="15" y2="12" />
+            <line x1="9" y1="18" x2="15" y2="18" />
+          </svg>
+        </span>
+        <span className={`flex-1 text-sm font-medium ${d.active ? "text-gray-700" : "text-gray-400 line-through"}`}>
+          {d.label}
+        </span>
+        <button
+          onClick={() => toggleDetail(d.id)}
+          className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${d.active ? "text-sky-400 hover:bg-sky-50" : "text-gray-300 hover:bg-gray-100"}`}
+          title={d.active ? "ซ่อน" : "แสดง"}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+            {d.active ? (
+              <><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></>
+            ) : (
+              <><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></>
+            )}
+          </svg>
+        </button>
+        <button
+          onClick={() => removeDetail(d.id)}
+          className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-200 hover:text-rose-400 hover:bg-rose-50 transition-colors"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+            <polyline points="3 6 5 6 21 6"/>
+            <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
+          </svg>
+        </button>
+      </div>
+    ))}
+  {/* Empty search result */}
+  {detailSearch && details.filter((d) =>
+    d.label.toLowerCase().includes(detailSearch.toLowerCase())
+  ).length === 0 && (
+    <div className="px-5 py-6 text-center text-xs text-gray-400">
+      ไม่พบประเภทงาน "{detailSearch}"
+    </div>
+  )}
+</div>
 
         <div className="px-5 py-3 border-t border-gray-50 flex gap-2">
           <input

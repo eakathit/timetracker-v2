@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -89,16 +89,114 @@ function CalendarPopup({ selected, onSelect, onClose }: { selected: Date; onSele
   );
 }
 
-function SelectField({ label, icon, value, options, placeholder, onChange, disabled = false }: { label: string; icon: React.ReactNode; value: string; options: { value: string; label: string }[]; placeholder: string; onChange: (v: string) => void; disabled?: boolean; }) {
+function SelectField({ label, icon, value, options, placeholder, onChange, disabled = false }: {
+  label: string;
+  icon: React.ReactNode;
+  value: string;
+  options: { value: string; label: string }[];
+  placeholder: string;
+  onChange: (v: string) => void;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const ref = useRef<HTMLDivElement>(null);
+
+  const selected = options.find((o) => o.value === value);
+  const filtered = options.filter((o) =>
+    o.label.toLowerCase().includes(search.toLowerCase())
+  );
+
+  // ปิด dropdown เมื่อคลิกข้างนอก
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+        setSearch("");
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const handleSelect = (v: string) => {
+    onChange(v);
+    setOpen(false);
+    setSearch("");
+  };
+
   return (
-    <div className="space-y-1.5">
-      <label className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">{icon}{label}</label>
+    <div className="space-y-1.5" ref={ref}>
+      <label className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+        {icon}{label}
+      </label>
       <div className="relative">
-        <select disabled={disabled} value={value} onChange={(e) => onChange(e.target.value)} className={`w-full appearance-none px-4 py-3 pr-10 rounded-xl border text-sm font-medium transition-all duration-200 outline-none ${disabled ? "bg-gray-50/50 border-gray-100 text-gray-600 cursor-not-allowed opacity-80" : "cursor-pointer"} ${!disabled && value ? "border-sky-300 bg-sky-50/50 text-gray-800" : ""} ${!disabled && !value ? "border-gray-200 bg-white text-gray-400" : ""} ${!disabled ? "hover:border-sky-300 focus:border-sky-400 focus:ring-2 focus:ring-sky-100" : ""}`}>
-          <option value="" disabled>{placeholder}</option>
-          {options.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
-        </select>
-        {!disabled && (<span className={`absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none transition-colors ${value ? "text-sky-400" : "text-gray-300"}`}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4"><polyline points="6 9 12 15 18 9" /></svg></span>)}
+        {/* Trigger button */}
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => { if (!disabled) setOpen((o) => !o); }}
+          className={`w-full px-4 py-3 pr-10 rounded-xl border text-sm font-medium text-left transition-all duration-200 outline-none flex items-center justify-between
+            ${disabled ? "bg-gray-50/50 border-gray-100 text-gray-600 cursor-not-allowed opacity-80" : "cursor-pointer"}
+            ${!disabled && value ? "border-sky-300 bg-sky-50/50 text-gray-800" : ""}
+            ${!disabled && !value ? "border-gray-200 bg-white text-gray-400" : ""}
+            ${!disabled ? "hover:border-sky-300 focus:border-sky-400" : ""}
+          `}
+        >
+          <span className="truncate">{selected ? selected.label : placeholder}</span>
+          {!disabled && (
+            <span className={`flex-shrink-0 transition-colors ${value ? "text-sky-400" : "text-gray-300"}`}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className={`w-4 h-4 transition-transform ${open ? "rotate-180" : ""}`}>
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </span>
+          )}
+        </button>
+
+        {/* Dropdown */}
+        {open && (
+          <div className="absolute z-50 mt-1.5 w-full bg-white rounded-xl border border-gray-200 shadow-lg overflow-hidden">
+            {/* Search input */}
+            {options.length > 4 && (
+              <div className="p-2 border-b border-gray-100">
+                <div className="relative">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                    className="w-3.5 h-3.5 text-gray-300 absolute left-2.5 top-1/2 -translate-y-1/2">
+                    <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                  </svg>
+                  <input
+                    autoFocus
+                    type="text"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="ค้นหา..."
+                    className="w-full pl-8 pr-3 py-1.5 text-sm bg-gray-50 border border-gray-100 rounded-lg outline-none focus:border-sky-300 placeholder-gray-300"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Options list */}
+            <div className="overflow-y-auto" style={{ maxHeight: "200px" }}>
+              {filtered.length === 0 ? (
+                <div className="px-4 py-3 text-xs text-gray-400 text-center">ไม่พบรายการ</div>
+              ) : (
+                filtered.map((o) => (
+                  <button
+                    key={o.value}
+                    type="button"
+                    onClick={() => handleSelect(o.value)}
+                    className={`w-full px-4 py-2.5 text-sm text-left transition-colors hover:bg-sky-50
+                      ${o.value === value ? "bg-sky-50 text-sky-600 font-semibold" : "text-gray-700"}
+                    `}
+                  >
+                    {o.label}
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
