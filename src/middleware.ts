@@ -29,7 +29,8 @@ export async function middleware(request: NextRequest) {
   const url = request.nextUrl.clone();
   const isLoginPage    = url.pathname === "/login";
   const isAuthCallback = url.pathname.startsWith("/auth/callback");
-  const isPublicPage   = isLoginPage || isAuthCallback;
+  const isCronRoute    = url.pathname.startsWith("/api/cron/");
+  const isPublicPage   = isLoginPage || isAuthCallback || isCronRoute; 
 
   if (!user && !isPublicPage) {
     url.pathname = "/login";
