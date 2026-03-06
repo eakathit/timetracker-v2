@@ -22,10 +22,19 @@ export default async function Home() {
   // ดึงข้อมูล User ปัจจุบัน
   const { data: { user } } = await supabase.auth.getUser();
 
-  if (!user) {
-    redirect("/login");
-  }
-
-  // 👉 แก้ไขบรรทัดนี้: ส่ง userId={user.id} เพิ่มเข้าไป
-  return <DashboardUI userEmail={user.email} userId={user.id} />;
+if (!user) {
+  redirect("/login");
 }
+
+// ดึง first_name + last_name จาก profiles
+const { data: profile } = await supabase
+  .from("profiles")
+  .select("first_name, last_name")
+  .eq("id", user.id)
+  .maybeSingle();
+
+const userName = [profile?.first_name, profile?.last_name]
+  .filter(Boolean)
+  .join(" ") || undefined;
+
+return <DashboardUI userEmail={user.email} userId={user.id} userName={userName} />;}

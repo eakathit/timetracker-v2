@@ -157,7 +157,7 @@ const elapsedStr = (isoStart: string | null): string => {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
-export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
+export default function DashboardUI({ userName, userEmail, userId }: DashboardUIProps) {
   const router = useRouter();
   /* ── Clock ── */
   const [currentTime, setCurrentTime] = useState("");
@@ -590,9 +590,9 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
       <div className="flex justify-between items-center relative gap-4">
         <div className="overflow-hidden">
           <p className="text-gray-500">TimeTracker System</p>
-          <h2 className="text-xl md:text-2xl font-bold truncate text-sky-700">
-            {userEmail || "ผู้ใช้งาน"}
-          </h2>
+<h2 className="text-xl md:text-2xl font-bold truncate text-sky-700">
+  {userName || userEmail || "ผู้ใช้งาน"}
+</h2>
         </div>
       </div>
 
@@ -926,7 +926,7 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
 
       </div>
 
-      {/* ── 4. DAILY SUMMARY CARD ───────────────────────────────────────────── */}
+     {/* ── 4. DAILY SUMMARY CARD ───────────────────────────────────────────── */}
       <div className="card bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
         <h3 className="font-semibold mb-4 text-gray-800">Daily Summary</h3>
         <div className="space-y-4 text-sm">
@@ -1012,7 +1012,7 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
           )}
         </div>
       </div>
-
+      
       {/* ── 5. DAILY REPORT POPUP (MODAL) ─────────────────────────────────── */}
       {showReportPopup && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-6 bg-gray-900/60 backdrop-blur-sm animate-in fade-in duration-200">
