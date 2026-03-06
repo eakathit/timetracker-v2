@@ -125,22 +125,29 @@ function Avatar({ name, userId, size = "sm" }: { name: string; userId: string; s
   );
 }
 
-// ─── OT Card ──────────────────────────────────────────────────────────────────
 function OTCard({ req, showUser, onClick }: { req: OTRequest; showUser: boolean; onClick: () => void }) {
   const st = STATUS_CFG[req.status];
-  const month = TH_MONTHS[Number(req.request_date?.split("-")[1])];
   const day   = req.request_date?.split("-")[2];
+  const month = TH_MONTHS[Number(req.request_date?.split("-")[1])];
+
   return (
-    <div onClick={onClick} className={`relative bg-white rounded-2xl border-2 overflow-hidden active:scale-[0.99] transition-all cursor-pointer ${st.border}`}>
-      <div className={`absolute left-0 top-0 bottom-0 w-1 ${st.bar}`} />
-      <div className="pl-5 pr-4 py-4 flex items-start gap-3">
-        <div className={`flex-shrink-0 w-12 h-14 rounded-xl flex flex-col items-center justify-center border ${st.border} ${st.bg}`}>
-          <span className={`text-lg font-black leading-none ${st.text}`}>{day}</span>
-          <span className={`text-[10px] font-semibold ${st.text}`}>{month}</span>
+    <div
+      onClick={onClick}
+      className="bg-white rounded-2xl border border-gray-100 shadow-sm active:scale-[0.99] transition-all cursor-pointer overflow-hidden"
+    >
+      {/* Top row */}
+      <div className="flex items-start gap-3 px-4 pt-4 pb-3">
+
+        {/* Date badge */}
+        <div className="flex-shrink-0 w-11 h-13 flex flex-col items-center justify-center bg-gray-50 rounded-xl px-2 py-2.5">
+          <span className="text-base font-black text-gray-800 leading-none">{day}</span>
+          <span className="text-[10px] font-semibold text-gray-400 mt-0.5">{month}</span>
         </div>
+
+        {/* Content */}
         <div className="flex-1 min-w-0">
           {showUser && req.full_name && (
-            <div className="flex items-center gap-2 mb-2">
+            <div className="flex items-center gap-1.5 mb-2">
               <Avatar name={req.full_name} userId={req.user_id} />
               <div>
                 <p className="text-xs font-black text-gray-800 leading-none">{req.full_name}</p>
@@ -148,43 +155,90 @@ function OTCard({ req, showUser, onClick }: { req: OTRequest; showUser: boolean;
               </div>
             </div>
           )}
-          <div className="flex items-center justify-between gap-2 mb-1">
-            <span className="text-sm font-bold text-gray-800 truncate">
-              {req.project_no ? `#${req.project_no}` : "ไม่ระบุโปรเจกต์"}
-              {req.project_name ? ` · ${req.project_name}` : ""}
+
+          <div className="flex items-start justify-between gap-2">
+            <p className="text-sm font-bold text-gray-900 truncate leading-snug">
+              {req.project_no ? `#${req.project_no}${req.project_name ? ` ${req.project_name}` : ""}` : "ไม่ระบุโปรเจกต์"}
+            </p>
+            <span className={`flex-shrink-0 text-[11px] font-bold px-2.5 py-1 rounded-full ${st.bg} ${st.text}`}>
+              {st.label}
             </span>
-            <span className={`flex-shrink-0 text-[11px] font-bold px-2 py-0.5 rounded-full ${st.bg} ${st.text}`}>{st.label}</span>
           </div>
-          <p className="text-xs text-gray-400 mb-2 truncate">{req.reason}</p>
-          <div className="flex items-center gap-3">
-            <span className="flex items-center gap-1 text-xs font-semibold text-gray-600">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg>
-              {fmtTime(req.start_time)} – {fmtTime(req.end_time)}
-            </span>
-            <span className={`text-xs font-black px-2 py-0.5 rounded-lg ${st.bg} ${st.text}`}>{req.hours} ชม.</span>
-          </div>
-          {req.reject_reason && <p className="text-[11px] text-rose-400 mt-1.5 truncate">✗ {req.reject_reason}</p>}
+
+          {req.reason && (
+            <p className="text-xs text-gray-400 mt-0.5 truncate">{req.reason}</p>
+          )}
         </div>
+      </div>
+
+      {/* Bottom bar */}
+      <div className={`flex items-center gap-4 px-4 py-2.5 border-t ${st.border} ${st.bg}`}>
+        <span className="flex items-center gap-1.5 text-xs font-semibold text-gray-600">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-gray-400">
+            <circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/>
+          </svg>
+          {fmtTime(req.start_time)} – {fmtTime(req.end_time)}
+        </span>
+        <span className={`text-xs font-black ${st.text}`}>{req.hours} ชม.</span>
+        {req.reject_reason && (
+          <span className="ml-auto text-[11px] text-rose-400 truncate max-w-[120px]">{req.reject_reason}</span>
+        )}
       </div>
     </div>
   );
 }
 
-// ─── Leave Card ───────────────────────────────────────────────────────────────
+// SVG icons inline สำหรับ card (ใช้ซ้ำจาก LeaveIcons config)
+const LeaveCardIcon: Record<string, React.ReactNode> = {
+  sick: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-5 h-5">
+      <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+    </svg>
+  ),
+  personal: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-5 h-5">
+      <rect x="2" y="7" width="20" height="14" rx="2"/>
+      <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/>
+    </svg>
+  ),
+  vacation: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-5 h-5">
+      <circle cx="12" cy="12" r="4"/>
+      <line x1="12" y1="2" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="22"/>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+      <line x1="2" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="22" y2="12"/>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+    </svg>
+  ),
+  maternity: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-5 h-5">
+      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+    </svg>
+  ),
+};
+
 function LeaveCard({ req, showUser, onClick }: { req: LeaveRequest; showUser: boolean; onClick: () => void }) {
   const st = STATUS_CFG[req.status];
   const lt = LEAVE_CFG[req.leave_type];
+  const isSameDay = req.start_date === req.end_date;
+
   return (
-    <div onClick={onClick} className={`relative bg-white rounded-2xl border-2 overflow-hidden active:scale-[0.99] transition-all cursor-pointer ${st.border}`}>
-      <div className={`absolute left-0 top-0 bottom-0 w-1 ${st.bar}`} />
-      <div className="pl-5 pr-4 py-4 flex items-start gap-3">
-        <div className={`flex-shrink-0 w-12 h-14 rounded-xl flex flex-col items-center justify-center ${lt.bg}`}>
-          <span className="text-xl leading-none">{lt.icon}</span>
-          <span className={`text-[9px] font-bold mt-1 ${lt.text}`}>{lt.label}</span>
+    <div
+      onClick={onClick}
+      className="bg-white rounded-2xl border border-gray-100 shadow-sm active:scale-[0.99] transition-all cursor-pointer overflow-hidden"
+    >
+      {/* Top row */}
+      <div className="flex items-start gap-3 px-4 pt-4 pb-3">
+
+        {/* Type icon badge */}
+        <div className={`flex-shrink-0 w-11 h-11 rounded-xl flex items-center justify-center ${lt.bg} ${lt.text}`}>
+          {LeaveCardIcon[req.leave_type]}
         </div>
+
+        {/* Content */}
         <div className="flex-1 min-w-0">
           {showUser && req.full_name && (
-            <div className="flex items-center gap-2 mb-2">
+            <div className="flex items-center gap-1.5 mb-2">
               <Avatar name={req.full_name} userId={req.user_id} />
               <div>
                 <p className="text-xs font-black text-gray-800 leading-none">{req.full_name}</p>
@@ -192,20 +246,29 @@ function LeaveCard({ req, showUser, onClick }: { req: LeaveRequest; showUser: bo
               </div>
             </div>
           )}
-          <div className="flex items-center justify-between gap-2 mb-1">
-            <span className="text-sm font-bold text-gray-800">{lt.label}</span>
-            <span className={`flex-shrink-0 text-[11px] font-bold px-2 py-0.5 rounded-full ${st.bg} ${st.text}`}>{st.label}</span>
-          </div>
-          <p className="text-xs text-gray-400 mb-2 truncate">{req.reason}</p>
-          <div className="flex items-center gap-3">
-            <span className="flex items-center gap-1 text-xs font-semibold text-gray-600">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/></svg>
-              {req.start_date === req.end_date ? fmtDate(req.start_date) : `${fmtDate(req.start_date)} – ${fmtDate(req.end_date)}`}
+
+          <div className="flex items-start justify-between gap-2">
+            <p className="text-sm font-bold text-gray-900">{lt.label}</p>
+            <span className={`flex-shrink-0 text-[11px] font-bold px-2.5 py-1 rounded-full ${st.bg} ${st.text}`}>
+              {st.label}
             </span>
-            <span className={`text-xs font-black px-2 py-0.5 rounded-lg ${st.bg} ${st.text}`}>{req.days} วัน</span>
           </div>
-          {req.reject_reason && <p className="text-[11px] text-rose-400 mt-1.5 truncate">✗ {req.reject_reason}</p>}
+
+          {req.reason && (
+            <p className="text-xs text-gray-400 mt-0.5 truncate">{req.reason}</p>
+          )}
         </div>
+      </div>
+
+      {/* Bottom bar */}
+      <div className={`flex items-center gap-4 px-4 py-2.5 border-t ${st.border} ${st.bg}`}>
+        <span className="flex items-center gap-1.5 text-xs font-semibold text-gray-600">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-gray-400">
+            <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/>
+          </svg>
+          {isSameDay ? fmtDate(req.start_date) : `${fmtDate(req.start_date)} – ${fmtDate(req.end_date)}`}
+        </span>
+        <span className={`text-xs font-black ${st.text}`}>{req.days} วัน</span>
       </div>
     </div>
   );
@@ -366,11 +429,11 @@ function BottomSheet({
 function SummaryStrip({ items }: { items: { label: string; value: number; unit: string; c: string; bg: string; border: string }[] }) {
   return (
     <div className="grid grid-cols-3 gap-2 mb-5">
-      {items.map((s) => (
-        <div key={s.label} className={`rounded-2xl border p-3 text-center ${s.bg} ${s.border}`}>
-          <p className={`text-xl font-black ${s.c}`}>{s.value}</p>
-          <p className="text-[10px] text-gray-400 leading-tight">{s.unit}</p>
-          <p className="text-[10px] font-semibold text-gray-500 leading-tight mt-0.5">{s.label}</p>
+      {items.map((it) => (
+        <div key={it.label} className={`${it.bg} rounded-2xl px-3 py-3.5 text-center`}>
+          <p className={`text-2xl font-black leading-none ${it.c}`}>{it.value}</p>
+          <p className="text-[10px] text-gray-400 font-semibold mt-1">{it.unit}</p>
+          <p className="text-[10px] text-gray-500 font-medium">{it.label}</p>
         </div>
       ))}
     </div>
@@ -379,13 +442,16 @@ function SummaryStrip({ items }: { items: { label: string; value: number; unit: 
 
 function EmptyState({ text }: { text: string }) {
   return (
-    <div className="flex flex-col items-center justify-center py-14 text-center">
-      <div className="w-14 h-14 rounded-2xl bg-white border border-gray-100 shadow-sm flex items-center justify-center mb-3">
+    <div className="flex flex-col items-center justify-center py-16 text-center">
+      <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center mb-3">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-7 h-7 text-gray-300">
-          <polyline points="20 6 9 17 4 12"/>
+          <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>
+          <rect x="9" y="3" width="6" height="4" rx="1"/>
+          <line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/>
         </svg>
       </div>
-      <p className="text-sm font-semibold text-gray-400">{text}</p>
+      <p className="text-sm font-bold text-gray-400">{text}</p>
+      <p className="text-xs text-gray-300 mt-1">กดปุ่มด้านล่างเพื่อยื่นคำขอ</p>
     </div>
   );
 }
@@ -454,7 +520,7 @@ export default function RequestsPage() {
 
     const [otRes, lvRes] = await Promise.all([
       supabase
-        .from("ot_requests")
+        .from("ot_requests_with_profile") 
         .select("*")
         .eq("user_id", profile.id)
         .order("request_date", { ascending: false }),
@@ -729,15 +795,17 @@ const handleRejectLeave = async (id: string, reason: string) => {
               </div>
             )}
 
-            <Link
-              href={`/requests/new?type=${requestTab}`}
-              className="fixed bottom-24 right-4 z-30 flex items-center gap-2 px-5 py-3.5 rounded-2xl bg-slate-900 text-white text-sm font-bold shadow-xl shadow-slate-900/20 active:scale-95 transition-all"
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4">
-                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-              </svg>
-              {requestTab === "ot" ? "ยื่นคำขอ OT" : "ยื่นใบลา"}
-            </Link>
+           <Link
+  href={`/requests/new?type=${requestTab}`}
+  className="fixed bottom-24 right-4 z-30 flex items-center gap-2 pl-4 pr-5 py-3.5 rounded-full bg-slate-900 text-white text-sm font-bold shadow-2xl shadow-slate-900/30 active:scale-95 transition-all"
+>
+  <span className="w-6 h-6 rounded-full bg-white/15 flex items-center justify-center">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3.5 h-3.5">
+      <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+    </svg>
+  </span>
+  {requestTab === "ot" ? "ยื่นคำขอ OT" : "ยื่นใบลา"}
+</Link>
           </>
         )}
       </div>

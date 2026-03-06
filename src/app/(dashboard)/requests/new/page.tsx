@@ -203,14 +203,15 @@ function OTForm() {
     setError(null);
 
     const { error: dbError } = await supabase.from("ot_requests").insert({
-      user_id:      userId,
-      request_date: form.date,
-      start_time:   form.startTime,
-      end_time:     form.endTime,
-      hours,
-      project_id:   form.projectId   || null,
-      reason:       form.reason.trim(),
-    });
+  user_id:      userId,
+  request_date: form.date,
+  start_time:   form.startTime,
+  end_time:     form.endTime,
+  hours,
+  project_id:   form.projectId || null,
+  reason:       form.reason.trim(),
+  status:       "pending",
+});
 
     setSubmitting(false);
     if (dbError) { setError(dbError.message); return; }
