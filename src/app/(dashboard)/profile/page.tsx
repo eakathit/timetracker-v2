@@ -659,16 +659,8 @@ export default function ProfilePage() {
   [logs]);
   const otTotal = useMemo(() => logs.reduce((s, l) => s + l.otHours, 0), [logs]);
 
-  const avgCheckIn = useMemo(() => {
-    const times = presentDays.map(l => l.checkIn).filter(Boolean) as string[];
-    if (!times.length) return "-";
-    const total = times.reduce((s, t) => {
-      const [h, m] = t.split(":").map(Number);
-      return s + h * 60 + m;
-    }, 0);
-    const avg = Math.round(total / times.length);
-    return `${String(Math.floor(avg / 60)).padStart(2, "0")}:${String(avg % 60).padStart(2, "0")}`;
-  }, [presentDays]);
+  const lateCount = useMemo(() => logs.filter(l => l.status === "late").length, [logs]);
+
 
   const reportRate = reportTotal.length > 0
     ? Math.round((reportSent.length / reportTotal.length) * 100)
@@ -804,11 +796,11 @@ export default function ProfilePage() {
               <p className="text-[10px] text-gray-400 font-medium">วันที่มา</p>
             </div>
             <div className="text-center px-2">
-              <p className="text-lg font-extrabold text-amber-500">
-                {logsLoading ? "..." : avgCheckIn}
-              </p>
-              <p className="text-[10px] text-gray-400 font-medium">เข้าเฉลี่ย</p>
-            </div>
+  <p className={`text-lg font-extrabold ${lateCount === 0 ? "text-emerald-500" : "text-amber-500"}`}>
+    {logsLoading ? "..." : String(lateCount)}
+  </p>
+  <p className="text-[10px] text-gray-400 font-medium">มาสาย (วัน)</p>
+</div>
             <div className="text-center px-2">
               {/* OT total รวมจาก ot_requests ที่อนุมัติ + daily_time_logs */}
               <p className="text-lg font-extrabold text-amber-600">
@@ -872,12 +864,12 @@ export default function ProfilePage() {
                 accent="bg-emerald-50 text-emerald-500"
               />
               <StatCard
-                icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: 20, height: 20 }}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>}
-                label="เข้างานเฉลี่ย"
-                value={logsLoading ? "..." : avgCheckIn}
-                sub="เวลาเฉลี่ย"
-                accent="bg-sky-50 text-sky-500"
-              />
+  icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: 20, height: 20 }}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>}
+  label="มาสาย"
+  value={logsLoading ? "..." : `${lateCount} วัน`}
+  sub={lateCount === 0 ? "ยอดเยี่ยม! ไม่สายเลย 🎉" : "เดือนนี้"}
+  accent={lateCount === 0 ? "bg-emerald-50 text-emerald-500" : "bg-amber-50 text-amber-500"}
+/>
               <StatCard
                 icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: 20, height: 20 }}><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>}
                 label="ชั่วโมง OT"
