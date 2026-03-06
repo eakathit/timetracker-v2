@@ -9,7 +9,15 @@ const SETTINGS_TABS = [
     id: "report_manage",
     label: "จัดการรายงาน",
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="w-4 h-4"
+      >
         <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
         <polyline points="14 2 14 8 20 8" />
         <line x1="16" y1="13" x2="8" y2="13" />
@@ -22,7 +30,15 @@ const SETTINGS_TABS = [
     id: "holidays",
     label: "วันหยุด",
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="w-4 h-4"
+      >
         <rect x="3" y="4" width="18" height="18" rx="2" />
         <line x1="16" y1="2" x2="16" y2="6" />
         <line x1="8" y1="2" x2="8" y2="6" />
@@ -34,11 +50,19 @@ const SETTINGS_TABS = [
 
 // ─── Reusable UI ──────────────────────────────────────────────────────────────
 
-function SettingGroup({ title, children }: { title: string; children: React.ReactNode }) {
+function SettingGroup({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
       <div className="px-5 py-3.5 border-b border-gray-50">
-        <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest">{title}</h3>
+        <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest">
+          {title}
+        </h3>
       </div>
       <div className="divide-y divide-gray-50">{children}</div>
     </div>
@@ -62,26 +86,42 @@ function SettingRow({
         {icon}
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-gray-700 leading-tight">{label}</p>
-        {description && <p className="text-xs text-gray-400 mt-0.5 truncate">{description}</p>}
+        <p className="text-sm font-semibold text-gray-700 leading-tight">
+          {label}
+        </p>
+        {description && (
+          <p className="text-xs text-gray-400 mt-0.5 truncate">{description}</p>
+        )}
       </div>
       <div className="flex-shrink-0">{children}</div>
     </div>
   );
 }
 
-function Toggle({ enabled, onChange }: { enabled: boolean; onChange: () => void }) {
+function Toggle({
+  enabled,
+  onChange,
+}: {
+  enabled: boolean;
+  onChange: () => void;
+}) {
   return (
     <button
       onClick={onChange}
       className={`relative w-11 h-6 rounded-full transition-colors duration-200 ${enabled ? "bg-sky-500" : "bg-gray-200"}`}
     >
-      <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-200 ${enabled ? "translate-x-5" : ""}`} />
+      <span
+        className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-200 ${enabled ? "translate-x-5" : ""}`}
+      />
     </button>
   );
 }
 
-function SelectInput({ options, value, onChange }: {
+function SelectInput({
+  options,
+  value,
+  onChange,
+}: {
   options: { value: string; label: string }[];
   value: string;
   onChange: (v: string) => void;
@@ -93,10 +133,20 @@ function SelectInput({ options, value, onChange }: {
         onChange={(e) => onChange(e.target.value)}
         className="appearance-none pl-3 pr-8 py-2 text-sm font-medium text-gray-700 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-sky-300 focus:ring-2 focus:ring-sky-50 cursor-pointer transition-colors"
       >
-        {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
       </select>
       <span className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3.5 h-3.5">
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          className="w-3.5 h-3.5"
+        >
           <polyline points="6 9 12 15 18 9" />
         </svg>
       </span>
@@ -104,7 +154,11 @@ function SelectInput({ options, value, onChange }: {
   );
 }
 
-function TextInput({ value, onChange, placeholder }: {
+function TextInput({
+  value,
+  onChange,
+  placeholder,
+}: {
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
@@ -121,13 +175,16 @@ function TextInput({ value, onChange, placeholder }: {
 
 // ─── Role Badge ───────────────────────────────────────────────────────────────
 const ROLE_STYLES: Record<string, string> = {
-  admin:   "bg-rose-50 text-rose-500 border-rose-200",
+  admin: "bg-rose-50 text-rose-500 border-rose-200",
   manager: "bg-amber-50 text-amber-600 border-amber-200",
-  user:    "bg-sky-50 text-sky-500 border-sky-200",
-  viewer:  "bg-gray-50 text-gray-500 border-gray-200",
+  user: "bg-sky-50 text-sky-500 border-sky-200",
+  viewer: "bg-gray-50 text-gray-500 border-gray-200",
 };
 const ROLE_LABELS: Record<string, string> = {
-  admin: "Admin", manager: "Manager", user: "User", viewer: "Viewer",
+  admin: "Admin",
+  manager: "Manager",
+  user: "User",
+  viewer: "Viewer",
 };
 
 // ─── Tab Sections ─────────────────────────────────────────────────────────────
@@ -142,14 +199,43 @@ function SystemSection() {
     <div className="space-y-4">
       <SettingGroup title="ข้อมูลบริษัท">
         <SettingRow
-          icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4.5 h-4.5" style={{width:'18px',height:'18px'}}><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>}
+          icon={
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              className="w-4.5 h-4.5"
+              style={{ width: "18px", height: "18px" }}
+            >
+              <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+              <polyline points="9 22 9 12 15 12 15 22" />
+            </svg>
+          }
           label="ชื่อบริษัท"
           description="แสดงในรายงานและเอกสารทั้งหมด"
         >
-          <TextInput value={companyName} onChange={setCompanyName} placeholder="ชื่อบริษัท" />
+          <TextInput
+            value={companyName}
+            onChange={setCompanyName}
+            placeholder="ชื่อบริษัท"
+          />
         </SettingRow>
         <SettingRow
-          icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4.5 h-4.5" style={{width:'18px',height:'18px'}}><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 010 20M12 2a15.3 15.3 0 000 20"/></svg>}
+          icon={
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              className="w-4.5 h-4.5"
+              style={{ width: "18px", height: "18px" }}
+            >
+              <circle cx="12" cy="12" r="10" />
+              <line x1="2" y1="12" x2="22" y2="12" />
+              <path d="M12 2a15.3 15.3 0 010 20M12 2a15.3 15.3 0 000 20" />
+            </svg>
+          }
           label="Timezone"
         >
           <SelectInput
@@ -163,7 +249,19 @@ function SystemSection() {
           />
         </SettingRow>
         <SettingRow
-          icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4.5 h-4.5" style={{width:'18px',height:'18px'}}><path d="M5 8l6 6M4 14l6-6 2-3M2 5h12M7 2h1"/><path d="M22 22l-5-10-5 10M14.5 17h5"/></svg>}
+          icon={
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              className="w-4.5 h-4.5"
+              style={{ width: "18px", height: "18px" }}
+            >
+              <path d="M5 8l6 6M4 14l6-6 2-3M2 5h12M7 2h1" />
+              <path d="M22 22l-5-10-5 10M14.5 17h5" />
+            </svg>
+          }
           label="ภาษา / Language"
         >
           <SelectInput
@@ -179,7 +277,19 @@ function SystemSection() {
 
       <SettingGroup title="เกี่ยวกับระบบ">
         <SettingRow
-          icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4.5 h-4.5" style={{width:'18px',height:'18px'}}><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>}
+          icon={
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              className="w-4.5 h-4.5"
+              style={{ width: "18px", height: "18px" }}
+            >
+              <polyline points="16 18 22 12 16 6" />
+              <polyline points="8 6 2 12 8 18" />
+            </svg>
+          }
           label="เวอร์ชัน"
           description="TimeTracker V2"
         >
@@ -188,7 +298,20 @@ function SystemSection() {
           </span>
         </SettingRow>
         <SettingRow
-          icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4.5 h-4.5" style={{width:'18px',height:'18px'}}><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>}
+          icon={
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              className="w-4.5 h-4.5"
+              style={{ width: "18px", height: "18px" }}
+            >
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+          }
           label="สำรองข้อมูล"
           description="สำรองข้อมูลล่าสุด: วันนี้ 08:00"
         >
@@ -227,11 +350,12 @@ function PermissionsSection() {
     const roles = ["viewer", "user", "manager", "admin"];
     const normalizedRole = currentRole || "user"; // กันเหนียวกรณี role เป็น null
     const currentIndex = roles.indexOf(normalizedRole);
-    const nextRole = roles[(currentIndex !== -1 ? currentIndex + 1 : 1) % roles.length];
-    
+    const nextRole =
+      roles[(currentIndex !== -1 ? currentIndex + 1 : 1) % roles.length];
+
     // อัปเดต UI ทันที (Optimistic Update) เพื่อให้ดูไหลลื่น
     setUsers((prev) =>
-      prev.map((u) => (u.id === id ? { ...u, role: nextRole } : u))
+      prev.map((u) => (u.id === id ? { ...u, role: nextRole } : u)),
     );
 
     // อัปเดตลง Database
@@ -245,13 +369,17 @@ function PermissionsSection() {
       alert("ไม่สามารถเปลี่ยนสิทธิ์ได้ กรุณาลองใหม่");
       // ถ้า Error ให้ย้อนกลับเป็นค่าเดิม
       setUsers((prev) =>
-        prev.map((u) => (u.id === id ? { ...u, role: currentRole } : u))
+        prev.map((u) => (u.id === id ? { ...u, role: currentRole } : u)),
       );
     }
   };
 
   if (loading) {
-    return <div className="py-10 text-center text-sm text-gray-400 animate-pulse">กำลังโหลดข้อมูลพนักงาน...</div>;
+    return (
+      <div className="py-10 text-center text-sm text-gray-400 animate-pulse">
+        กำลังโหลดข้อมูลพนักงาน...
+      </div>
+    );
   }
 
   return (
@@ -259,27 +387,36 @@ function PermissionsSection() {
       <SettingGroup title={`ผู้ใช้งานทั้งหมดในระบบ (${users.length} คน)`}>
         {users.map((u) => {
           // จัดการแสดงผลชื่อและแผนก
-          const fullName = (u.first_name || u.last_name) 
-            ? `${u.first_name || ''} ${u.last_name || ''}`.trim() 
-            : "ยังไม่ได้ระบุชื่อ";
-          const initial = fullName !== "ยังไม่ได้ระบุชื่อ" ? fullName.charAt(0) : "U";
+          const fullName =
+            u.first_name || u.last_name
+              ? `${u.first_name || ""} ${u.last_name || ""}`.trim()
+              : "ยังไม่ได้ระบุชื่อ";
+          const initial =
+            fullName !== "ยังไม่ได้ระบุชื่อ" ? fullName.charAt(0) : "U";
           const currentRole = u.role || "user";
 
           return (
-            <div key={u.id} className="flex items-center gap-4 px-5 py-4 hover:bg-gray-50/50 transition-colors">
+            <div
+              key={u.id}
+              className="flex items-center gap-4 px-5 py-4 hover:bg-gray-50/50 transition-colors"
+            >
               {/* Avatar */}
               <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white text-sm font-bold flex-shrink-0 bg-gradient-to-br from-sky-400 to-blue-500 shadow-sm">
                 {initial}
               </div>
-              
+
               {/* Info */}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <p className="text-sm font-semibold text-gray-700 truncate">{fullName}</p>
+                  <p className="text-sm font-semibold text-gray-700 truncate">
+                    {fullName}
+                  </p>
                 </div>
-                <p className="text-xs text-gray-400 mt-0.5">{u.department || "ยังไม่ระบุแผนก"}</p>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  {u.department || "ยังไม่ระบุแผนก"}
+                </p>
               </div>
-              
+
               {/* Role badge — คลิกเพื่อเปลี่ยนสิทธิ์ */}
               <button
                 onClick={() => cycleRole(u.id, currentRole)}
@@ -295,17 +432,26 @@ function PermissionsSection() {
 
       {/* Role legend */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-        <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">ระดับสิทธิ์การใช้งาน</p>
+        <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">
+          ระดับสิทธิ์การใช้งาน
+        </p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
           {[
-            { role: "admin",   desc: "เข้าถึงได้ทุกส่วน และจัดการระบบได้" },
+            { role: "admin", desc: "เข้าถึงได้ทุกส่วน และจัดการระบบได้" },
             { role: "manager", desc: "ดูรายงานภาพรวมและอนุมัติ OT/ลา" },
-            { role: "user",    desc: "ตอกบัตรและรายงานตัวของตัวเอง" },
-            { role: "viewer",  desc: "ดูข้อมูลได้อย่างเดียว แก้ไขไม่ได้" },
+            { role: "user", desc: "ตอกบัตรและรายงานตัวของตัวเอง" },
+            { role: "viewer", desc: "ดูข้อมูลได้อย่างเดียว แก้ไขไม่ได้" },
           ].map((r) => (
-            <div key={r.role} className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border ${ROLE_STYLES[r.role]}`}>
-              <span className="text-xs font-bold min-w-[60px]">{ROLE_LABELS[r.role]}</span>
-              <span className="text-[10px] opacity-70 truncate">— {r.desc}</span>
+            <div
+              key={r.role}
+              className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border ${ROLE_STYLES[r.role]}`}
+            >
+              <span className="text-xs font-bold min-w-[60px]">
+                {ROLE_LABELS[r.role]}
+              </span>
+              <span className="text-[10px] opacity-70 truncate">
+                — {r.desc}
+              </span>
             </div>
           ))}
         </div>
@@ -316,11 +462,19 @@ function PermissionsSection() {
 
 function WorktimeSection() {
   const [startTime, setStartTime] = useState("08:00");
-  const [endTime, setEndTime]     = useState("17:00");
+  const [endTime, setEndTime] = useState("17:00");
   const [lateGrace, setLateGrace] = useState("15");
   const [otEnabled, setOtEnabled] = useState(true);
   const [otMinHours, setOtMinHours] = useState("1");
-  const [workDays, setWorkDays]   = useState([true, true, true, true, true, false, false]); // จ–ศ
+  const [workDays, setWorkDays] = useState([
+    true,
+    true,
+    true,
+    true,
+    true,
+    false,
+    false,
+  ]); // จ–ศ
 
   const dayLabels = ["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"];
 
@@ -328,27 +482,66 @@ function WorktimeSection() {
     <div className="space-y-4">
       <SettingGroup title="เวลาทำงานปกติ">
         <SettingRow
-          icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4.5 h-4.5" style={{width:'18px',height:'18px'}}><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>}
+          icon={
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              className="w-4.5 h-4.5"
+              style={{ width: "18px", height: "18px" }}
+            >
+              <circle cx="12" cy="12" r="9" />
+              <polyline points="12 7 12 12 15 14" />
+            </svg>
+          }
           label="เวลาเข้างาน"
         >
           <input
-            type="time" value={startTime}
+            type="time"
+            value={startTime}
             onChange={(e) => setStartTime(e.target.value)}
             className="px-3 py-2 text-sm font-medium text-gray-700 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-sky-300 focus:ring-2 focus:ring-sky-50"
           />
         </SettingRow>
         <SettingRow
-          icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4.5 h-4.5" style={{width:'18px',height:'18px'}}><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 9 14"/></svg>}
+          icon={
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              className="w-4.5 h-4.5"
+              style={{ width: "18px", height: "18px" }}
+            >
+              <circle cx="12" cy="12" r="9" />
+              <polyline points="12 7 12 12 9 14" />
+            </svg>
+          }
           label="เวลาออกงาน"
         >
           <input
-            type="time" value={endTime}
+            type="time"
+            value={endTime}
             onChange={(e) => setEndTime(e.target.value)}
             className="px-3 py-2 text-sm font-medium text-gray-700 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-sky-300 focus:ring-2 focus:ring-sky-50"
           />
         </SettingRow>
         <SettingRow
-          icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4.5 h-4.5" style={{width:'18px',height:'18px'}}><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>}
+          icon={
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              className="w-4.5 h-4.5"
+              style={{ width: "18px", height: "18px" }}
+            >
+              <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+              <line x1="12" y1="9" x2="12" y2="13" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+          }
           label="ระยะเวลาผ่อนผันมาสาย"
           description="นับเป็นมาสายหลังจากนาทีที่"
         >
@@ -356,7 +549,10 @@ function WorktimeSection() {
             <SelectInput
               value={lateGrace}
               onChange={setLateGrace}
-              options={["0","5","10","15","30"].map((v) => ({ value: v, label: `${v} นาที` }))}
+              options={["0", "5", "10", "15", "30"].map((v) => ({
+                value: v,
+                label: `${v} นาที`,
+              }))}
             />
           </div>
         </SettingRow>
@@ -368,11 +564,16 @@ function WorktimeSection() {
             {dayLabels.map((d, i) => (
               <button
                 key={d}
-                onClick={() => setWorkDays((prev) => prev.map((v, idx) => idx === i ? !v : v))}
+                onClick={() =>
+                  setWorkDays((prev) =>
+                    prev.map((v, idx) => (idx === i ? !v : v)),
+                  )
+                }
                 className={`w-10 h-10 rounded-xl text-sm font-bold transition-all duration-150
-                  ${workDays[i]
-                    ? "bg-sky-500 text-white shadow-md shadow-sky-200"
-                    : "bg-gray-100 text-gray-400 hover:bg-gray-200"
+                  ${
+                    workDays[i]
+                      ? "bg-sky-500 text-white shadow-md shadow-sky-200"
+                      : "bg-gray-100 text-gray-400 hover:bg-gray-200"
                   }
                   ${i === 0 || i === 6 ? "ring-1 " + (workDays[i] ? "ring-rose-300" : "ring-gray-200") : ""}
                 `}
@@ -382,29 +583,60 @@ function WorktimeSection() {
             ))}
           </div>
           <p className="text-xs text-gray-400 mt-2">
-            {workDays.filter(Boolean).length} วัน/สัปดาห์ · {workDays.filter(Boolean).length * 8} ชม./สัปดาห์
+            {workDays.filter(Boolean).length} วัน/สัปดาห์ ·{" "}
+            {workDays.filter(Boolean).length * 8} ชม./สัปดาห์
           </p>
         </div>
       </SettingGroup>
 
       <SettingGroup title="การทำงานล่วงเวลา (OT)">
         <SettingRow
-          icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4.5 h-4.5" style={{width:'18px',height:'18px'}}><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 3M17 3.5L21 7"/></svg>}
+          icon={
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              className="w-4.5 h-4.5"
+              style={{ width: "18px", height: "18px" }}
+            >
+              <circle cx="12" cy="12" r="9" />
+              <path d="M12 8v4l3 3M17 3.5L21 7" />
+            </svg>
+          }
           label="เปิดใช้งาน OT"
           description="อนุญาตให้พนักงานยื่นขอทำ OT"
         >
-          <Toggle enabled={otEnabled} onChange={() => setOtEnabled(!otEnabled)} />
+          <Toggle
+            enabled={otEnabled}
+            onChange={() => setOtEnabled(!otEnabled)}
+          />
         </SettingRow>
         {otEnabled && (
           <SettingRow
-            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4.5 h-4.5" style={{width:'18px',height:'18px'}}><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>}
+            icon={
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                className="w-4.5 h-4.5"
+                style={{ width: "18px", height: "18px" }}
+              >
+                <line x1="12" y1="1" x2="12" y2="23" />
+                <path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" />
+              </svg>
+            }
             label="ขั้นต่ำชั่วโมง OT"
             description="นับ OT เมื่อทำงานเกินเวลาอย่างน้อย"
           >
             <SelectInput
               value={otMinHours}
               onChange={setOtMinHours}
-              options={["0.5","1","2"].map((v) => ({ value: v, label: `${v} ชม.` }))}
+              options={["0.5", "1", "2"].map((v) => ({
+                value: v,
+                label: `${v} ชม.`,
+              }))}
             />
           </SettingRow>
         )}
@@ -414,33 +646,79 @@ function WorktimeSection() {
 }
 
 function LocationSection() {
-  const [gpsRequired, setGpsRequired]   = useState(true);
+  const [gpsRequired, setGpsRequired] = useState(true);
   const [radiusMeters, setRadiusMeters] = useState("200");
   const [locations, setLocations] = useState([
-    { id: 1, name: "สำนักงานใหญ่", address: "123 ถ.สุขุมวิท กรุงเทพฯ", active: true },
-    { id: 2, name: "โรงงาน A",      address: "456 ถ.บางนา สมุทรปราการ", active: true },
-    { id: 3, name: "โรงพยาบาล C",   address: "789 ถ.พระราม 9 กรุงเทพฯ", active: false },
+    {
+      id: 1,
+      name: "สำนักงานใหญ่",
+      address: "123 ถ.สุขุมวิท กรุงเทพฯ",
+      active: true,
+    },
+    {
+      id: 2,
+      name: "โรงงาน A",
+      address: "456 ถ.บางนา สมุทรปราการ",
+      active: true,
+    },
+    {
+      id: 3,
+      name: "โรงพยาบาล C",
+      address: "789 ถ.พระราม 9 กรุงเทพฯ",
+      active: false,
+    },
   ]);
 
   return (
     <div className="space-y-4">
       <SettingGroup title="การตรวจสอบตำแหน่ง">
         <SettingRow
-          icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4.5 h-4.5" style={{width:'18px',height:'18px'}}><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>}
+          icon={
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              className="w-4.5 h-4.5"
+              style={{ width: "18px", height: "18px" }}
+            >
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" />
+              <circle cx="12" cy="10" r="3" />
+            </svg>
+          }
           label="บังคับใช้ GPS"
           description="ต้องอยู่ในพื้นที่กำหนดจึงตอกบัตรได้"
         >
-          <Toggle enabled={gpsRequired} onChange={() => setGpsRequired(!gpsRequired)} />
+          <Toggle
+            enabled={gpsRequired}
+            onChange={() => setGpsRequired(!gpsRequired)}
+          />
         </SettingRow>
         {gpsRequired && (
           <SettingRow
-            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4.5 h-4.5" style={{width:'18px',height:'18px'}}><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>}
+            icon={
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                className="w-4.5 h-4.5"
+                style={{ width: "18px", height: "18px" }}
+              >
+                <circle cx="12" cy="12" r="10" />
+                <circle cx="12" cy="12" r="6" />
+                <circle cx="12" cy="12" r="2" />
+              </svg>
+            }
             label="รัศมีที่อนุญาต"
           >
             <SelectInput
               value={radiusMeters}
               onChange={setRadiusMeters}
-              options={["50","100","200","500","1000"].map((v) => ({ value: v, label: `${v} ม.` }))}
+              options={["50", "100", "200", "500", "1000"].map((v) => ({
+                value: v,
+                label: `${v} ม.`,
+              }))}
             />
           </SettingRow>
         )}
@@ -449,9 +727,18 @@ function LocationSection() {
       <SettingGroup title={`สถานที่ทำงาน (${locations.length} แห่ง)`}>
         {locations.map((loc) => (
           <div key={loc.id} className="flex items-center gap-4 px-5 py-4">
-            <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${loc.active ? "bg-sky-100 text-sky-500" : "bg-gray-100 text-gray-400"}`}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4 h-4">
-                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/>
+            <div
+              className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${loc.active ? "bg-sky-100 text-sky-500" : "bg-gray-100 text-gray-400"}`}
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                className="w-4 h-4"
+              >
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" />
+                <circle cx="12" cy="10" r="3" />
               </svg>
             </div>
             <div className="flex-1 min-w-0">
@@ -459,22 +746,47 @@ function LocationSection() {
               <p className="text-xs text-gray-400 truncate">{loc.address}</p>
             </div>
             <button
-              onClick={() => setLocations((prev) => prev.map((l) => l.id === loc.id ? { ...l, active: !l.active } : l))}
+              onClick={() =>
+                setLocations((prev) =>
+                  prev.map((l) =>
+                    l.id === loc.id ? { ...l, active: !l.active } : l,
+                  ),
+                )
+              }
               className={`w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${loc.active ? "bg-sky-50 text-sky-500 hover:bg-sky-100" : "bg-gray-50 text-gray-400 hover:bg-gray-100"}`}
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
-                {loc.active
-                  ? <><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></>
-                  : <><rect x="3" y="3" width="18" height="18" rx="2"/></>
-                }
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                className="w-4 h-4"
+              >
+                {loc.active ? (
+                  <>
+                    <path d="M9 11l3 3L22 4" />
+                    <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
+                  </>
+                ) : (
+                  <>
+                    <rect x="3" y="3" width="18" height="18" rx="2" />
+                  </>
+                )}
               </svg>
             </button>
           </div>
         ))}
         <div className="px-5 py-3">
           <button className="w-full py-2.5 rounded-xl border-2 border-dashed border-gray-200 text-xs font-bold text-gray-400 hover:border-sky-300 hover:text-sky-500 hover:bg-sky-50/50 transition-all flex items-center justify-center gap-1.5">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3.5 h-3.5">
-              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              className="w-3.5 h-3.5"
+            >
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
             </svg>
             เพิ่มสถานที่ใหม่
           </button>
@@ -486,14 +798,14 @@ function LocationSection() {
 
 function NotificationsSection() {
   const [notifs, setNotifs] = useState({
-    checkin:    true,
-    checkout:   true,
-    late:       true,
+    checkin: true,
+    checkout: true,
+    late: true,
     ot_approve: true,
-    leave:      false,
-    report:     false,
-    line:       false,
-    email:      true,
+    leave: false,
+    report: false,
+    line: false,
+    email: true,
   });
 
   const toggle = (key: keyof typeof notifs) =>
@@ -503,34 +815,84 @@ function NotificationsSection() {
     <div className="space-y-4">
       <SettingGroup title="การแจ้งเตือนในแอป">
         {[
-          { key: "checkin",  label: "เข้างาน",         desc: "เมื่อมีการตอกบัตรเข้างาน" },
-          { key: "checkout", label: "ออกงาน",          desc: "เมื่อมีการตอกบัตรออกงาน" },
-          { key: "late",     label: "มาสาย",           desc: "แจ้งเตือนเมื่อพนักงานมาสาย" },
-          { key: "ot_approve", label: "อนุมัติ OT",   desc: "เมื่อคำขอ OT ได้รับการอนุมัติ" },
-          { key: "leave",    label: "การลา",           desc: "เมื่อมีคำขอลาใหม่" },
-          { key: "report",   label: "รายงานประจำวัน", desc: "เตือนกรอก Daily Report" },
+          {
+            key: "checkin",
+            label: "เข้างาน",
+            desc: "เมื่อมีการตอกบัตรเข้างาน",
+          },
+          { key: "checkout", label: "ออกงาน", desc: "เมื่อมีการตอกบัตรออกงาน" },
+          { key: "late", label: "มาสาย", desc: "แจ้งเตือนเมื่อพนักงานมาสาย" },
+          {
+            key: "ot_approve",
+            label: "อนุมัติ OT",
+            desc: "เมื่อคำขอ OT ได้รับการอนุมัติ",
+          },
+          { key: "leave", label: "การลา", desc: "เมื่อมีคำขอลาใหม่" },
+          {
+            key: "report",
+            label: "รายงานประจำวัน",
+            desc: "เตือนกรอก Daily Report",
+          },
         ].map((item) => (
           <SettingRow
             key={item.key}
-            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4.5 h-4.5" style={{width:'18px',height:'18px'}}><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>}
+            icon={
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                className="w-4.5 h-4.5"
+                style={{ width: "18px", height: "18px" }}
+              >
+                <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                <path d="M13.73 21a2 2 0 01-3.46 0" />
+              </svg>
+            }
             label={item.label}
             description={item.desc}
           >
-            <Toggle enabled={notifs[item.key as keyof typeof notifs]} onChange={() => toggle(item.key as keyof typeof notifs)} />
+            <Toggle
+              enabled={notifs[item.key as keyof typeof notifs]}
+              onChange={() => toggle(item.key as keyof typeof notifs)}
+            />
           </SettingRow>
         ))}
       </SettingGroup>
 
       <SettingGroup title="ช่องทางแจ้งเตือน">
         <SettingRow
-          icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4.5 h-4.5" style={{width:'18px',height:'18px'}}><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22 6 12 13 2 6"/></svg>}
+          icon={
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              className="w-4.5 h-4.5"
+              style={{ width: "18px", height: "18px" }}
+            >
+              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+              <polyline points="22 6 12 13 2 6" />
+            </svg>
+          }
           label="Email"
           description="ส่งสรุปรายวันทาง Email"
         >
           <Toggle enabled={notifs.email} onChange={() => toggle("email")} />
         </SettingRow>
         <SettingRow
-          icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4.5 h-4.5" style={{width:'18px',height:'18px'}}><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>}
+          icon={
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              className="w-4.5 h-4.5"
+              style={{ width: "18px", height: "18px" }}
+            >
+              <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
+            </svg>
+          }
           label="LINE Notify"
           description="เชื่อมต่อ LINE Bot เพื่อแจ้งเตือน"
         >
@@ -559,12 +921,18 @@ interface EndUser {
 }
 
 const END_USER_COLORS = [
-  "bg-sky-500", "bg-violet-500", "bg-emerald-500",
-  "bg-amber-500", "bg-rose-500", "bg-indigo-500",
+  "bg-sky-500",
+  "bg-violet-500",
+  "bg-emerald-500",
+  "bg-amber-500",
+  "bg-rose-500",
+  "bg-indigo-500",
 ];
 
 function ReportManagementSection() {
-  const [details, setDetails] = useState<{ id: string; label: string; active: boolean }[]>([]);
+  const [details, setDetails] = useState<
+    { id: string; label: string; active: boolean }[]
+  >([]);
   const [endUsers, setEndUsers] = useState<EndUser[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -573,24 +941,44 @@ function ReportManagementSection() {
     const fetchData = async () => {
       setLoading(true);
       const [dRes, uRes, pRes] = await Promise.all([
-        supabase.from("work_details").select("*").order("created_at", { ascending: true }),
-        supabase.from("end_users").select("*").order("created_at", { ascending: true }),
-        supabase.from("projects").select("*").order("created_at", { ascending: true })
+        supabase
+          .from("work_details")
+          .select("*")
+          .order("created_at", { ascending: true }),
+        supabase
+          .from("end_users")
+          .select("*")
+          .order("created_at", { ascending: true }),
+        supabase
+          .from("projects")
+          .select("*")
+          .order("created_at", { ascending: true }),
       ]);
 
       if (dRes.data) {
-        setDetails(dRes.data.map(d => ({ id: d.id, label: d.title, active: d.is_active })));
+        setDetails(
+          dRes.data.map((d) => ({
+            id: d.id,
+            label: d.title,
+            active: d.is_active,
+          })),
+        );
       }
-      
+
       if (uRes.data && pRes.data) {
-        const mappedUsers: EndUser[] = uRes.data.map(eu => ({
+        const mappedUsers: EndUser[] = uRes.data.map((eu) => ({
           id: eu.id,
           name: eu.name,
           color: eu.color || "bg-sky-500",
           expanded: false,
           projects: pRes.data
-            .filter(p => p.end_user_id === eu.id)
-            .map(p => ({ id: p.id, no: p.project_no, name: p.name || "", active: p.is_active }))
+            .filter((p) => p.end_user_id === eu.id)
+            .map((p) => ({
+              id: p.id,
+              no: p.project_no,
+              name: p.name || "",
+              active: p.is_active,
+            })),
         }));
         setEndUsers(mappedUsers);
       }
@@ -605,25 +993,38 @@ function ReportManagementSection() {
   const addDetail = async () => {
     const trimmed = newDetail.trim();
     if (!trimmed) return;
-    const valueKey = trimmed.toLowerCase().replace(/[^a-z0-9]/g, '_') + '_' + Date.now();
-    const { data, error } = await supabase.from("work_details").insert({ title: trimmed, value_key: valueKey, is_active: true }).select().single();
+    const valueKey =
+      trimmed.toLowerCase().replace(/[^a-z0-9]/g, "_") + "_" + Date.now();
+    const { data, error } = await supabase
+      .from("work_details")
+      .insert({ title: trimmed, value_key: valueKey, is_active: true })
+      .select()
+      .single();
     if (!error && data) {
-      setDetails((prev) => [...prev, { id: data.id, label: data.title, active: data.is_active }]);
+      setDetails((prev) => [
+        ...prev,
+        { id: data.id, label: data.title, active: data.is_active },
+      ]);
       setNewDetail("");
     }
   };
 
   const removeDetail = async (id: string) => {
-    if(!confirm("แน่ใจหรือไม่ที่จะลบประเภทงานนี้?")) return;
+    if (!confirm("แน่ใจหรือไม่ที่จะลบประเภทงานนี้?")) return;
     await supabase.from("work_details").delete().eq("id", id);
     setDetails((prev) => prev.filter((d) => d.id !== id));
   };
 
   const toggleDetail = async (id: string) => {
-    const target = details.find(d => d.id === id);
-    if(!target) return;
-    await supabase.from("work_details").update({ is_active: !target.active }).eq("id", id);
-    setDetails((prev) => prev.map((d) => d.id === id ? { ...d, active: !d.active } : d));
+    const target = details.find((d) => d.id === id);
+    if (!target) return;
+    await supabase
+      .from("work_details")
+      .update({ is_active: !target.active })
+      .eq("id", id);
+    setDetails((prev) =>
+      prev.map((d) => (d.id === id ? { ...d, active: !d.active } : d)),
+    );
   };
 
   // ── End User + Projects actions ───────────────────────────────────────────────
@@ -635,30 +1036,49 @@ function ReportManagementSection() {
   const [newProjName, setNewProjName] = useState("");
 
   // ── Edit End User ──────────────────────────────────────────────────────────────
-const [editEuId, setEditEuId] = useState<string | null>(null);
-const [editEuName, setEditEuName] = useState("");
-const [editEuColor, setEditEuColor] = useState(END_USER_COLORS[0]);
+  const [editEuId, setEditEuId] = useState<string | null>(null);
+  const [editEuName, setEditEuName] = useState("");
+  const [editEuColor, setEditEuColor] = useState(END_USER_COLORS[0]);
 
-// ── Edit Project ───────────────────────────────────────────────────────────────
-const [editProjId, setEditProjId] = useState<string | null>(null);
-const [editProjNo, setEditProjNo] = useState("");
-const [editProjName, setEditProjName] = useState("");
+  // ── Edit Project ───────────────────────────────────────────────────────────────
+  const [editProjId, setEditProjId] = useState<string | null>(null);
+  const [editProjNo, setEditProjNo] = useState("");
+  const [editProjName, setEditProjName] = useState("");
 
   const toggleEuExpanded = (id: string) =>
-    setEndUsers((prev) => prev.map((e) => e.id === id ? { ...e, expanded: !e.expanded } : e));
+    setEndUsers((prev) =>
+      prev.map((e) => (e.id === id ? { ...e, expanded: !e.expanded } : e)),
+    );
 
   const addEndUser = async () => {
     const trimmed = newEuName.trim();
     if (!trimmed) return;
-    const { data, error } = await supabase.from("end_users").insert({ name: trimmed, color: newEuColor }).select().single();
+    const { data, error } = await supabase
+      .from("end_users")
+      .insert({ name: trimmed, color: newEuColor })
+      .select()
+      .single();
     if (!error && data) {
-      setEndUsers((prev) => [...prev, { id: data.id, name: data.name, color: data.color, expanded: true, projects: [] }]);
-      setNewEuName(""); setShowEuForm(false);
+      setEndUsers((prev) => [
+        ...prev,
+        {
+          id: data.id,
+          name: data.name,
+          color: data.color,
+          expanded: true,
+          projects: [],
+        },
+      ]);
+      setNewEuName("");
+      setShowEuForm(false);
     }
   };
 
   const removeEndUser = async (id: string) => {
-    if(!confirm("ลบลูกค้านี้จะลบโปรเจกต์ทั้งหมดที่เกี่ยวข้องด้วย ยืนยันหรือไม่?")) return;
+    if (
+      !confirm("ลบลูกค้านี้จะลบโปรเจกต์ทั้งหมดที่เกี่ยวข้องด้วย ยืนยันหรือไม่?")
+    )
+      return;
     await supabase.from("end_users").delete().eq("id", id);
     setEndUsers((prev) => prev.filter((e) => e.id !== id));
   };
@@ -667,72 +1087,50 @@ const [editProjName, setEditProjName] = useState("");
     const no = newProjNo.trim();
     const name = newProjName.trim();
     if (!no) return;
-    const { data, error } = await supabase.from("projects").insert({ project_no: no, name: name || null, end_user_id: euId, is_active: true }).select().single();
+    const { data, error } = await supabase
+      .from("projects")
+      .insert({
+        project_no: no,
+        name: name || null,
+        end_user_id: euId,
+        is_active: true,
+      })
+      .select()
+      .single();
     if (!error && data) {
-      setEndUsers((prev) => prev.map((e) => e.id !== euId ? e : {
-        ...e, projects: [...e.projects, { id: data.id, no: data.project_no, name: data.name || "", active: data.is_active }],
-      }));
-      setNewProjNo(""); setNewProjName(""); setAddProjFor(null);
+      setEndUsers((prev) =>
+        prev.map((e) =>
+          e.id !== euId
+            ? e
+            : {
+                ...e,
+                projects: [
+                  ...e.projects,
+                  {
+                    id: data.id,
+                    no: data.project_no,
+                    name: data.name || "",
+                    active: data.is_active,
+                  },
+                ],
+              },
+        ),
+      );
+      setNewProjNo("");
+      setNewProjName("");
+      setAddProjFor(null);
     }
   };
 
   const toggleProject = async (euId: string, projId: string) => {
-    const targetEu = endUsers.find(e => e.id === euId);
-    const targetProj = targetEu?.projects.find(p => p.id === projId);
-    if(!targetProj) return;
-    
-    await supabase.from("projects").update({ is_active: !targetProj.active }).eq("id", projId);
-    setEndUsers((prev) => prev.map((e) => e.id !== euId ? e : {
-      ...e, projects: e.projects.map((p) => p.id === projId ? { ...p, active: !p.active } : p),
-    }));
-  };
+    const targetEu = endUsers.find((e) => e.id === euId);
+    const targetProj = targetEu?.projects.find((p) => p.id === projId);
+    if (!targetProj) return;
 
-  const removeProject = async (euId: string, projId: string) => {
-    if(!confirm("แน่ใจหรือไม่ที่จะลบโปรเจกต์นี้?")) return;
-    await supabase.from("projects").delete().eq("id", projId);
-    setEndUsers((prev) => prev.map((e) => e.id !== euId ? e : {
-      ...e, projects: e.projects.filter((p) => p.id !== projId)
-    }));
-  };
-
-  const openEditEu = (eu: EndUser) => {
-  setEditEuId(eu.id);
-  setEditEuName(eu.name);
-  setEditEuColor(eu.color);
-  setAddProjFor(null); // ปิด form เพิ่มโปรเจคถ้าเปิดอยู่
-};
-
-const updateEndUser = async () => {
-  const trimmed = editEuName.trim();
-  if (!trimmed || !editEuId) return;
-  const { error } = await supabase
-    .from("end_users")
-    .update({ name: trimmed, color: editEuColor })
-    .eq("id", editEuId);
-  if (!error) {
-    setEndUsers((prev) =>
-      prev.map((e) =>
-        e.id === editEuId ? { ...e, name: trimmed, color: editEuColor } : e
-      )
-    );
-    setEditEuId(null);
-  }
-};
-
-const openEditProj = (proj: Project) => {
-  setEditProjId(proj.id);
-  setEditProjNo(proj.no);
-  setEditProjName(proj.name);
-};
-
-const updateProject = async (euId: string) => {
-  const no = editProjNo.trim();
-  if (!no || !editProjId) return;
-  const { error } = await supabase
-    .from("projects")
-    .update({ project_no: no, name: editProjName.trim() || null })
-    .eq("id", editProjId);
-  if (!error) {
+    await supabase
+      .from("projects")
+      .update({ is_active: !targetProj.active })
+      .eq("id", projId);
     setEndUsers((prev) =>
       prev.map((e) =>
         e.id !== euId
@@ -740,18 +1138,90 @@ const updateProject = async (euId: string) => {
           : {
               ...e,
               projects: e.projects.map((p) =>
-                p.id === editProjId
-                  ? { ...p, no, name: editProjName.trim() }
-                  : p
+                p.id === projId ? { ...p, active: !p.active } : p,
               ),
-            }
-      )
+            },
+      ),
     );
-    setEditProjId(null);
-  }
-};
+  };
 
-  if (loading) return <div className="py-10 text-center text-sm text-gray-400 animate-pulse">กำลังโหลดข้อมูล...</div>;
+  const removeProject = async (euId: string, projId: string) => {
+    if (!confirm("แน่ใจหรือไม่ที่จะลบโปรเจกต์นี้?")) return;
+    await supabase.from("projects").delete().eq("id", projId);
+    setEndUsers((prev) =>
+      prev.map((e) =>
+        e.id !== euId
+          ? e
+          : {
+              ...e,
+              projects: e.projects.filter((p) => p.id !== projId),
+            },
+      ),
+    );
+  };
+
+  const openEditEu = (eu: EndUser) => {
+    setEditEuId(eu.id);
+    setEditEuName(eu.name);
+    setEditEuColor(eu.color);
+    setAddProjFor(null); // ปิด form เพิ่มโปรเจคถ้าเปิดอยู่
+  };
+
+  const updateEndUser = async () => {
+    const trimmed = editEuName.trim();
+    if (!trimmed || !editEuId) return;
+    const { error } = await supabase
+      .from("end_users")
+      .update({ name: trimmed, color: editEuColor })
+      .eq("id", editEuId);
+    if (!error) {
+      setEndUsers((prev) =>
+        prev.map((e) =>
+          e.id === editEuId ? { ...e, name: trimmed, color: editEuColor } : e,
+        ),
+      );
+      setEditEuId(null);
+    }
+  };
+
+  const openEditProj = (proj: Project) => {
+    setEditProjId(proj.id);
+    setEditProjNo(proj.no);
+    setEditProjName(proj.name);
+  };
+
+  const updateProject = async (euId: string) => {
+    const no = editProjNo.trim();
+    if (!no || !editProjId) return;
+    const { error } = await supabase
+      .from("projects")
+      .update({ project_no: no, name: editProjName.trim() || null })
+      .eq("id", editProjId);
+    if (!error) {
+      setEndUsers((prev) =>
+        prev.map((e) =>
+          e.id !== euId
+            ? e
+            : {
+                ...e,
+                projects: e.projects.map((p) =>
+                  p.id === editProjId
+                    ? { ...p, no, name: editProjName.trim() }
+                    : p,
+                ),
+              },
+        ),
+      );
+      setEditProjId(null);
+    }
+  };
+
+  if (loading)
+    return (
+      <div className="py-10 text-center text-sm text-gray-400 animate-pulse">
+        กำลังโหลดข้อมูล...
+      </div>
+    );
 
   return (
     <div className="space-y-5">
@@ -761,32 +1231,102 @@ const updateProject = async (euId: string) => {
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-50">
           <div>
-            <h3 className="text-sm font-bold text-gray-700">ประเภทงาน (Detail)</h3>
-            <p className="text-xs text-gray-400 mt-0.5">แสดงใน dropdown หน้า Report · {details.filter((d) => d.active).length}/{details.length} เปิดอยู่</p>
+            <h3 className="text-sm font-bold text-gray-700">
+              ประเภทงาน (Detail)
+            </h3>
+            <p className="text-xs text-gray-400 mt-0.5">
+              แสดงใน dropdown หน้า Report ·{" "}
+              {details.filter((d) => d.active).length}/{details.length} เปิดอยู่
+            </p>
           </div>
-          <span className="text-xs font-bold text-sky-500 bg-sky-50 px-2.5 py-1 rounded-full">{details.filter((d) => d.active).length} รายการ</span>
+          <span className="text-xs font-bold text-sky-500 bg-sky-50 px-2.5 py-1 rounded-full">
+            {details.filter((d) => d.active).length} รายการ
+          </span>
         </div>
 
         <div className="divide-y divide-gray-50">
           {details.map((d) => (
-            <div key={d.id} className={`flex items-center gap-3 px-5 py-3 transition-colors ${!d.active ? "bg-gray-50/60" : ""}`}>
-              <span className="text-gray-200 cursor-grab flex-shrink-0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><line x1="9" y1="6"  x2="15" y2="6"  /><line x1="9" y1="12" x2="15" y2="12" /><line x1="9" y1="18" x2="15" y2="18" /></svg></span>
-              <span className={`flex-1 text-sm font-medium ${d.active ? "text-gray-700" : "text-gray-400 line-through"}`}>{d.label}</span>
-              <button onClick={() => toggleDetail(d.id)} className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${d.active ? "text-sky-400 hover:bg-sky-50" : "text-gray-300 hover:bg-gray-100"}`} title={d.active ? "ซ่อน" : "แสดง"}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
-                  {d.active ? <><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></> : <><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></>}
+            <div
+              key={d.id}
+              className={`flex items-center gap-3 px-5 py-3 transition-colors ${!d.active ? "bg-gray-50/60" : ""}`}
+            >
+              <span className="text-gray-200 cursor-grab flex-shrink-0">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  className="w-4 h-4"
+                >
+                  <line x1="9" y1="6" x2="15" y2="6" />
+                  <line x1="9" y1="12" x2="15" y2="12" />
+                  <line x1="9" y1="18" x2="15" y2="18" />
+                </svg>
+              </span>
+              <span
+                className={`flex-1 text-sm font-medium ${d.active ? "text-gray-700" : "text-gray-400 line-through"}`}
+              >
+                {d.label}
+              </span>
+              <button
+                onClick={() => toggleDetail(d.id)}
+                className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${d.active ? "text-sky-400 hover:bg-sky-50" : "text-gray-300 hover:bg-gray-100"}`}
+                title={d.active ? "ซ่อน" : "แสดง"}
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  className="w-4 h-4"
+                >
+                  {d.active ? (
+                    <>
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </>
+                  ) : (
+                    <>
+                      <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24" />
+                      <line x1="1" y1="1" x2="23" y2="23" />
+                    </>
+                  )}
                 </svg>
               </button>
-              <button onClick={() => removeDetail(d.id)} className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-200 hover:text-rose-400 hover:bg-rose-50 transition-colors">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
+              <button
+                onClick={() => removeDetail(d.id)}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-200 hover:text-rose-400 hover:bg-rose-50 transition-colors"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  className="w-4 h-4"
+                >
+                  <polyline points="3 6 5 6 21 6" />
+                  <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a1 1 0 011-1h4a1 1 0 011 1v2" />
+                </svg>
               </button>
             </div>
           ))}
         </div>
 
         <div className="px-5 py-3 border-t border-gray-50 flex gap-2">
-          <input value={newDetail} onChange={(e) => setNewDetail(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addDetail()} placeholder="เพิ่มประเภทงานใหม่ เช่น QUOTATION.." className="flex-1 px-3 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-sky-300 focus:ring-2 focus:ring-sky-50 placeholder-gray-300 transition-colors" />
-          <button onClick={addDetail} disabled={!newDetail.trim()} className="px-4 py-2 rounded-xl bg-sky-500 text-white text-sm font-bold hover:bg-sky-600 disabled:bg-gray-100 disabled:text-gray-300 transition-colors flex-shrink-0">เพิ่ม</button>
+          <input
+            value={newDetail}
+            onChange={(e) => setNewDetail(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && addDetail()}
+            placeholder="เพิ่มประเภทงานใหม่ เช่น QUOTATION.."
+            className="flex-1 px-3 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-sky-300 focus:ring-2 focus:ring-sky-50 placeholder-gray-300 transition-colors"
+          />
+          <button
+            onClick={addDetail}
+            disabled={!newDetail.trim()}
+            className="px-4 py-2 rounded-xl bg-sky-500 text-white text-sm font-bold hover:bg-sky-600 disabled:bg-gray-100 disabled:text-gray-300 transition-colors flex-shrink-0"
+          >
+            เพิ่ม
+          </button>
         </div>
       </div>
 
@@ -795,29 +1335,72 @@ const updateProject = async (euId: string) => {
       ════════════════════════════════════════════ */}
       <div>
         <div className="flex items-center justify-between mb-3 px-1">
-          <div><h3 className="text-sm font-bold text-gray-700">End User &amp; Project</h3><p className="text-xs text-gray-400 mt-0.5">เลือก End User → ล็อค Project ให้เฉพาะลูกค้านั้น</p></div>
-          <button onClick={() => setShowEuForm(!showEuForm)} className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-sky-500 text-white text-xs font-bold hover:bg-sky-600 transition-colors shadow-sm shadow-sky-200">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3.5 h-3.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> เพิ่ม End User
+          <div>
+            <h3 className="text-sm font-bold text-gray-700">
+              End User &amp; Project
+            </h3>
+            <p className="text-xs text-gray-400 mt-0.5">
+              เลือก End User → ล็อค Project ให้เฉพาะลูกค้านั้น
+            </p>
+          </div>
+          <button
+            onClick={() => setShowEuForm(!showEuForm)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-sky-500 text-white text-xs font-bold hover:bg-sky-600 transition-colors shadow-sm shadow-sky-200"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              className="w-3.5 h-3.5"
+            >
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>{" "}
+            เพิ่ม End User
           </button>
         </div>
 
         {showEuForm && (
           <div className="bg-sky-50 border-2 border-sky-200 rounded-2xl p-4 mb-3 space-y-3">
-            <p className="text-xs font-bold text-sky-600 uppercase tracking-wider">End User ใหม่</p>
+            <p className="text-xs font-bold text-sky-600 uppercase tracking-wider">
+              End User ใหม่
+            </p>
             <div className="flex gap-2">
-              <input value={newEuName} onChange={(e) => setNewEuName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addEndUser()} placeholder="ชื่อลูกค้า เช่น Toyota, Honda..." className="flex-1 px-3 py-2.5 text-sm bg-white border border-sky-200 rounded-xl outline-none focus:border-sky-400 placeholder-gray-300 transition-colors" />
+              <input
+                value={newEuName}
+                onChange={(e) => setNewEuName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && addEndUser()}
+                placeholder="ชื่อลูกค้า เช่น Toyota, Honda..."
+                className="flex-1 px-3 py-2.5 text-sm bg-white border border-sky-200 rounded-xl outline-none focus:border-sky-400 placeholder-gray-300 transition-colors"
+              />
             </div>
             <div>
               <p className="text-xs text-gray-400 mb-2">เลือกสี</p>
               <div className="flex gap-2">
                 {END_USER_COLORS.map((c) => (
-                  <button key={c} onClick={() => setNewEuColor(c)} className={`w-8 h-8 rounded-xl ${c} transition-transform hover:scale-110 ${newEuColor === c ? "ring-2 ring-offset-2 ring-sky-400 scale-110" : ""}`} />
+                  <button
+                    key={c}
+                    onClick={() => setNewEuColor(c)}
+                    className={`w-8 h-8 rounded-xl ${c} transition-transform hover:scale-110 ${newEuColor === c ? "ring-2 ring-offset-2 ring-sky-400 scale-110" : ""}`}
+                  />
                 ))}
               </div>
             </div>
             <div className="flex gap-2">
-              <button onClick={() => setShowEuForm(false)} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-500 hover:bg-gray-50 transition-colors">ยกเลิก</button>
-              <button onClick={addEndUser} disabled={!newEuName.trim()} className="flex-1 py-2.5 rounded-xl bg-sky-500 text-white text-sm font-bold hover:bg-sky-600 disabled:bg-gray-200 disabled:text-gray-400 transition-colors">บันทึก</button>
+              <button
+                onClick={() => setShowEuForm(false)}
+                className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-500 hover:bg-gray-50 transition-colors"
+              >
+                ยกเลิก
+              </button>
+              <button
+                onClick={addEndUser}
+                disabled={!newEuName.trim()}
+                className="flex-1 py-2.5 rounded-xl bg-sky-500 text-white text-sm font-bold hover:bg-sky-600 disabled:bg-gray-200 disabled:text-gray-400 transition-colors"
+              >
+                บันทึก
+              </button>
             </div>
           </div>
         )}
@@ -826,76 +1409,145 @@ const updateProject = async (euId: string) => {
           {endUsers.map((eu) => {
             const activeProj = eu.projects.filter((p) => p.active).length;
             return (
-              <div key={eu.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <div
+                key={eu.id}
+                className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden"
+              >
                 <div className="flex items-center gap-3 px-4 py-3.5">
-                  <div className={`w-9 h-9 rounded-xl ${eu.color} flex items-center justify-center text-white font-bold text-sm flex-shrink-0 shadow-sm`}>{eu.name[0]}</div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-gray-800">{eu.name}</p>
-                    <p className="text-xs text-gray-400">{activeProj} โปรเจคเปิดอยู่ · {eu.projects.length} ทั้งหมด</p>
-                  </div>
-                 <button
-  onClick={() => openEditEu(eu)}
-  className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-300 hover:text-amber-400 hover:bg-amber-50 transition-colors"
-  title="แก้ไข End User"
->
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
-    <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
-    <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
-  </svg>
-</button>
-                </div>
-                {editEuId === eu.id && (
-  <div className="mx-4 mb-3 p-3 bg-amber-50 border border-amber-200 rounded-xl space-y-2">
-    <p className="text-xs font-bold text-amber-600">แก้ไข End User</p>
-    <input
-      value={editEuName}
-      onChange={(e) => setEditEuName(e.target.value)}
-      onKeyDown={(e) => e.key === "Enter" && updateEndUser()}
-      placeholder="ชื่อลูกค้า"
-      className="w-full px-3 py-2 text-sm bg-white border border-amber-200 rounded-xl outline-none focus:border-amber-400 placeholder-gray-300"
-    />
-    <div>
-      <p className="text-xs text-gray-400 mb-2">เลือกสี</p>
-      <div className="flex gap-2">
-        {END_USER_COLORS.map((c) => (
-          <button
-            key={c}
-            onClick={() => setEditEuColor(c)}
-            className={`w-8 h-8 rounded-xl ${c} transition-transform hover:scale-110 ${
-              editEuColor === c ? "ring-2 ring-offset-2 ring-amber-400 scale-110" : ""
-            }`}
-          />
-        ))}
-      </div>
-    </div>
-    <div className="flex gap-2">
-      <button
-        onClick={() => setEditEuId(null)}
-        className="flex-1 py-2 rounded-xl border border-gray-200 text-xs font-semibold text-gray-500 hover:bg-gray-50 transition-colors"
-      >
-        ยกเลิก
-      </button>
-      <button
-        onClick={updateEndUser}
-        disabled={!editEuName.trim()}
-        className="flex-1 py-2 rounded-xl bg-amber-500 text-white text-xs font-bold hover:bg-amber-600 disabled:bg-gray-200 disabled:text-gray-400 transition-colors"
-      >
-        บันทึก
-      </button>
-    </div>
+  <div className={`w-9 h-9 rounded-xl ${eu.color} flex items-center justify-center text-white font-bold text-sm flex-shrink-0 shadow-sm`}>
+    {eu.name[0]}
   </div>
-)}
+  <div className="flex-1 min-w-0">
+    <p className="text-sm font-bold text-gray-800">{eu.name}</p>
+    <p className="text-xs text-gray-400">{activeProj} โปรเจคเปิดอยู่ · {eu.projects.length} ทั้งหมด</p>
+  </div>
+
+  {/* ✅ Edit EU */}
+  <button
+    onClick={() => openEditEu(eu)}
+    className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-300 hover:text-amber-400 hover:bg-amber-50 transition-colors"
+    title="แก้ไข End User"
+  >
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+      <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+      <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+    </svg>
+  </button>
+
+  {/* ✅ เพิ่มโปรเจค */}
+  <button
+    onClick={() => { setAddProjFor(addProjFor === eu.id ? null : eu.id); setNewProjNo(""); setNewProjName(""); }}
+    className="w-8 h-8 rounded-lg flex items-center justify-center text-sky-400 hover:bg-sky-50 transition-colors"
+    title="เพิ่มโปรเจค"
+  >
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4">
+      <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+    </svg>
+  </button>
+
+  {/* ✅ ลบ EU */}
+  <button
+    onClick={() => removeEndUser(eu.id)}
+    className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-200 hover:text-rose-400 hover:bg-rose-50 transition-colors"
+  >
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+      <polyline points="3 6 5 6 21 6"/>
+      <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
+    </svg>
+  </button>
+
+  {/* ✅ Collapse — สำคัญมาก! ขาดตัวนี้ list โปรเจคจะไม่แสดง */}
+  <button
+    onClick={() => toggleEuExpanded(eu.id)}
+    className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-100 transition-colors"
+  >
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className={`w-4 h-4 transition-transform duration-200 ${eu.expanded ? "rotate-180" : ""}`}>
+      <polyline points="6 9 12 15 18 9"/>
+    </svg>
+  </button>
+</div>
+                {editEuId === eu.id && (
+                  <div className="mx-4 mb-3 p-3 bg-amber-50 border border-amber-200 rounded-xl space-y-2">
+                    <p className="text-xs font-bold text-amber-600">
+                      แก้ไข End User
+                    </p>
+                    <input
+                      value={editEuName}
+                      onChange={(e) => setEditEuName(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && updateEndUser()}
+                      placeholder="ชื่อลูกค้า"
+                      className="w-full px-3 py-2 text-sm bg-white border border-amber-200 rounded-xl outline-none focus:border-amber-400 placeholder-gray-300"
+                    />
+                    <div>
+                      <p className="text-xs text-gray-400 mb-2">เลือกสี</p>
+                      <div className="flex gap-2">
+                        {END_USER_COLORS.map((c) => (
+                          <button
+                            key={c}
+                            onClick={() => setEditEuColor(c)}
+                            className={`w-8 h-8 rounded-xl ${c} transition-transform hover:scale-110 ${
+                              editEuColor === c
+                                ? "ring-2 ring-offset-2 ring-amber-400 scale-110"
+                                : ""
+                            }`}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setEditEuId(null)}
+                        className="flex-1 py-2 rounded-xl border border-gray-200 text-xs font-semibold text-gray-500 hover:bg-gray-50 transition-colors"
+                      >
+                        ยกเลิก
+                      </button>
+                      <button
+                        onClick={updateEndUser}
+                        disabled={!editEuName.trim()}
+                        className="flex-1 py-2 rounded-xl bg-amber-500 text-white text-xs font-bold hover:bg-amber-600 disabled:bg-gray-200 disabled:text-gray-400 transition-colors"
+                      >
+                        บันทึก
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {addProjFor === eu.id && (
                   <div className="mx-4 mb-3 p-3 bg-sky-50 border border-sky-200 rounded-xl space-y-2">
-                    <p className="text-xs font-bold text-sky-600">เพิ่มโปรเจคใหม่</p>
+                    <p className="text-xs font-bold text-sky-600">
+                      เพิ่มโปรเจคใหม่
+                    </p>
                     <div className="flex gap-2">
-                      <input value={newProjNo} onChange={(e) => setNewProjNo(e.target.value)} placeholder="Project No. เช่น 1122" className="w-28 px-3 py-2 text-sm bg-white border border-sky-200 rounded-xl outline-none focus:border-sky-400 placeholder-gray-300" />
-                      <input value={newProjName} onChange={(e) => setNewProjName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addProject(eu.id)} placeholder="ชื่อโปรเจค..." className="flex-1 px-3 py-2 text-sm bg-white border border-sky-200 rounded-xl outline-none focus:border-sky-400 placeholder-gray-300" />
+                      <input
+                        value={newProjNo}
+                        onChange={(e) => setNewProjNo(e.target.value)}
+                        placeholder="Project No. เช่น 1122"
+                        className="w-28 px-3 py-2 text-sm bg-white border border-sky-200 rounded-xl outline-none focus:border-sky-400 placeholder-gray-300"
+                      />
+                      <input
+                        value={newProjName}
+                        onChange={(e) => setNewProjName(e.target.value)}
+                        onKeyDown={(e) =>
+                          e.key === "Enter" && addProject(eu.id)
+                        }
+                        placeholder="ชื่อโปรเจค..."
+                        className="flex-1 px-3 py-2 text-sm bg-white border border-sky-200 rounded-xl outline-none focus:border-sky-400 placeholder-gray-300"
+                      />
                     </div>
                     <div className="flex gap-2">
-                      <button onClick={() => setAddProjFor(null)} className="flex-1 py-2 rounded-xl border border-gray-200 text-xs font-semibold text-gray-500 hover:bg-gray-50 transition-colors">ยกเลิก</button>
-                      <button onClick={() => addProject(eu.id)} disabled={!newProjNo.trim()} className="flex-1 py-2 rounded-xl bg-sky-500 text-white text-xs font-bold hover:bg-sky-600 disabled:bg-gray-200 disabled:text-gray-400 transition-colors">เพิ่มโปรเจค</button>
+                      <button
+                        onClick={() => setAddProjFor(null)}
+                        className="flex-1 py-2 rounded-xl border border-gray-200 text-xs font-semibold text-gray-500 hover:bg-gray-50 transition-colors"
+                      >
+                        ยกเลิก
+                      </button>
+                      <button
+                        onClick={() => addProject(eu.id)}
+                        disabled={!newProjNo.trim()}
+                        className="flex-1 py-2 rounded-xl bg-sky-500 text-white text-xs font-bold hover:bg-sky-600 disabled:bg-gray-200 disabled:text-gray-400 transition-colors"
+                      >
+                        เพิ่มโปรเจค
+                      </button>
                     </div>
                   </div>
                 )}
@@ -903,79 +1555,158 @@ const updateProject = async (euId: string) => {
                 {eu.expanded && (
                   <div className="border-t border-gray-50">
                     {eu.projects.length === 0 ? (
-                      <div className="px-5 py-4 text-center"><p className="text-xs text-gray-400">ยังไม่มีโปรเจค กด + เพื่อเพิ่ม</p></div>
+                      <div className="px-5 py-4 text-center">
+                        <p className="text-xs text-gray-400">
+                          ยังไม่มีโปรเจค กด + เพื่อเพิ่ม
+                        </p>
+                      </div>
                     ) : (
                       <div className="divide-y divide-gray-50">
-  {eu.projects.map((proj) => (
-    <div key={proj.id}>
-      {editProjId === proj.id ? (
-        /* ── Edit Project Form ── */
-        <div className="px-4 py-2.5 bg-amber-50 border-b border-amber-100 space-y-2">
-          <p className="text-xs font-bold text-amber-600">แก้ไขโปรเจค</p>
-          <div className="flex gap-2">
-            <input
-              value={editProjNo}
-              onChange={(e) => setEditProjNo(e.target.value)}
-              placeholder="Project No."
-              className="w-28 px-3 py-1.5 text-sm bg-white border border-amber-200 rounded-xl outline-none focus:border-amber-400 placeholder-gray-300"
-            />
-            <input
-              value={editProjName}
-              onChange={(e) => setEditProjName(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && updateProject(eu.id)}
-              placeholder="ชื่อโปรเจค..."
-              className="flex-1 px-3 py-1.5 text-sm bg-white border border-amber-200 rounded-xl outline-none focus:border-amber-400 placeholder-gray-300"
-            />
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setEditProjId(null)}
-              className="flex-1 py-1.5 rounded-xl border border-gray-200 text-xs font-semibold text-gray-500 hover:bg-gray-50 transition-colors"
-            >
-              ยกเลิก
-            </button>
-            <button
-              onClick={() => updateProject(eu.id)}
-              disabled={!editProjNo.trim()}
-              className="flex-1 py-1.5 rounded-xl bg-amber-500 text-white text-xs font-bold hover:bg-amber-600 disabled:bg-gray-200 disabled:text-gray-400 transition-colors"
-            >
-              บันทึก
-            </button>
-          </div>
-        </div>
-      ) : (
-        /* ── Project Row ปกติ (เดิม + เพิ่มปุ่ม Edit) ── */
-        <div className={`flex items-center gap-3 px-5 py-3 transition-colors ${!proj.active ? "bg-gray-50/70" : ""}`}>
-          <span className={`flex-shrink-0 px-2.5 py-1 rounded-lg text-xs font-bold border transition-colors ${proj.active ? `${eu.color.replace("bg-", "bg-").replace("500", "50")} border-current text-current` : "bg-gray-100 border-gray-200 text-gray-400"}`} style={proj.active ? { color: "", backgroundColor: "" } : {}}>
-            <span className={proj.active ? eu.color.replace("bg-", "text-") : "text-gray-400"}>#{proj.no}</span>
-          </span>
-          <span className={`flex-1 text-sm min-w-0 truncate ${proj.active ? "text-gray-700 font-medium" : "text-gray-400 line-through font-normal"}`}>{proj.name}</span>
-          {!proj.active && <span className="text-[10px] font-bold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full flex-shrink-0">สำเร็จแล้ว</span>}
+                        {eu.projects.map((proj) => (
+                          <div key={proj.id}>
+                            {editProjId === proj.id ? (
+                              /* ── Edit Project Form ── */
+                              <div className="px-4 py-2.5 bg-amber-50 border-b border-amber-100 space-y-2">
+                                <p className="text-xs font-bold text-amber-600">
+                                  แก้ไขโปรเจค
+                                </p>
+                                <div className="flex gap-2">
+                                  <input
+                                    value={editProjNo}
+                                    onChange={(e) =>
+                                      setEditProjNo(e.target.value)
+                                    }
+                                    placeholder="Project No."
+                                    className="w-28 px-3 py-1.5 text-sm bg-white border border-amber-200 rounded-xl outline-none focus:border-amber-400 placeholder-gray-300"
+                                  />
+                                  <input
+                                    value={editProjName}
+                                    onChange={(e) =>
+                                      setEditProjName(e.target.value)
+                                    }
+                                    onKeyDown={(e) =>
+                                      e.key === "Enter" && updateProject(eu.id)
+                                    }
+                                    placeholder="ชื่อโปรเจค..."
+                                    className="flex-1 px-3 py-1.5 text-sm bg-white border border-amber-200 rounded-xl outline-none focus:border-amber-400 placeholder-gray-300"
+                                  />
+                                </div>
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={() => setEditProjId(null)}
+                                    className="flex-1 py-1.5 rounded-xl border border-gray-200 text-xs font-semibold text-gray-500 hover:bg-gray-50 transition-colors"
+                                  >
+                                    ยกเลิก
+                                  </button>
+                                  <button
+                                    onClick={() => updateProject(eu.id)}
+                                    disabled={!editProjNo.trim()}
+                                    className="flex-1 py-1.5 rounded-xl bg-amber-500 text-white text-xs font-bold hover:bg-amber-600 disabled:bg-gray-200 disabled:text-gray-400 transition-colors"
+                                  >
+                                    บันทึก
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              /* ── Project Row ปกติ (เดิม + เพิ่มปุ่ม Edit) ── */
+                              <div
+                                className={`flex items-center gap-3 px-5 py-3 transition-colors ${!proj.active ? "bg-gray-50/70" : ""}`}
+                              >
+                                <span
+                                  className={`flex-shrink-0 px-2.5 py-1 rounded-lg text-xs font-bold border transition-colors ${proj.active ? `${eu.color.replace("bg-", "bg-").replace("500", "50")} border-current text-current` : "bg-gray-100 border-gray-200 text-gray-400"}`}
+                                  style={
+                                    proj.active
+                                      ? { color: "", backgroundColor: "" }
+                                      : {}
+                                  }
+                                >
+                                  <span
+                                    className={
+                                      proj.active
+                                        ? eu.color.replace("bg-", "text-")
+                                        : "text-gray-400"
+                                    }
+                                  >
+                                    #{proj.no}
+                                  </span>
+                                </span>
+                                <span
+                                  className={`flex-1 text-sm min-w-0 truncate ${proj.active ? "text-gray-700 font-medium" : "text-gray-400 line-through font-normal"}`}
+                                >
+                                  {proj.name}
+                                </span>
+                                {!proj.active && (
+                                  <span className="text-[10px] font-bold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full flex-shrink-0">
+                                    สำเร็จแล้ว
+                                  </span>
+                                )}
 
-          {/* ✅ ปุ่ม Edit — เพิ่มใหม่ */}
-          <button
-            onClick={() => openEditProj(proj)}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-200 hover:text-amber-400 hover:bg-amber-50 transition-colors flex-shrink-0"
-            title="แก้ไขโปรเจค"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
-              <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
-              <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
-            </svg>
-          </button>
+                                {/* ✅ ปุ่ม Edit — เพิ่มใหม่ */}
+                                <button
+                                  onClick={() => openEditProj(proj)}
+                                  className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-200 hover:text-amber-400 hover:bg-amber-50 transition-colors flex-shrink-0"
+                                  title="แก้ไขโปรเจค"
+                                >
+                                  <svg
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2"
+                                    className="w-4 h-4"
+                                  >
+                                    <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+                                    <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+                                  </svg>
+                                </button>
 
-          {/* ปุ่ม Toggle + Delete — เดิม ไม่เปลี่ยน */}
-          <button onClick={() => toggleProject(eu.id, proj.id)} title={proj.active ? "ปิดโปรเจค (สำเร็จแล้ว)" : "เปิดโปรเจคอีกครั้ง"} className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors flex-shrink-0 ${proj.active ? "text-emerald-400 hover:bg-emerald-50" : "text-gray-300 hover:bg-gray-100 hover:text-gray-500"}`}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="w-4 h-4">{proj.active ? <><polyline points="20 6 9 17 4 12"/></> : <><polyline points="20 6 9 17 4 12"/></>}</svg>
-          </button>
-          <button onClick={() => removeProject(eu.id, proj.id)} className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-200 hover:text-rose-400 hover:bg-rose-50 transition-colors flex-shrink-0">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
-          </button>
-        </div>
-      )}
-    </div>
-  ))}
-</div>
+                                {/* ปุ่ม Toggle + Delete — เดิม ไม่เปลี่ยน */}
+                                <button
+                                  onClick={() => toggleProject(eu.id, proj.id)}
+                                  title={
+                                    proj.active
+                                      ? "ปิดโปรเจค (สำเร็จแล้ว)"
+                                      : "เปิดโปรเจคอีกครั้ง"
+                                  }
+                                  className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors flex-shrink-0 ${proj.active ? "text-emerald-400 hover:bg-emerald-50" : "text-gray-300 hover:bg-gray-100 hover:text-gray-500"}`}
+                                >
+                                  <svg
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2.2"
+                                    className="w-4 h-4"
+                                  >
+                                    {proj.active ? (
+                                      <>
+                                        <polyline points="20 6 9 17 4 12" />
+                                      </>
+                                    ) : (
+                                      <>
+                                        <polyline points="20 6 9 17 4 12" />
+                                      </>
+                                    )}
+                                  </svg>
+                                </button>
+                                <button
+                                  onClick={() => removeProject(eu.id, proj.id)}
+                                  className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-200 hover:text-rose-400 hover:bg-rose-50 transition-colors flex-shrink-0"
+                                >
+                                  <svg
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2"
+                                    className="w-4 h-4"
+                                  >
+                                    <polyline points="3 6 5 6 21 6" />
+                                    <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a1 1 0 011-1h4a1 1 0 011 1v2" />
+                                  </svg>
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
                     )}
                   </div>
                 )}
@@ -991,8 +1722,16 @@ const updateProject = async (euId: string) => {
 // ─── Holidays Section (ย้ายออกมาอยู่นอกสุด) ────────────────────────────────────────────────────────────
 function HolidaysSection() {
   const HOLIDAY_TYPES = [
-    { value: "national", label: "วันหยุด", color: "text-rose-600 bg-rose-50 border-rose-200" },
-    { value: "working_sat", label: "เสาร์ทำงาน", color: "text-sky-600 bg-sky-50 border-sky-200" },
+    {
+      value: "national",
+      label: "วันหยุด",
+      color: "text-rose-600 bg-rose-50 border-rose-200",
+    },
+    {
+      value: "working_sat",
+      label: "เสาร์ทำงาน",
+      color: "text-sky-600 bg-sky-50 border-sky-200",
+    },
   ];
 
   const [holidays, setHolidays] = useState<any[]>([]);
@@ -1003,7 +1742,10 @@ function HolidaysSection() {
   useEffect(() => {
     const fetchHolidays = async () => {
       setLoading(true);
-      const { data, error } = await supabase.from("holidays").select("*").order("holiday_date", { ascending: true });
+      const { data, error } = await supabase
+        .from("holidays")
+        .select("*")
+        .order("holiday_date", { ascending: true });
       if (data && !error) {
         setHolidays(data);
       }
@@ -1017,10 +1759,14 @@ function HolidaysSection() {
     const newHoliday = {
       holiday_date: form.date,
       name: form.name.trim(),
-      holiday_type: form.type
+      holiday_type: form.type,
     };
 
-    const { data, error } = await supabase.from("holidays").insert([newHoliday]).select().single();
+    const { data, error } = await supabase
+      .from("holidays")
+      .insert([newHoliday])
+      .select()
+      .single();
     if (data && !error) {
       setHolidays((prev) => [...prev, data]);
       setForm({ date: "", name: "", type: "national" });
@@ -1028,16 +1774,23 @@ function HolidaysSection() {
   };
 
   const handleDelete = async (id: string) => {
-    if(!confirm("แน่ใจหรือไม่ที่จะลบรายการนี้?")) return;
+    if (!confirm("แน่ใจหรือไม่ที่จะลบรายการนี้?")) return;
     const { error } = await supabase.from("holidays").delete().eq("id", id);
     if (!error) {
       setHolidays((prev) => prev.filter((h) => h.id !== id));
     }
   };
 
-  const sorted = [...holidays].sort((a, b) => a.holiday_date.localeCompare(b.holiday_date));
+  const sorted = [...holidays].sort((a, b) =>
+    a.holiday_date.localeCompare(b.holiday_date),
+  );
 
-  if (loading) return <div className="py-10 text-center text-sm text-gray-400 animate-pulse">กำลังโหลดข้อมูลวันหยุด...</div>;
+  if (loading)
+    return (
+      <div className="py-10 text-center text-sm text-gray-400 animate-pulse">
+        กำลังโหลดข้อมูลวันหยุด...
+      </div>
+    );
 
   return (
     <div className="space-y-4">
@@ -1076,22 +1829,44 @@ function HolidaysSection() {
 
       <SettingGroup title={`รายการทั้งหมด (${holidays.length} วัน)`}>
         {sorted.length === 0 ? (
-          <div className="px-5 py-8 text-center text-sm text-gray-400">ยังไม่มีข้อมูลวันหยุด</div>
+          <div className="px-5 py-8 text-center text-sm text-gray-400">
+            ยังไม่มีข้อมูลวันหยุด
+          </div>
         ) : (
           <div className="divide-y divide-gray-50">
             {sorted.map((h) => {
-              const cfg = HOLIDAY_TYPES.find(t => t.value === h.holiday_type) || HOLIDAY_TYPES[0];
+              const cfg =
+                HOLIDAY_TYPES.find((t) => t.value === h.holiday_type) ||
+                HOLIDAY_TYPES[0];
               return (
                 <div key={h.id} className="flex items-center gap-4 px-5 py-3">
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-gray-700">{h.name}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">{h.holiday_date}</p>
+                    <p className="text-sm font-semibold text-gray-700">
+                      {h.name}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      {h.holiday_date}
+                    </p>
                   </div>
-                  <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border ${cfg.color}`}>
+                  <span
+                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border ${cfg.color}`}
+                  >
                     {cfg.label}
                   </span>
-                  <button onClick={() => handleDelete(h.id)} className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-300 hover:text-rose-400 hover:bg-rose-50 transition-colors">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
+                  <button
+                    onClick={() => handleDelete(h.id)}
+                    className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-300 hover:text-rose-400 hover:bg-rose-50 transition-colors"
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      className="w-4 h-4"
+                    >
+                      <polyline points="3 6 5 6 21 6" />
+                      <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a1 1 0 011-1h4a1 1 0 011 1v2" />
+                    </svg>
                   </button>
                 </div>
               );
@@ -1106,15 +1881,14 @@ function HolidaysSection() {
 // ─── Section map ──────────────────────────────────────────────────────────────
 const SECTION_COMPONENTS: Record<string, React.ReactNode> = {
   report_manage: <ReportManagementSection />,
-  holidays:      <HolidaysSection />,
+  holidays: <HolidaysSection />,
 };
 
 export default function SettingsPage() {
-  const [activeTab, setActiveTab] = useState("report_manage"); 
+  const [activeTab, setActiveTab] = useState("report_manage");
 
   return (
     <main className="min-h-screen bg-gray-50 pb-28 md:pb-10">
-
       {/* ── Header ── */}
       <div className="sticky top-0 z-10 bg-gray-50/90 backdrop-blur-sm border-b border-gray-100">
         <div className="px-5 pt-5 pb-0">
@@ -1123,8 +1897,10 @@ export default function SettingsPage() {
         </div>
 
         {/* ── Horizontal Sub-nav ── */}
-        <div className="flex gap-1 px-4 mt-4 overflow-x-auto
-          [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+        <div
+          className="flex gap-1 px-4 mt-4 overflow-x-auto
+          [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
+        >
           {SETTINGS_TABS.map((tab) => {
             const isActive = activeTab === tab.id;
             return (
@@ -1134,23 +1910,28 @@ export default function SettingsPage() {
                 className={`
                   relative flex items-center gap-2 px-4 py-3 text-sm font-semibold
                   whitespace-nowrap transition-all duration-200 flex-shrink-0
-                  ${isActive
-                    ? "text-sky-600"
-                    : "text-gray-400 hover:text-gray-600"
+                  ${
+                    isActive
+                      ? "text-sky-600"
+                      : "text-gray-400 hover:text-gray-600"
                   }
                 `}
               >
                 {/* Icon */}
-                <span className={`transition-colors ${isActive ? "text-sky-500" : "text-gray-400"}`}>
+                <span
+                  className={`transition-colors ${isActive ? "text-sky-500" : "text-gray-400"}`}
+                >
                   {tab.icon}
                 </span>
                 {tab.label}
 
                 {/* Active underline */}
-                <span className={`
+                <span
+                  className={`
                   absolute bottom-0 left-0 right-0 h-0.5 rounded-t-full transition-all duration-200
                   ${isActive ? "bg-sky-500 opacity-100" : "bg-transparent opacity-0"}
-                `} />
+                `}
+                />
               </button>
             );
           })}
@@ -1158,9 +1939,7 @@ export default function SettingsPage() {
       </div>
 
       {/* ── Content ── */}
-      <div className="px-4 pt-5 space-y-4">
-        {SECTION_COMPONENTS[activeTab]}
-      </div>
+      <div className="px-4 pt-5 space-y-4">{SECTION_COMPONENTS[activeTab]}</div>
     </main>
   );
 }

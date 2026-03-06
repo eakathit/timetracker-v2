@@ -23,8 +23,8 @@ export default async function ReportPage() {
   const [{ data: { user } }, uRes, pRes, dRes] = await Promise.all([
     supabase.auth.getUser(),
     supabase.from('end_users').select('*'),
-    supabase.from('projects').select('*'),
-    supabase.from('work_details').select('*')
+    supabase.from('projects').select('*').eq('is_active', true),
+    supabase.from('work_details').select('*').eq('is_active', true),
   ]);
 
   return (
