@@ -226,13 +226,21 @@ export default function DashboardUI({ userEmail, userId }: DashboardUIProps) {
   // ── OT time unlock (18:00) ────────────────────────────────────────────────
 useEffect(() => {
   if (otTimeReady) return;
-  const id = setInterval(() => {
-    if (new Date().getHours() >= 18) {
-      setOtTimeReady(true);
-      clearInterval(id);
-    }
-  }, 30_000);
-  return () => clearInterval(id);
+
+  const now = new Date();
+  const target = new Date();
+  target.setHours(18, 0, 0, 0);
+  const msUntil18 = target.getTime() - now.getTime();
+
+  if (msUntil18 <= 0) {
+    // เลย 18:00 แล้ว (เช่น refresh หน้าหลัง 18:00) → unlock ทันที
+    setOtTimeReady(true);
+    return;
+  }
+
+  // fire ตรงเวลา 18:00:00 พอดี
+  const id = setTimeout(() => setOtTimeReady(true), msUntil18);
+  return () => clearTimeout(id);
 }, [otTimeReady]);
 
   // ── Location watch ────────────────────────────────────────────────────────
@@ -335,12 +343,15 @@ useEffect(() => {
           } else if (lastEvent.event === "ot_start") {
             setWorkStatus("ot_working");
           } else if (
-            lastEvent.event === "checkout" ||
-            lastEvent.event === "onsite_checkout"
-          ) {
-            setWorkStatus("completed");
-          } else if (
-            lastEvent.event === "arrive_factory" ||
+          lastEvent.event === "checkout" ||
+          lastEvent.event === "onsite_checkout"
+        ) {
+          setWorkStatus("completed");
+        } else if (lastEvent.event === "auto_checkout") {
+          // ✅ Cron auto-checkout 17:30 → restore เป็น completed
+          setWorkStatus("completed");
+        } else if (
+          lastEvent.event === "arrive_factory" ||
             lastEvent.event === "arrive_site" ||
             lastEvent.event === "onsite_checkin"
           ) {
@@ -360,6 +371,47 @@ useEffect(() => {
 
     fetchTodayStatus();
   }, [userId]);
+
+// ── Realtime: รับ auto_checkout จาก Vercel Cron ──────────────────────────
+useEffect(() => {
+  if (!userId) return;
+  const today = getLocalToday();
+
+  const channel = supabase
+    .channel(`auto-checkout:${userId}`)
+    .on(
+      "postgres_changes",
+      {
+        event: "UPDATE",
+        schema: "public",
+        table: "daily_time_logs",
+        filter: `user_id=eq.${userId}`,
+      },
+      (payload) => {
+        const row = payload.new as any;
+
+        // กรองเฉพาะวันนี้เท่านั้น
+        if (row.log_date !== today) return;
+
+        // Cron auto-checkout เข้ามา → อัปเดต UI ทันที
+        if (row.auto_checked_out && row.last_check_out) {
+          setRawCheckOut(row.last_check_out);
+          setCheckOutTime(
+            new Date(row.last_check_out).toLocaleTimeString("th-TH", {
+              hour: "2-digit",
+              minute: "2-digit",
+            })
+          );
+          setWorkStatus("completed");
+        }
+      }
+    )
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}, [userId]);
 
   useEffect(() => {
     if (!userId) return;
