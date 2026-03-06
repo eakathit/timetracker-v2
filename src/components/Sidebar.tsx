@@ -60,6 +60,14 @@ const Icons = {
       <path d="M17 3.5L21 7" />
     </svg>
   ),
+  clipboard: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" />
+      <rect x="9" y="3" width="6" height="4" rx="1" />
+      <line x1="9" y1="12" x2="15" y2="12" />
+      <line x1="9" y1="16" x2="13" y2="16" />
+    </svg>
+  ),
   leave: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <path d="M9 11l3 3L22 4" />
@@ -137,7 +145,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     groupLabel: "Management",
     items: [
-      { label: "Project Summary", labelTh: "ทีม", href: "/team", icon: Icons.users },
+      { label: "Project Summary", labelTh: "ทีม", href: "/team", icon: Icons.clipboard },
       { label: "HR Attendance",   labelTh: "HR",      href: "/hr",   icon: Icons.user },
     ],
   },

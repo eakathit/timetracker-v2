@@ -37,6 +37,21 @@ function getMonthRange(year: number, month: number) {
   return { start, end };
 }
 
+function extractStartEnd(row: ReportRow): [string, string] {
+  if (row.period_type === "some_time") {
+    return [fmtTime(row.period_start), fmtTime(row.period_end)];
+  }
+  // parse จาก period_label เช่น "ALL (08:30 – 17:30)" หรือ "HALF DAY (13:00 – 17:30)"
+  const match = (row.period_label ?? "").match(/\((\d{2}:\d{2})\s*[–-]\s*(\d{2}:\d{2})\)/);
+  if (match) return [match[1], match[2]];
+  return ["–", "–"];
+}
+
+function fmtTime(t: string | null) {
+  if (!t) return "–";
+  return t.slice(0, 5);
+}
+
 function fmtDateTH(dateStr: string) {
   const [y, m, d] = dateStr.split("-").map(Number);
   const dow = new Date(y, m - 1, d).getDay();
@@ -56,8 +71,8 @@ function getFullName(p?: Profile) {
 }
 
 function getPeriodLabel(row: ReportRow) {
-  if (row.period_type === "some_time" && row.period_start && row.period_end)
-    return `${row.period_start}–${row.period_end}`;
+  if (row.period_type === "some_time")
+    return "SOME TIME";
   const lbl = row.period_label ?? "";
   if (lbl.includes("ALL"))      return "ALL DAY";
   if (lbl.includes("HALF DAY")) return "HALF DAY";
@@ -84,25 +99,28 @@ async function exportExcel(
   const title   = `PROJECT SUMMARY — ${MONTHS_TH[month]} ${year + 543}${selProj ? ` | Project #${selProj.project_no}` : ""}`;
 
   const header = [
-    [title], [],
-    ["วันที่", "วัน", "ชื่อพนักงาน", "แผนก", "End User", "Project No.", "ชื่อ Project", "ประเภทงาน", "ช่วงเวลา"],
+  [title], [],
+  ["วันที่", "ชื่อพนักงาน", "End User", "Project No.", "ประเภทงาน", "ช่วงเวลา", "Start Time", "End Time"],
+];
+const data = rows.map((r) => {
+  const { full } = fmtDateTH(r.report_date);
+  const pr = project[r.project_id];
+  const p  = profile[r.user_id];
+  const [startTime, endTime] = extractStartEnd(r);  // ← เปลี่ยนตรงนี้
+  return [
+    full, getFullName(p),
+    eu[r.end_user_id]?.name || "–",
+    pr?.project_no || "–",
+    detail[r.detail_id]?.title || "–",
+    getPeriodLabel(r),
+    startTime,  // ← เปลี่ยนตรงนี้
+    endTime,    // ← เปลี่ยนตรงนี้
   ];
-  const data = rows.map((r) => {
-    const { full, dow } = fmtDateTH(r.report_date);
-    const pr = project[r.project_id];
-    const p  = profile[r.user_id];
-    return [
-      full, dow, getFullName(p), p?.department || "–",
-      eu[r.end_user_id]?.name || "–",
-      pr?.project_no || "–", pr?.name || "–",
-      detail[r.detail_id]?.title || "–",
-      getPeriodLabel(r),
-    ];
-  });
+});
 
-  const ws = utils.aoa_to_sheet([...header, ...data]);
-  ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 8 } }];
-  ws["!cols"]   = [22, 5, 18, 12, 14, 10, 20, 22, 18].map((w) => ({ wch: w }));
+const ws = utils.aoa_to_sheet([...header, ...data]);
+ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 7 } }];
+ws["!cols"]   = [22, 18, 14, 10, 22, 18, 12, 12].map((w) => ({ wch: w }));
 
   const wb = utils.book_new();
   utils.book_append_sheet(wb, ws, `${MONTHS_TH[month].slice(0, 3)}_${year + 543}`);
