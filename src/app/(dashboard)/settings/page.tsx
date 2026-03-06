@@ -921,12 +921,18 @@ interface EndUser {
 }
 
 const END_USER_COLORS = [
-  "bg-sky-500",
-  "bg-violet-500",
-  "bg-emerald-500",
-  "bg-amber-500",
-  "bg-rose-500",
-  "bg-indigo-500",
+  "#0ea5e9",
+  "#8b5cf6",
+  "#10b981",
+  "#f59e0b",
+  "#ef4444",
+  "#6366f1",
+  "#ec4899",
+  "#14b8a6",
+  "#f97316",
+  "#84cc16",
+  "#06b6d4",
+  "#a855f7",
 ];
 
 function ReportManagementSection() {
@@ -1381,8 +1387,12 @@ function ReportManagementSection() {
                 {END_USER_COLORS.map((c) => (
                   <button
                     key={c}
-                    onClick={() => setNewEuColor(c)}
-                    className={`w-8 h-8 rounded-xl ${c} transition-transform hover:scale-110 ${newEuColor === c ? "ring-2 ring-offset-2 ring-sky-400 scale-110" : ""}`}
+                    onClick={() => setEditEuColor(c)}
+                    className={`w-8 h-8 rounded-xl ${c} transition-transform hover:scale-110 ${
+                      editEuColor === c
+                        ? "ring-2 ring-offset-2 ring-amber-400 scale-110"
+                        : ""
+                    }`}
                   />
                 ))}
               </div>
@@ -1414,58 +1424,92 @@ function ReportManagementSection() {
                 className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden"
               >
                 <div className="flex items-center gap-3 px-4 py-3.5">
-  <div className={`w-9 h-9 rounded-xl ${eu.color} flex items-center justify-center text-white font-bold text-sm flex-shrink-0 shadow-sm`}>
-    {eu.name[0]}
-  </div>
-  <div className="flex-1 min-w-0">
-    <p className="text-sm font-bold text-gray-800">{eu.name}</p>
-    <p className="text-xs text-gray-400">{activeProj} โปรเจคเปิดอยู่ · {eu.projects.length} ทั้งหมด</p>
-  </div>
+                  <div
+                    className="w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold text-sm flex-shrink-0 shadow-sm"
+                    style={{ backgroundColor: eu.color }}
+                  >
+                    {eu.name[0]}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-gray-800">{eu.name}</p>
+                    <p className="text-xs text-gray-400">
+                      {activeProj} โปรเจคเปิดอยู่ · {eu.projects.length} ทั้งหมด
+                    </p>
+                  </div>
 
-  {/* ✅ Edit EU */}
-  <button
-    onClick={() => openEditEu(eu)}
-    className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-300 hover:text-amber-400 hover:bg-amber-50 transition-colors"
-    title="แก้ไข End User"
-  >
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
-      <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
-      <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
-    </svg>
-  </button>
+                  {/* ✅ Edit EU */}
+                  <button
+                    onClick={() => openEditEu(eu)}
+                    className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-300 hover:text-amber-400 hover:bg-amber-50 transition-colors"
+                    title="แก้ไข End User"
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      className="w-4 h-4"
+                    >
+                      <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+                      <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+                    </svg>
+                  </button>
 
-  {/* ✅ เพิ่มโปรเจค */}
-  <button
-    onClick={() => { setAddProjFor(addProjFor === eu.id ? null : eu.id); setNewProjNo(""); setNewProjName(""); }}
-    className="w-8 h-8 rounded-lg flex items-center justify-center text-sky-400 hover:bg-sky-50 transition-colors"
-    title="เพิ่มโปรเจค"
-  >
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4">
-      <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-    </svg>
-  </button>
+                  {/* ✅ เพิ่มโปรเจค */}
+                  <button
+                    onClick={() => {
+                      setAddProjFor(addProjFor === eu.id ? null : eu.id);
+                      setNewProjNo("");
+                      setNewProjName("");
+                    }}
+                    className="w-8 h-8 rounded-lg flex items-center justify-center text-sky-400 hover:bg-sky-50 transition-colors"
+                    title="เพิ่มโปรเจค"
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      className="w-4 h-4"
+                    >
+                      <line x1="12" y1="5" x2="12" y2="19" />
+                      <line x1="5" y1="12" x2="19" y2="12" />
+                    </svg>
+                  </button>
 
-  {/* ✅ ลบ EU */}
-  <button
-    onClick={() => removeEndUser(eu.id)}
-    className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-200 hover:text-rose-400 hover:bg-rose-50 transition-colors"
-  >
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
-      <polyline points="3 6 5 6 21 6"/>
-      <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
-    </svg>
-  </button>
+                  {/* ✅ ลบ EU */}
+                  <button
+                    onClick={() => removeEndUser(eu.id)}
+                    className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-200 hover:text-rose-400 hover:bg-rose-50 transition-colors"
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      className="w-4 h-4"
+                    >
+                      <polyline points="3 6 5 6 21 6" />
+                      <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a1 1 0 011-1h4a1 1 0 011 1v2" />
+                    </svg>
+                  </button>
 
-  {/* ✅ Collapse — สำคัญมาก! ขาดตัวนี้ list โปรเจคจะไม่แสดง */}
-  <button
-    onClick={() => toggleEuExpanded(eu.id)}
-    className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-100 transition-colors"
-  >
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className={`w-4 h-4 transition-transform duration-200 ${eu.expanded ? "rotate-180" : ""}`}>
-      <polyline points="6 9 12 15 18 9"/>
-    </svg>
-  </button>
-</div>
+                  {/* ✅ Collapse — สำคัญมาก! ขาดตัวนี้ list โปรเจคจะไม่แสดง */}
+                  <button
+                    onClick={() => toggleEuExpanded(eu.id)}
+                    className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-100 transition-colors"
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      className={`w-4 h-4 transition-transform duration-200 ${eu.expanded ? "rotate-180" : ""}`}
+                    >
+                      <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                  </button>
+                </div>
                 {editEuId === eu.id && (
                   <div className="mx-4 mb-3 p-3 bg-amber-50 border border-amber-200 rounded-xl space-y-2">
                     <p className="text-xs font-bold text-amber-600">
@@ -1480,18 +1524,35 @@ function ReportManagementSection() {
                     />
                     <div>
                       <p className="text-xs text-gray-400 mb-2">เลือกสี</p>
-                      <div className="flex gap-2">
+                      {/* Preset swatches */}
+                      <div className="flex flex-wrap gap-2 mb-2">
                         {END_USER_COLORS.map((c) => (
                           <button
                             key={c}
-                            onClick={() => setEditEuColor(c)}
-                            className={`w-8 h-8 rounded-xl ${c} transition-transform hover:scale-110 ${
-                              editEuColor === c
-                                ? "ring-2 ring-offset-2 ring-amber-400 scale-110"
+                            onClick={() => setEditEuColor(c)} // ใช้ setNewEuColor สำหรับ Add form
+                            style={{ backgroundColor: c }}
+                            className={`w-7 h-7 rounded-lg transition-transform hover:scale-110 ${
+                              editEuColor === c // ใช้ newEuColor สำหรับ Add form
+                                ? "ring-2 ring-offset-2 ring-gray-400 scale-110"
                                 : ""
                             }`}
                           />
                         ))}
+                      </div>
+                      {/* Custom color picker */}
+                      <div className="flex items-center gap-2 mt-1">
+                        <input
+                          type="color"
+                          value={editEuColor} // ใช้ newEuColor สำหรับ Add form
+                          onChange={(e) => setEditEuColor(e.target.value)} // setNewEuColor สำหรับ Add form
+                          className="w-8 h-8 rounded-lg border border-gray-200 cursor-pointer p-0.5 bg-white"
+                        />
+                        <span className="text-xs text-gray-400">
+                          หรือเลือกสีเอง
+                        </span>
+                        <span className="text-xs font-mono text-gray-500 bg-gray-50 px-2 py-1 rounded-lg border border-gray-100">
+                          {editEuColor} {/* newEuColor สำหรับ Add form */}
+                        </span>
                       </div>
                     </div>
                     <div className="flex gap-2">
@@ -1621,14 +1682,19 @@ function ReportManagementSection() {
                                   }
                                 >
                                   <span
-                                    className={
-                                      proj.active
-                                        ? eu.color.replace("bg-", "text-")
-                                        : "text-gray-400"
-                                    }
-                                  >
-                                    #{proj.no}
-                                  </span>
+  className="flex-shrink-0 px-2.5 py-1 rounded-lg text-xs font-bold border transition-colors"
+  style={proj.active ? {
+    backgroundColor: eu.color + "20",
+    borderColor: eu.color,
+    color: eu.color,
+  } : {
+    backgroundColor: "#f3f4f6",
+    borderColor: "#e5e7eb",
+    color: "#9ca3af",
+  }}
+>
+  #{proj.no}
+</span>
                                 </span>
                                 <span
                                   className={`flex-1 text-sm min-w-0 truncate ${proj.active ? "text-gray-700 font-medium" : "text-gray-400 line-through font-normal"}`}
