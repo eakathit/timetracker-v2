@@ -1,0 +1,15 @@
+name: Auto Checkout 17:30
+
+on:
+  schedule:
+    - cron: '30 10 * * *'  # 17:30 ICT ทุกวัน
+  workflow_dispatch:        # รัน manual ได้
+
+jobs:
+  auto-checkout:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call Auto Checkout API
+        run: |
+          curl -X GET "${{ secrets.APP_URL }}/api/cron/auto-checkout" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"

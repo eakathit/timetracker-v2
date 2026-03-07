@@ -1,0 +1,15 @@
+name: OT Notify 18:00
+
+on:
+  schedule:
+    - cron: '0 11 * * *'  # 18:00 ICT ทุกวัน
+  workflow_dispatch:
+
+jobs:
+  ot-notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call OT Notify API
+        run: |
+          curl -X GET "${{ secrets.APP_URL }}/api/cron/ot-notify" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
