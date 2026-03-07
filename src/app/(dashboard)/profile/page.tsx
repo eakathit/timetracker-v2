@@ -41,9 +41,7 @@ interface OTRequestRow {
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const [avatarUrl,      setAvatarUrl]      = useState<string | null>(null);
-const [avatarUploading, setAvatarUploading] = useState(false);
-const avatarInputRef = useRef<HTMLInputElement>(null);
+
 
 const MONTHS_TH = [
   "มกราคม","กุมภาพันธ์","มีนาคม","เมษายน",
@@ -459,6 +457,8 @@ export default function ProfilePage() {
   const [logs,        setLogs]        = useState<DayLog[]>([]);
   const [logsLoading, setLogsLoading] = useState(false);
 
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  
   // ─── 1. โหลด Profile ────────────────────────────────────────────────────────
   useEffect(() => {
     (async () => {
@@ -466,20 +466,21 @@ export default function ProfilePage() {
       if (user) {
         setUserId(user.id);
         setUserEmail(user.email ?? "");
+        setAvatarUrl(user.user_metadata?.avatar_url ?? null);
         const { data } = await supabase
-          .from("profiles")
-          .select("first_name, last_name, department, avatar_url")
-          .eq("id", user.id)
-          .single();
+  .from("profiles")
+  .select("first_name, last_name, department, avatar_url") // ✅ เพิ่ม avatar_url
+  .eq("id", user.id)
+  .single();
         if (data) {
           setProfileForm({
             firstName:  data.first_name  ?? "",
             lastName:   data.last_name   ?? "",
             department: data.department  ?? "",
           });
+          setAvatarUrl(data.avatar_url ?? null);
         }
       }
-      setAvatarUrl(data.avatar_url ?? null);
     })();
   }, []);
 
@@ -707,7 +708,7 @@ const reportSet = new Set<string>((reportRes.data ?? []).map(r => r.report_date)
       if (avatarInputRef.current) avatarInputRef.current.value = "";
     }
   };
-
+  
   // ─── Month Navigation ─────────────────────────────────────────────────────────
   const prevMonth = () => {
     if (viewMonth === 0) { setViewYear(y => y - 1); setViewMonth(11); }
@@ -809,8 +810,6 @@ const reportSet = new Set<string>((reportRes.data ?? []).map(r => r.report_date)
       onChange={handleAvatarUpload}
     />
   </div>
-                <span className="absolute bottom-0 right-0 w-4 h-4 bg-emerald-400 rounded-full border-2 border-white" />
-              </div>
               {!isEditing ? (
                 <button
                   onClick={() => setIsEditing(true)}
