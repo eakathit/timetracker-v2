@@ -6,6 +6,7 @@ import { useSidebar } from "@/context/SidebarContext";
 import LogoutButton from '@/components/LogoutButton';
 import { useEffect, useState } from "react";
 import { createBrowserClient } from "@supabase/ssr";
+import { usePendingApprovals } from "@/hooks/usePendingApprovals";
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface NavItem {
   label: string;
@@ -201,11 +202,11 @@ function NavLink({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
       )}
 
       {/* Badge */}
-      {!collapsed && item.badge && (
-        <span className="flex-shrink-0 min-w-[20px] h-5 px-1.5 rounded-full bg-sky-100 text-sky-600 text-xs font-semibold flex items-center justify-center">
-          {item.badge}
-        </span>
-      )}
+{!collapsed && item.badge && (
+  <span className="flex-shrink-0 min-w-[20px] h-5 px-1.5 rounded-full bg-amber-400 text-white text-xs font-bold flex items-center justify-center">
+    {item.badge}
+  </span>
+)}
 
       {/* Collapsed tooltip */}
       {collapsed && (
@@ -233,7 +234,7 @@ export default function Sidebar() {
   
   // 1. สร้าง State เก็บ Role ของ User (ค่าเริ่มต้นให้เป็น employee ไว้ก่อน)
   const [userRole, setUserRole] = useState<string>("employee");
-
+  const pendingCount = usePendingApprovals();
   // 2. ดึงข้อมูล Role จาก Supabase เมื่อโหลด Sidebar
   useEffect(() => {
     const fetchRole = async () => {
@@ -263,18 +264,23 @@ export default function Sidebar() {
   }, []);
 
   // 3. กรองเมนู: ถ้าไม่ใช่ Admin ให้ตัดเมนู /settings ออก
-  const filteredNavGroups = NAV_GROUPS.map(group => {
-    return {
-      ...group,
-      items: group.items.filter(item => {
-        // เช็คว่าถ้าเป็นเมนู Settings จะแสดงก็ต่อเมื่อ userRole เป็น 'admin' เท่านั้น
-        if (item.href === "/settings" || item.href === "/audit") {  // ← เพิ่ม /audit
-    return userRole === "admin";
-  }
-        return true; // เมนูอื่นๆ แสดงตามปกติ
-      })
-    };
-  });
+  const filteredNavGroups = NAV_GROUPS.map(group => ({
+  ...group,
+  items: group.items
+    .filter(item => {
+      if (item.href === "/settings" || item.href === "/audit") {
+        return userRole === "admin";
+      }
+      return true;
+    })
+    .map(item => {
+      // ✅ ใส่ badge เฉพาะเมนู Requests และถ้า pendingCount > 0
+      if (item.href === "/requests" && pendingCount > 0) {
+        return { ...item, badge: pendingCount };
+      }
+      return item;
+    }),
+}));
 
   return (
     <aside

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-
+import { usePendingApprovals } from "@/hooks/usePendingApprovals";
 // ─── Icon Library ─────────────────────────────────────────────────────────────
 const Icons = {
   // Requests (clipboard + list)
@@ -140,6 +140,7 @@ const BOTTOM_NAV: NavItem[] = [
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function BottomNav() {
   const pathname = usePathname();
+  const pendingCount = usePendingApprovals();
 
   return (
     <>
@@ -208,11 +209,11 @@ export default function BottomNav() {
                 </span>
 
                 {/* Badge */}
-                {item.badge && (
-                  <span className="absolute top-0.5 right-1.5 w-4 h-4 rounded-full bg-rose-500 text-white text-[9px] font-bold flex items-center justify-center">
-                    {item.badge}
-                  </span>
-                )}
+{((item.href === "/requests" ? pendingCount : item.badge) ?? 0) > 0 && (
+  <span className="absolute top-0.5 right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-amber-400 text-white text-[9px] font-bold flex items-center justify-center">
+    {item.href === "/requests" ? pendingCount : item.badge}
+  </span>
+)}
 
                 {/* Label */}
                 <span className={`

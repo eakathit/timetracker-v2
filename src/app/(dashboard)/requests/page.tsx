@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { createBrowserClient } from "@supabase/ssr";
 import UserAvatar from "@/components/UserAvatar";
+import { REFRESH_PENDING_EVENT } from "@/hooks/usePendingApprovals";
 
 // ─── Supabase Client ──────────────────────────────────────────────────────────
 const supabase = createBrowserClient(
@@ -525,6 +526,9 @@ export default function RequestsPage() {
 
   const isManager = profile?.role === "manager" || profile?.role === "admin";
 
+  const dispatchRefresh = () =>
+    window.dispatchEvent(new Event(REFRESH_PENDING_EVENT));
+
   // ── Load profile ─────────────────────────────────────────────────────────────
   useEffect(() => {
     const init = async () => {
@@ -595,6 +599,7 @@ export default function RequestsPage() {
       actioned_at: new Date().toISOString(),
     }).eq("id", id);
     await Promise.all([fetchMyRequests(), fetchDeptRequests()]);
+    dispatchRefresh();
   };
 
   const handleRejectOT = async (id: string, reason: string) => {
@@ -605,6 +610,7 @@ export default function RequestsPage() {
       actioned_at: new Date().toISOString(),
     }).eq("id", id);
     await Promise.all([fetchMyRequests(), fetchDeptRequests()]);
+    dispatchRefresh();
   };
 
   // ✅ โค้ดใหม่
@@ -645,6 +651,7 @@ const handleApproveLeave = async (id: string) => {
   }
 
   await Promise.all([fetchMyRequests(), fetchDeptRequests()]);
+  dispatchRefresh();
 };
 
  // ✅ handleRejectLeave ที่ดีขึ้น
@@ -677,6 +684,7 @@ const handleRejectLeave = async (id: string, reason: string) => {
   }
 
   await Promise.all([fetchMyRequests(), fetchDeptRequests()]);
+  dispatchRefresh();
 };
 
   // ── Computed counts ───────────────────────────────────────────────────────────
