@@ -277,8 +277,11 @@ function ReportCalendar({
           const col     = idx % 7;
           const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
           const log     = logMap[dateStr];
-          const isWeekend = col === 0 || col === 6;
-          const isWork    = log && log.workType !== "holiday" && log.status !== "leave" && !isWeekend;
+          const isSunday     = col === 0;
+          const isSat        = col === 6;
+          // ตรวจสอบจาก log ว่าเป็น working_sat หรือเปล่า (ถ้า log มีข้อมูล = วันนั้นทำงานอยู่)
+          const isOffWeekend = isSunday || (isSat && (!log || log.status === "holiday"));
+          const isWork       = log && log.workType !== "holiday" && log.status !== "leave" && !isOffWeekend;
 
           return (
             <div key={day} className="relative group flex flex-col items-center">
@@ -498,7 +501,7 @@ export default function ProfilePage() {
         // ── วันหยุดทั้งเดือน
         supabase
           .from("holidays")
-          .select("holiday_date")
+          .select("holiday_date, holiday_type") 
           .gte("holiday_date", start)
           .lte("holiday_date", end),
 
@@ -521,11 +524,25 @@ export default function ProfilePage() {
       ]);
 
       // Build lookup maps
-      const timeLogMap: Record<string, TimeLogRow> = {};
-      (timeRes.data ?? []).forEach(r => { timeLogMap[r.log_date] = r; });
+const timeLogMap: Record<string, TimeLogRow> = {};
+(timeRes.data ?? []).forEach(r => { timeLogMap[r.log_date] = r; });
 
-      const holidaySet = new Set<string>((holidayRes.data ?? []).map(h => h.holiday_date));
-      const reportSet  = new Set<string>((reportRes.data ?? []).map(r => r.report_date));
+// ✅ ถูก — ลบบรรทัดเก่าออก แล้วใส่ของใหม่แทน
+type HolidayRow = { holiday_date: string; holiday_type: string };
+const holidayData = (holidayRes.data ?? []) as HolidayRow[];
+
+const holidaySet = new Set<string>(
+  holidayData
+    .filter(h => h.holiday_type !== "working_sat")
+    .map(h => h.holiday_date)
+);
+const workingSatSet = new Set<string>(
+  holidayData
+    .filter(h => h.holiday_type === "working_sat")
+    .map(h => h.holiday_date)
+);
+
+const reportSet = new Set<string>((reportRes.data ?? []).map(r => r.report_date));
 
       // [NEW] สร้าง map: request_date -> approved OT hours รวม
       const otRequestMap: Record<string, number> = {};
@@ -544,22 +561,23 @@ export default function ProfilePage() {
       for (let d = 1; d <= daysInMonth; d++) {
         const dateStr   = `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
         const dow       = new Date(viewYear, viewMonth, d).getDay();
-        const isWeekend = dow === 0 || dow === 6;
-        const isHoliday = holidaySet.has(dateStr);
+        const isWorkingSat = workingSatSet.has(dateStr);
+        const isWeekend    = (dow === 0) || (dow === 6 && !isWorkingSat);
+        const isHoliday    = holidaySet.has(dateStr);
         const timeLog   = timeLogMap[dateStr];
         const isFuture  = dateStr > todayStr;
 
         // วันหยุด / เสาร์-อาทิตย์
         if (isWeekend || isHoliday) {
-          result.push({
-            date: dateStr, checkIn: null, checkOut: null,
-            workType: isHoliday ? "holiday" : null,
-            status: "holiday",
-            isReportSent: false,
-            otHours: 0,
-          });
-          continue;
-        }
+  result.push({
+    date: dateStr, checkIn: null, checkOut: null,
+    workType: isHoliday ? "holiday" : null,
+    status: "holiday",
+    isReportSent: false,
+    otHours: 0,
+  });
+  continue;
+}
 
         // วันทำงานปกติ
         const checkIn  = timeLog?.first_check_in  ? fmtTime(timeLog.first_check_in)  : null;

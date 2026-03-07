@@ -538,6 +538,7 @@ export default function HRAttendancePage() {
   const [timeLogs, setTimeLogs] = useState<TimeLogRow[]>([]);
   const [otRequests, setOtRequests] = useState<OTRequestRow[]>([]);
   const [holidays, setHolidays] = useState<Set<string>>(new Set());
+  const [workingSats, setWorkingSats] = useState<Set<string>>(new Set());
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequestRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [exporting,  setExporting]  = useState(false);
@@ -589,7 +590,7 @@ export default function HRAttendancePage() {
 
   supabase
     .from("holidays")
-    .select("holiday_date")
+    .select("holiday_date, holiday_type")
     .gte("holiday_date", start)
     .lte("holiday_date", end),
 
@@ -612,7 +613,12 @@ export default function HRAttendancePage() {
 ]);
 
       setTimeLogs((logRes.data ?? []) as TimeLogRow[]);
-      setHolidays(new Set((holidayRes.data ?? []).map((h) => h.holiday_date)));
+      // ✅ แยก holidays ออกเป็น 2 set
+      type HolidayRow = { holiday_date: string; holiday_type: string };
+      const hData = (holidayRes.data ?? []) as HolidayRow[];
+      setHolidays(new Set(hData.filter(h => h.holiday_type !== "working_sat").map(h => h.holiday_date)));
+      setWorkingSats(new Set(hData.filter(h => h.holiday_type === "working_sat").map(h => h.holiday_date)));
+
       setOtRequests((otRes.data ?? []) as OTRequestRow[]);
       setLeaveRequests((leaveRes.data ?? []) as LeaveRequestRow[]);
     } catch (err) {
@@ -664,13 +670,14 @@ const leaveMap = useMemo(() => {
     const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
     let expectedWorkdays = 0;
     for (let d = 1; d <= daysInMonth; d++) {
-      const dateStr = `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-      if (dateStr > todayStr) break;
-      const dow = new Date(viewYear, viewMonth, d).getDay();
-      if (dow === 0 || dow === 6) continue;
-      if (holidays.has(dateStr)) continue;
-      expectedWorkdays++;
-    }
+  const dateStr = `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+  if (dateStr > todayStr) break;
+  const dow = new Date(viewYear, viewMonth, d).getDay();
+  if (dow === 0) continue;                                       // อาทิตย์ → ข้าม
+  if (dow === 6 && !workingSats.has(dateStr)) continue;         // เสาร์ปกติ → ข้าม
+  if (holidays.has(dateStr)) continue;                           // วันหยุดจริง → ข้าม
+  expectedWorkdays++;
+}
 
     employees.forEach((emp) => {
       const logs = timeLogs.filter((l) => l.user_id === emp.id);
@@ -705,7 +712,7 @@ const leaveMap = useMemo(() => {
       };
     });
     return result;
-  }, [employees, timeLogs, otReqMap, viewYear, viewMonth, holidays]); // ✅ เพิ่ม holidays dep
+  }, [employees, timeLogs, otReqMap, viewYear, viewMonth, holidays, workingSats]); // ✅ เพิ่ม holidays dep
 
   // ── สร้าง DayLog รายวัน ต่อ user (สำหรับ DrillDownPanel) ──
   const dailyLogsPerUser = useMemo(() => {
@@ -725,42 +732,43 @@ const leaveMap = useMemo(() => {
       for (let d = 1; d <= daysInMonth; d++) {
         const dateStr = `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
         if (dateStr > todayStr) break; // ไม่แสดงอนาคต
+const dow = new Date(viewYear, viewMonth, d).getDay();
 
-        const dow = new Date(viewYear, viewMonth, d).getDay();
-        const isWeekend = dow === 0 || dow === 6;
-        const isHoliday = holidays.has(dateStr);
-        const log = logMap[dateStr];
-        
-        // เช็ค leave ก่อนสุด — override weekend/holiday
-        if (log?.status === "leave") {
-    days.push({ day: d, dow, date: dateStr, status: "leave", checkIn: "–", checkOut: "–" });
-    continue;
-  }
+// ✅ แก้ 2 บรรทัดนี้
+const isWorkingSat = workingSats.has(dateStr);
+const isWeekend    = (dow === 0) || (dow === 6 && !isWorkingSat);
+const isHoliday    = holidays.has(dateStr);
 
-        // วันหยุดนักขัตฤกษ์
-        if (isHoliday) {
-    days.push({ day: d, dow, date: dateStr, status: "holiday", checkIn: "–", checkOut: "–" });
-    continue;
-  }
+const log = logMap[dateStr];
 
-        // เสาร์-อาทิตย์
-        if (isWeekend) {
-    days.push({ day: d, dow, date: dateStr, status: "weekend", checkIn: "–", checkOut: "–" });
-    continue;
-  }
+// ส่วนที่เหลือด้านล่างไม่ต้องแก้อะไรเลย ✅
+if (log?.status === "leave") {
+  days.push({ day: d, dow, date: dateStr, status: "leave", checkIn: "–", checkOut: "–" });
+  continue;
+}
 
-        // วันทำงาน — มี log
-        if (log) {
-          let status: DayLog["status"] = "absent";
-          if (log.status === "on_time") status = "present";
-          else if (log.status === "late") status = "late";
-          
-         days.push({
-      day: d, dow, date: dateStr, status,
-      checkIn:  fmtTime(log.first_check_in),
-      checkOut: fmtTime(log.last_check_out),
-    });
-  } else {
+if (isHoliday) {
+  days.push({ day: d, dow, date: dateStr, status: "holiday", checkIn: "–", checkOut: "–" });
+  continue;
+}
+
+if (isWeekend) {
+  days.push({ day: d, dow, date: dateStr, status: "weekend", checkIn: "–", checkOut: "–" });
+  continue;
+}
+
+// working_sat จะไหลมาถึงตรงนี้ได้แล้ว ✅
+if (log) {
+  let status: DayLog["status"] = "absent";
+  if (log.status === "on_time") status = "present";
+  else if (log.status === "late") status = "late";
+  
+  days.push({
+    day: d, dow, date: dateStr, status,
+    checkIn:  fmtTime(log.first_check_in),
+    checkOut: fmtTime(log.last_check_out),
+  });
+} else {
     // ไม่มี log = ขาดงาน
     days.push({ day: d, dow, date: dateStr, status: "absent", checkIn: "–", checkOut: "–" });
   }
@@ -768,7 +776,7 @@ const leaveMap = useMemo(() => {
       result[emp.id] = days;
     });
     return result;
-  }, [employees, timeLogs, viewYear, viewMonth, holidays, leaveMap]);
+  }, [employees, timeLogs, viewYear, viewMonth, holidays, leaveMap, workingSats]);
 
   // ── Derived: depts, filtered, agg ────────────────────
   const depts = useMemo(() => {
