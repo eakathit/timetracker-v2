@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { createBrowserClient } from "@supabase/ssr";
+import UserAvatar from "@/components/UserAvatar";
 
 // ─── Supabase Client ──────────────────────────────────────────────────────────
 const supabase = createBrowserClient(
@@ -117,9 +118,27 @@ function avatarColor(userId: string) {
   return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
 }
 
-function Avatar({ name, userId, size = "sm" }: { name: string; userId: string; size?: "sm" | "md" }) {
+function Avatar({ name, userId, avatarUrl, size = "sm" }: {
+  name: string;
+  userId: string;
+  avatarUrl?: string | null; // ✅ เพิ่ม optional prop
+  size?: "sm" | "md";
+}) {
+  const sizeClass = size === "md" ? "w-10 h-10 text-sm" : "w-7 h-7 text-xs";
+
+  if (avatarUrl) {
+    return (
+      <img
+        src={avatarUrl}
+        alt={name}
+        referrerPolicy="no-referrer"
+        className={`${sizeClass} rounded-full object-cover flex-shrink-0`}
+      />
+    );
+  }
+
   return (
-    <div className={`${size === "md" ? "w-10 h-10 text-sm" : "w-7 h-7 text-xs"} ${avatarColor(userId)} rounded-full flex items-center justify-center text-white font-black flex-shrink-0`}>
+    <div className={`${sizeClass} ${avatarColor(userId)} rounded-full flex items-center justify-center text-white font-black flex-shrink-0`}>
       {name?.charAt(0) ?? "?"}
     </div>
   );

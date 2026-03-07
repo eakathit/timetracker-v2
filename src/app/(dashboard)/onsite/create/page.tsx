@@ -30,9 +30,19 @@ const avatarColor = (uid: string) =>
 function MemberChip({ profile, onRemove }: { profile: MemberProfile; onRemove: () => void }) {
   return (
     <div className="flex items-center gap-2 bg-sky-50 border border-sky-200 rounded-xl px-3 py-1.5 text-sm">
-      <span className={`w-6 h-6 rounded-lg ${avatarColor(profile.id)} text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0`}>
-        {getInitials(profile)}
-      </span>
+      {/* ✅ แสดงรูป Google หรือ fallback initials */}
+      {profile.avatar_url ? (
+        <img
+          src={profile.avatar_url}
+          alt={getFullName(profile)}
+          referrerPolicy="no-referrer"
+          className="w-6 h-6 rounded-lg object-cover flex-shrink-0"
+        />
+      ) : (
+        <span className={`w-6 h-6 rounded-lg ${avatarColor(profile.id)} text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0`}>
+          {getInitials(profile)}
+        </span>
+      )}
       <span className="font-medium text-sky-800 max-w-[100px] truncate">{getFullName(profile)}</span>
       <button type="button" onClick={onRemove} className="text-sky-400 hover:text-rose-500 transition-colors ml-0.5">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3.5 h-3.5">
@@ -43,23 +53,33 @@ function MemberChip({ profile, onRemove }: { profile: MemberProfile; onRemove: (
   );
 }
 
-function EmployeeRow({
-  profile, selected, onToggle,
-}: { profile: MemberProfile; selected: boolean; onToggle: () => void }) {
+function EmployeeRow({ profile, selected, onToggle }: { profile: MemberProfile; selected: boolean; onToggle: () => void }) {
   return (
     <button
       type="button"
       onClick={onToggle}
       className={`w-full flex items-center gap-3 px-4 py-3 transition-colors text-left ${selected ? "bg-sky-50" : "hover:bg-gray-50"}`}
     >
-      <span className={`w-9 h-9 rounded-xl ${avatarColor(profile.id)} text-white text-sm font-bold flex items-center justify-center flex-shrink-0`}>
-        {getInitials(profile)}
-      </span>
+      {/* ✅ แสดงรูป Google หรือ fallback initials */}
+      {profile.avatar_url ? (
+        <img
+          src={profile.avatar_url}
+          alt={getFullName(profile)}
+          referrerPolicy="no-referrer"
+          className="w-9 h-9 rounded-xl object-cover flex-shrink-0"
+        />
+      ) : (
+        <span className={`w-9 h-9 rounded-xl ${avatarColor(profile.id)} text-white text-sm font-bold flex items-center justify-center flex-shrink-0`}>
+          {getInitials(profile)}
+        </span>
+      )}
       <div className="flex-1 min-w-0">
         <p className="text-sm font-semibold text-gray-800 truncate">{getFullName(profile)}</p>
         <p className="text-xs text-gray-400 truncate">{profile.department || "ไม่ระบุแผนก"}</p>
       </div>
-      <span className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-all ${selected ? "bg-sky-500 border-sky-500" : "border-gray-300"}`}>
+      <span className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-all ${
+        selected ? "bg-sky-500 border-sky-500" : "border-gray-300"
+      }`}>
         {selected && (
           <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" className="w-3 h-3">
             <polyline points="20 6 9 17 4 12"/>
@@ -93,7 +113,7 @@ export default function CreateOnsiteSessionPage() {
       const { data: { user } } = await supabase.auth.getUser();
 
       const { data, error: err } = await supabase
-        .from("profiles")
+        .from("profiles_with_avatar")
         .select("id, first_name, last_name, department, role")
         .neq("id", user?.id ?? "")        // ไม่เอาตัวเอง (Leader ถูกเพิ่มใน action อัตโนมัติ)
         .order("first_name", { ascending: true });

@@ -2,12 +2,20 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
+import UserAvatar from "@/components/UserAvatar";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Project    { id: string; project_no: string; name: string | null; end_user_id: string }
 interface EndUser    { id: string; name: string }
 interface WorkDetail { id: string; title: string }
-interface Profile    { id: string; first_name: string | null; last_name: string | null; department: string | null }
+interface Profile {
+  id: string;
+  first_name?: string;
+  last_name?: string;
+  department?: string;
+  role?: string;
+  avatar_url?: string | null; // ✅ เพิ่ม
+}
 
 interface ReportRow {
   item_id:     string;
@@ -163,19 +171,21 @@ function EmptyState({ message, sub }: { message: string; sub?: string }) {
 // ─── Employee Avatar chip ─────────────────────────────────────────────────────
 function AvatarChip({ profile, showName = false }: { profile?: Profile; showName?: boolean }) {
   const name = getFullName(profile);
-  const initial = name.charAt(0).toUpperCase();
   return (
     <div className="flex items-center gap-1.5 flex-shrink-0">
-      <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-sky-400 to-blue-500 flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0">
-        {initial}
-      </div>
+      <UserAvatar
+        avatarUrl={profile?.avatar_url}
+        firstName={profile?.first_name}
+        lastName={profile?.last_name}
+        size="xs"
+        className="rounded-lg"
+      />
       {showName && (
         <span className="text-xs font-semibold text-gray-600 max-w-[90px] truncate">{name}</span>
       )}
     </div>
   );
 }
-
 // ─── Project Badge ────────────────────────────────────────────────────────────
 function ProjectBadge({ project }: { project?: Project }) {
   return (
@@ -214,20 +224,21 @@ export default function TeamPage() {
 
   // ── Load master data once ────────────────────────────────────────────────────
   useEffect(() => {
-    (async () => {
-      const [pRes, uRes, dRes, prRes] = await Promise.all([
-        supabase.from("projects").select("id, project_no, name, end_user_id").order("project_no"),
-        supabase.from("end_users").select("id, name").order("name"),
-        supabase.from("work_details").select("id, title").order("title"),
-        supabase.from("profiles").select("id, first_name, last_name, department").order("first_name"),
-      ]);
-      if (pRes.data)  setProjects(pRes.data);
-      if (uRes.data)  setEndUsers(uRes.data);
-      if (dRes.data)  setDetails(dRes.data);
-      if (prRes.data) setProfiles(prRes.data);
-      setMasterReady(true);
-    })();
-  }, []);
+  (async () => {
+    const [pRes, uRes, dRes, prRes] = await Promise.all([
+      supabase.from("projects").select("id, project_no, name, end_user_id").order("project_no"),
+      supabase.from("end_users").select("id, name").order("name"),
+      supabase.from("work_details").select("id, title").order("title"),
+      // ✅ [1] เปลี่ยน from และ เพิ่ม avatar_url
+      supabase.from("profiles_with_avatar").select("id, first_name, last_name, department, avatar_url").order("first_name"),
+    ]);
+    if (pRes.data)  setProjects(pRes.data);
+    if (uRes.data)  setEndUsers(uRes.data);
+    if (dRes.data)  setDetails(dRes.data);
+    if (prRes.data) setProfiles(prRes.data);
+    setMasterReady(true);
+  })();
+}, []);
 
   // ── Fetch report rows (re-runs when month or master data changes) ─────────────
   const fetchRows = useCallback(async () => {

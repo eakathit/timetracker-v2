@@ -458,7 +458,7 @@ export default function ProfilePage() {
   const [logsLoading, setLogsLoading] = useState(false);
 
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
-  
+
   // ─── 1. โหลด Profile ────────────────────────────────────────────────────────
   useEffect(() => {
     (async () => {
@@ -469,7 +469,7 @@ export default function ProfilePage() {
         setAvatarUrl(user.user_metadata?.avatar_url ?? null);
         const { data } = await supabase
   .from("profiles")
-  .select("first_name, last_name, department, avatar_url") // ✅ เพิ่ม avatar_url
+  .select("first_name, last_name, department")
   .eq("id", user.id)
   .single();
         if (data) {
@@ -478,9 +478,9 @@ export default function ProfilePage() {
             lastName:   data.last_name   ?? "",
             department: data.department  ?? "",
           });
-          setAvatarUrl(data.avatar_url ?? null);
         }
       }
+      setProfileLoading(false);
     })();
   }, []);
 
@@ -661,53 +661,6 @@ const reportSet = new Set<string>((reportRes.data ?? []).map(r => r.report_date)
       setIsEditing(false);
     }
   };
-
-  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !userId) return;
-
-    // ตรวจสอบขนาดไฟล์ (2 MB)
-    if (file.size > 2 * 1024 * 1024) {
-      alert("ไฟล์ใหญ่เกินไป กรุณาเลือกรูปที่มีขนาดไม่เกิน 2 MB");
-      return;
-    }
-
-    setAvatarUploading(true);
-    try {
-      // ใช้ path: {user_id}/avatar.{ext} → ทับไฟล์เดิมได้เลย ประหยัด Storage
-      const ext      = file.name.split(".").pop() ?? "jpg";
-      const filePath = `${userId}/avatar.${ext}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from("avatars")
-        .upload(filePath, file, { upsert: true, contentType: file.type });
-
-      if (uploadError) throw uploadError;
-
-      // ดึง public URL
-      const { data: urlData } = supabase.storage
-        .from("avatars")
-        .getPublicUrl(filePath);
-
-      // เพิ่ม cache-bust ด้วย timestamp เพื่อให้ browser โหลดรูปใหม่ทันที
-      const publicUrl = `${urlData.publicUrl}?t=${Date.now()}`;
-
-      // บันทึก avatar_url ลง profiles
-      await supabase
-        .from("profiles")
-        .update({ avatar_url: urlData.publicUrl })
-        .eq("id", userId);
-
-      setAvatarUrl(publicUrl);
-    } catch (err) {
-      console.error("Avatar upload error:", err);
-      alert("อัปโหลดรูปไม่สำเร็จ กรุณาลองใหม่");
-    } finally {
-      setAvatarUploading(false);
-      // reset input เพื่อให้เลือกไฟล์เดิมซ้ำได้
-      if (avatarInputRef.current) avatarInputRef.current.value = "";
-    }
-  };
   
   // ─── Month Navigation ─────────────────────────────────────────────────────────
   const prevMonth = () => {
@@ -760,56 +713,24 @@ const reportSet = new Set<string>((reportRes.data ?? []).map(r => r.report_date)
           </div>
           <div className="px-5 pb-5 -mt-8">
             <div className="flex items-end justify-between">
-              <div className="relative">
-    <button
-      type="button"
-      onClick={() => avatarInputRef.current?.click()}
-      disabled={avatarUploading}
-      className="relative w-16 h-16 rounded-2xl overflow-hidden shadow-lg border-4 border-white focus:outline-none group"
-      title="คลิกเพื่อเปลี่ยนรูปโปรไฟล์"
-    >
-      {avatarUrl ? (
-        <img
-          src={avatarUrl}
-          alt="profile avatar"
-          className="w-full h-full object-cover"
-        />
-      ) : (
-        <div className="w-full h-full bg-gradient-to-br from-sky-400 to-blue-500 flex items-center justify-center text-white text-2xl font-extrabold">
-          {profileForm.firstName ? profileForm.firstName.charAt(0).toUpperCase() : "U"}
-        </div>
-      )}
-
-      // Overlay เมื่อ hover หรือ uploading
-      <div className={`absolute inset-0 flex items-center justify-center transition-opacity ${
-        avatarUploading ? "opacity-100 bg-black/40" : "opacity-0 group-hover:opacity-100 bg-black/30"
-      }`}>
-        {avatarUploading ? (
-          <svg className="w-5 h-5 text-white animate-spin" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
-          </svg>
-        ) : (
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5 text-white">
-            <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
-            <circle cx="12" cy="13" r="4"/>
-          </svg>
-        )}
+             <div className="relative">
+  <div className="w-16 h-16 rounded-2xl overflow-hidden shadow-lg border-4 border-white">
+    {avatarUrl ? (
+      <img
+        src={avatarUrl}
+        alt="profile"
+        referrerPolicy="no-referrer"
+        className="w-full h-full object-cover"
+      />
+    ) : (
+      <div className="w-full h-full bg-gradient-to-br from-sky-400 to-blue-500 flex items-center justify-center text-white text-2xl font-extrabold">
+        {profileForm.firstName ? profileForm.firstName.charAt(0).toUpperCase() : "U"}
       </div>
-    </button>
-
-    // Status dot (online indicator)
-    <span className="absolute bottom-0 right-0 w-4 h-4 bg-emerald-400 rounded-full border-2 border-white" />
-
-    // Hidden file input
-    <input
-      ref={avatarInputRef}
-      type="file"
-      accept="image/jpeg,image/jpg,image/png,image/webp"
-      className="hidden"
-      onChange={handleAvatarUpload}
-    />
+    )}
   </div>
+  <span className="absolute bottom-0 right-0 w-4 h-4 bg-emerald-400 rounded-full border-2 border-white" />
+  {/* ❌ ลบ <input type="file" ...> ออกด้วย */}
+</div>
               {!isEditing ? (
                 <button
                   onClick={() => setIsEditing(true)}

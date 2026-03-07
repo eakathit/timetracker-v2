@@ -47,6 +47,7 @@ export interface MemberProfile {
   last_name:  string | null;
   department: string | null;
   role:       string;
+  avatar_url?: string | null;
 }
 
 /** Member พร้อมข้อมูล Profile (ใช้ render รายชื่อในห้อง) */
