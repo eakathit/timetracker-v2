@@ -1,3 +1,6 @@
+export default function AuditPage() {
+  return null;
+}
 // "use client"; 
 
 // import { useState } from "react";
