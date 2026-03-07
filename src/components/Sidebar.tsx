@@ -82,6 +82,15 @@ const Icons = {
       <path d="M16 3.13a4 4 0 010 7.75" />
     </svg>
   ),
+  audit: (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/>
+    <rect x="9" y="3" width="6" height="4" rx="1"/>
+    <path d="M9 12h6M9 16h4"/>
+    <circle cx="17" cy="17" r="3"/>
+    <path d="M21 21l-1.5-1.5"/>
+  </svg>
+),
   bell: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" />
@@ -147,6 +156,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: "Project Summary", labelTh: "ทีม", href: "/team", icon: Icons.clipboard },
       { label: "HR Attendance",   labelTh: "HR",      href: "/hr",   icon: Icons.user },
+          { label: "Daily Audit",     labelTh: "ตรวจสอบ",   href: "/audit", icon: Icons.audit }, // ← เพิ่มบรรทัดนี้
     ],
   },
   {
@@ -258,9 +268,9 @@ export default function Sidebar() {
       ...group,
       items: group.items.filter(item => {
         // เช็คว่าถ้าเป็นเมนู Settings จะแสดงก็ต่อเมื่อ userRole เป็น 'admin' เท่านั้น
-        if (item.href === "/settings") {
-          return userRole === "admin";
-        }
+        if (item.href === "/settings" || item.href === "/audit") {  // ← เพิ่ม /audit
+    return userRole === "admin";
+  }
         return true; // เมนูอื่นๆ แสดงตามปกติ
       })
     };
