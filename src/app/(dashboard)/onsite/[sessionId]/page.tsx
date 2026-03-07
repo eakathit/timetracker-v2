@@ -73,11 +73,18 @@ function MemberCard({
     <div className={`flex items-center gap-3 px-4 py-3.5 ${isEarlyLeft ? "opacity-60" : ""}`}>
       {/* Avatar */}
       <div className="relative flex-shrink-0">
-        <span
-          className={`w-10 h-10 rounded-xl ${avatarColor(member.user_id)} text-white text-sm font-bold flex items-center justify-center`}
-        >
-          {getInitials(member)}
-        </span>
+        {member.profile?.avatar_url ? (
+  <img
+    src={member.profile.avatar_url}
+    alt={getFullName(member)}
+    referrerPolicy="no-referrer"
+    className="w-10 h-10 rounded-xl object-cover"
+  />
+) : (
+  <span className={`w-10 h-10 rounded-xl ${avatarColor(member.user_id)} text-white text-sm font-bold flex items-center justify-center`}>
+    {getInitials(member)}
+  </span>
+)}
         {isLeader && (
           <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-400 rounded-full flex items-center justify-center text-[8px]">
             👑

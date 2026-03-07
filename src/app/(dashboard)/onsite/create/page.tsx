@@ -113,10 +113,10 @@ export default function CreateOnsiteSessionPage() {
       const { data: { user } } = await supabase.auth.getUser();
 
       const { data, error: err } = await supabase
-        .from("profiles_with_avatar")
-        .select("id, first_name, last_name, department, role")
-        .neq("id", user?.id ?? "")        // ไม่เอาตัวเอง (Leader ถูกเพิ่มใน action อัตโนมัติ)
-        .order("first_name", { ascending: true });
+      .from("profiles_with_avatar")  // ← ต้องเป็นแบบนี้ ไม่ใช่ "profiles"
+      .select("id, first_name, last_name, department, role, avatar_url")  // ← ต้องมี avatar_url
+      .neq("id", user?.id ?? "")
+      .order("first_name", { ascending: true });
 
       if (err) {
         console.error("[loadEmployees] error:", err);

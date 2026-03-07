@@ -345,7 +345,7 @@ function PermissionsSection() {
     const fetchUsers = async () => {
       setLoading(true);
       const { data, error } = await supabase
-        .from("profiles")
+        .from("profiles_with_avatar")
         .select("*")
         .order("first_name", { ascending: true }); // เรียงตามชื่อ
 
@@ -413,9 +413,18 @@ function PermissionsSection() {
               className="flex items-center gap-4 px-5 py-4 hover:bg-gray-50/50 transition-colors"
             >
               {/* Avatar */}
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white text-sm font-bold flex-shrink-0 bg-gradient-to-br from-sky-400 to-blue-500 shadow-sm">
-                {initial}
-              </div>
+              {u.avatar_url ? (
+  <img
+    src={u.avatar_url}
+    alt={fullName}
+    referrerPolicy="no-referrer"
+    className="w-9 h-9 rounded-xl object-cover flex-shrink-0"
+  />
+) : (
+  <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white text-sm font-bold flex-shrink-0 bg-gradient-to-br from-sky-400 to-blue-500 shadow-sm">
+    {initial}
+  </div>
+)}
 
               {/* Info */}
               <div className="flex-1 min-w-0">

@@ -154,7 +154,7 @@ export async function getOnsiteSession(
         project:projects ( id, project_no, name ),
         members:onsite_session_members (
           *,
-          profile:profiles ( id, first_name, last_name, department, role )
+          profile:profiles_with_avatar ( id, first_name, last_name, department, role, avatar_url )
         )
       `)
       .eq("id", sessionId)
@@ -198,7 +198,7 @@ export async function getTodayActiveSession(): Promise<
         project:projects ( id, project_no, name ),
         members:onsite_session_members (
           *,
-          profile:profiles ( id, first_name, last_name, department, role )
+        profile:profiles_with_avatar ( id, first_name, last_name, department, role, avatar_url )
         )
       `)
       .in("id", sessionIds)

@@ -17,6 +17,7 @@ interface Employee {
   first_name: string;
   last_name: string;
   department: string;
+  avatar_url?: string | null;
 }
 
 interface AttendanceStat {
@@ -313,11 +314,20 @@ function DrillDownPanel({
     <div className="bg-white rounded-2xl border border-sky-100 shadow-md overflow-hidden">
       {/* Header */}
       <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-50 bg-sky-50/50">
-        <div
-          className={`w-10 h-10 rounded-xl flex items-center justify-center text-white font-extrabold bg-gradient-to-br ${AVATAR_GRAD[empIdx % AVATAR_GRAD.length]} shadow-sm flex-shrink-0`}
-        >
-          {emp.first_name.charAt(0)}
-        </div>
+        {emp.avatar_url ? (
+  <img
+    src={emp.avatar_url}
+    alt={`${emp.first_name} ${emp.last_name}`}
+    referrerPolicy="no-referrer"
+    className="w-10 h-10 rounded-xl object-cover flex-shrink-0 shadow-sm"
+  />
+) : (
+  <div
+    className={`w-10 h-10 rounded-xl flex items-center justify-center text-white font-extrabold bg-gradient-to-br ${AVATAR_GRAD[empIdx % AVATAR_GRAD.length]} shadow-sm flex-shrink-0`}
+  >
+    {emp.first_name.charAt(0)}
+  </div>
+)}
         <div className="flex-1 min-w-0">
           <p className="font-extrabold text-gray-800 truncate">
             {emp.first_name} {emp.last_name}
@@ -555,8 +565,8 @@ export default function HRAttendancePage() {
     try {
       // 1. Profiles
       const { data: profileData, error: profileError } = await supabase
-        .from("profiles")
-        .select("id, first_name, last_name, department")
+        .from("profiles_with_avatar")
+        .select("id, first_name, last_name, department, avatar_url")
         .order("first_name");
 
       if (profileError) {
@@ -569,6 +579,7 @@ export default function HRAttendancePage() {
           first_name: p.first_name ?? "ไม่ระบุชื่อ",
           last_name: p.last_name ?? "",
           department: p.department ?? "ไม่ระบุแผนก",
+          avatar_url: p.avatar_url ?? null,
         })),
       );
 
@@ -1110,11 +1121,20 @@ if (log) {
                       }`}
                     >
                       {/* Avatar */}
-                      <div
-                        className={`w-9 h-9 rounded-xl flex items-center justify-center text-white text-sm font-extrabold flex-shrink-0 bg-gradient-to-br ${AVATAR_GRAD[idx % AVATAR_GRAD.length]} shadow-sm`}
-                      >
-                        {emp.first_name.charAt(0)}
-                      </div>
+{emp.avatar_url ? (
+  <img
+    src={emp.avatar_url}
+    alt={`${emp.first_name} ${emp.last_name}`}
+    referrerPolicy="no-referrer"
+    className="w-9 h-9 rounded-xl object-cover flex-shrink-0 shadow-sm"
+  />
+) : (
+  <div
+    className={`w-9 h-9 rounded-xl flex items-center justify-center text-white text-sm font-extrabold flex-shrink-0 bg-gradient-to-br ${AVATAR_GRAD[idx % AVATAR_GRAD.length]} shadow-sm`}
+  >
+    {emp.first_name.charAt(0)}
+  </div>
+)}
 
                       {/* Name */}
                       <div className="flex-1 min-w-0">

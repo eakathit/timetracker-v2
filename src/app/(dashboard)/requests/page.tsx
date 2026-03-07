@@ -45,6 +45,7 @@ interface OTRequest {
   department?: string;
   project_no?: string;
   project_name?: string;
+  avatar_url?: string | null;
 }
 
 interface LeaveRequest {
@@ -63,6 +64,7 @@ interface LeaveRequest {
   // จาก View (manager เห็น)
   full_name?: string;
   department?: string;
+  avatar_url?: string | null;
 }
 
 // ─── Config ───────────────────────────────────────────────────────────────────
@@ -167,7 +169,7 @@ function OTCard({ req, showUser, onClick }: { req: OTRequest; showUser: boolean;
         <div className="flex-1 min-w-0">
           {showUser && req.full_name && (
             <div className="flex items-center gap-1.5 mb-2">
-              <Avatar name={req.full_name} userId={req.user_id} />
+              <Avatar name={req.full_name} userId={req.user_id} avatarUrl={req.avatar_url} />
               <div>
                 <p className="text-xs font-black text-gray-800 leading-none">{req.full_name}</p>
                 <p className="text-[10px] text-gray-400">{req.department}</p>
@@ -258,7 +260,7 @@ function LeaveCard({ req, showUser, onClick }: { req: LeaveRequest; showUser: bo
         <div className="flex-1 min-w-0">
           {showUser && req.full_name && (
             <div className="flex items-center gap-1.5 mb-2">
-              <Avatar name={req.full_name} userId={req.user_id} />
+              <Avatar name={req.full_name} userId={req.user_id} avatarUrl={req.avatar_url} />
               <div>
                 <p className="text-xs font-black text-gray-800 leading-none">{req.full_name}</p>
                 <p className="text-[10px] text-gray-400">{req.department}</p>
@@ -311,6 +313,7 @@ function BottomSheet({
 
   const name = (item as OTRequest).full_name ?? "ฉัน";
   const dept = (item as OTRequest).department ?? "";
+  const avatarUrl = (item as OTRequest).avatar_url ?? null;
 
   const rows = type === "ot"
     ? [
@@ -356,7 +359,12 @@ function BottomSheet({
         <div className="overflow-y-auto flex-1 px-5">
           <div className="flex items-center justify-between py-4 border-b border-gray-100">
             <div className="flex items-center gap-3">
-              <Avatar name={name} userId={item.user_id} size="md" />
+              <Avatar 
+  name={name} 
+  userId={item.user_id} 
+  avatarUrl={(item as OTRequest).avatar_url ?? null}
+  size="md" 
+/>
               <div>
                 <p className="text-base font-black text-gray-900">{name}</p>
                 {dept && <p className="text-xs text-gray-400">{dept}</p>}
