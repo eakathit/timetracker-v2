@@ -769,10 +769,10 @@ if (log) {
     checkOut: fmtTime(log.last_check_out),
   });
 } else {
-    // ไม่มี log = ขาดงาน
+    // ไม่มี log = ขาดงาน asd
     days.push({ day: d, dow, date: dateStr, status: "absent", checkIn: "–", checkOut: "–" });
   }
-}
+} 
       result[emp.id] = days;
     });
     return result;
