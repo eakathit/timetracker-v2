@@ -17,26 +17,33 @@ export function usePendingApprovals() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    const { data: profile } = await supabase
-      .from("profiles").select("role").eq("id", user.id).single();
-
-    const isManager = profile?.role === "manager" || profile?.role === "admin";
-    if (!isManager) { setCount(0); return; }
-
-    const [otRes, leaveRes] = await Promise.all([
-      supabase.from("ot_requests")
-        .select("id", { count: "exact", head: true }).eq("status", "pending"),
-      supabase.from("leave_requests")
-        .select("id", { count: "exact", head: true }).eq("status", "pending"),
+    // ✅ fetch profile + counts พร้อมกันเลย ประหยัดได้ 1 round-trip
+    const [profileRes, otRes, leaveRes] = await Promise.all([
+      supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .single(),
+      supabase
+        .from("ot_requests")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "pending"),
+      supabase
+        .from("leave_requests")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "pending"),
     ]);
 
-    setCount((otRes.count ?? 0) + (leaveRes.count ?? 0));
+    const isManager =
+      profileRes.data?.role === "manager" ||
+      profileRes.data?.role === "admin";
+
+    setCount(isManager ? (otRes.count ?? 0) + (leaveRes.count ?? 0) : 0);
   }, []);
 
   useEffect(() => {
     fetchCount();
 
-    // ✅ ฟัง custom event ที่ยิงมาจากหน้า requests
     window.addEventListener(REFRESH_PENDING_EVENT, fetchCount);
     return () => window.removeEventListener(REFRESH_PENDING_EVENT, fetchCount);
   }, [fetchCount]);
