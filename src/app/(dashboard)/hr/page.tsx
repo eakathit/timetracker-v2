@@ -763,7 +763,7 @@ if (isHoliday) {
   continue;
 }
 
-if (isWeekend) {
+if (isWeekend && !log) {
   days.push({ day: d, dow, date: dateStr, status: "weekend", checkIn: "–", checkOut: "–" });
   continue;
 }

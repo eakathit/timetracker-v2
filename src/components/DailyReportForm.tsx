@@ -313,18 +313,39 @@ export default function DailyReportForm({
   const addEntry = () => setEntries((prev) => [...prev, { id: Date.now().toString(), detailId: "", endUserId: "", projectId: "", period: "", isSaved: false }]);
 
   const removeEntry = async (id: string) => {
-    const entryToDelete = entries.find(e => e.id === id);
-    if (!entryToDelete) return;
-    if (entryToDelete.isSaved && entryToDelete.dbId) {
-      if (!window.confirm("ลบประวัติงานนี้ออกจากระบบใช่หรือไม่?")) return;
-      try { await supabase.from('daily_report_items').delete().eq('id', entryToDelete.dbId); } 
-      catch (err) { alert("เกิดข้อผิดพลาดในการลบข้อมูล"); return; }
+  const entryToDelete = entries.find(e => e.id === id);
+  if (!entryToDelete) return;
+
+  if (entryToDelete.isSaved && entryToDelete.dbId) {
+    if (!window.confirm("ลบประวัติงานนี้ออกจากระบบใช่หรือไม่?")) return;
+    try {
+      // 1. ลบ item ก่อน
+      await supabase.from('daily_report_items').delete().eq('id', entryToDelete.dbId);
+
+      // 2. ✅ เช็คว่ายังมี items เหลืออยู่ไหม (นอกจากตัวที่กำลังลบ)
+      const remainingItems = entries.filter(e => e.id !== id && e.isSaved && e.dbId);
+      if (remainingItems.length === 0) {
+        // ไม่มี items เหลือ → ลบ daily_reports header ด้วย
+        const targetDate = getLocalISODate(selectedDate);
+        await supabase
+          .from('daily_reports')
+          .delete()
+          .eq('user_id', userId!)
+          .eq('report_date', targetDate);
+      }
+    } catch (err) {
+      alert("เกิดข้อผิดพลาดในการลบข้อมูล");
+      return;
     }
-    setEntries((prev) => {
-      const filtered = prev.filter((e) => e.id !== id);
-      return filtered.length === 0 ? [{ id: Date.now().toString(), detailId: "", endUserId: "", projectId: "", period: "", isSaved: false }] : filtered;
-    });
-  };
+  }
+
+  setEntries((prev) => {
+    const filtered = prev.filter((e) => e.id !== id);
+    return filtered.length === 0
+      ? [{ id: Date.now().toString(), detailId: "", endUserId: "", projectId: "", period: "", isSaved: false }]
+      : filtered;
+  });
+};
   
   const updateEntry = (id: string, field: keyof ReportEntry, value: string) => setEntries((prev) => prev.map((e) => (e.id === id ? { ...e, [field]: value } : e)));
 

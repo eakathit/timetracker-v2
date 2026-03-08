@@ -143,7 +143,6 @@ function DayPanel({
                     <circle cx="12" cy="12" r="9" /><path d="M12 8v4l3 3" />
                   </svg>
                   <span>{h.name}</span>
-                  <span className="ml-auto text-[10px] font-medium opacity-70">{HOLIDAY_TYPE_CONFIG[h.type].label}</span>
                 </div>
               ))}
             </div>
@@ -167,71 +166,45 @@ function DayPanel({
             </div>
 
             {/* Add Plan Form */}
-            {showForm && (
-              <div className="bg-sky-50 border-2 border-sky-200 rounded-2xl p-4 space-y-3">
-                <p className="text-xs font-bold text-sky-700">เพิ่มแผนงานใหม่</p>
+{showForm && (
+  <div className="bg-sky-50 border-2 border-sky-200 rounded-2xl p-4 space-y-3">
+    <p className="text-xs font-bold text-sky-700">เพิ่มแผนงานใหม่</p>
 
-                {/* Title */}
-                <input
-                  value={form.title}
-                  onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-                  placeholder="ชื่อกิจกรรม เช่น Meeting ลูกค้า..."
-                  className="w-full px-3 py-2.5 text-sm bg-white border border-sky-200 rounded-xl outline-none focus:border-sky-400 placeholder-gray-300 transition-colors"
-                  autoFocus
-                />
+    {/* ชื่อกิจกรรม */}
+    <input
+      value={form.title}
+      onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+      onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+      placeholder="ชื่อกิจกรรม เช่น Meeting ลูกค้า..."
+      className="w-full px-3 py-2.5 text-sm bg-white border border-sky-200 rounded-xl outline-none focus:border-sky-400 placeholder-gray-300 transition-colors"
+      autoFocus
+    />
 
-                {/* Time + Category */}
-                <div className="flex gap-2">
-                  <input
-                    type="time"
-                    value={form.time}
-                    onChange={(e) => setForm((f) => ({ ...f, time: e.target.value }))}
-                    className="flex-1 px-3 py-2.5 text-sm bg-white border border-sky-200 rounded-xl outline-none focus:border-sky-400 transition-colors"
-                  />
-                  <div className="relative flex-1">
-                    <select
-                      value={form.category}
-                      onChange={(e) => setForm((f) => ({ ...f, category: e.target.value as Plan["category"] }))}
-                      className="w-full appearance-none px-3 py-2.5 pr-8 text-sm bg-white border border-sky-200 rounded-xl outline-none focus:border-sky-400 transition-colors cursor-pointer"
-                    >
-                      {Object.entries(CATEGORY_CONFIG).map(([k, v]) => (
-                        <option key={k} value={k}>{v.label}</option>
-                      ))}
-                    </select>
-                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3 h-3">
-                        <polyline points="6 9 12 15 18 9" />
-                      </svg>
-                    </span>
-                  </div>
-                </div>
+    {/* เวลา */}
+    <input
+      type="time"
+      value={form.time}
+      onChange={(e) => setForm((f) => ({ ...f, time: e.target.value }))}
+      className="w-full px-3 py-2.5 text-sm bg-white border border-sky-200 rounded-xl outline-none focus:border-sky-400 transition-colors"
+    />
 
-                {/* Note */}
-                <input
-                  value={form.note}
-                  onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
-                  placeholder="หมายเหตุ (ไม่บังคับ)..."
-                  className="w-full px-3 py-2.5 text-sm bg-white border border-sky-200 rounded-xl outline-none focus:border-sky-400 placeholder-gray-300 transition-colors"
-                />
-
-                {/* Actions */}
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setShowForm(false)}
-                    className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-500 hover:bg-gray-50 transition-colors"
-                  >
-                    ยกเลิก
-                  </button>
-                  <button
-                    onClick={handleSubmit}
-                    disabled={!form.title.trim()}
-                    className="flex-1 py-2.5 rounded-xl bg-sky-500 text-white text-sm font-bold hover:bg-sky-600 disabled:bg-gray-200 disabled:text-gray-400 transition-colors"
-                  >
-                    บันทึก
-                  </button>
-                </div>
-              </div>
-            )}
+    <div className="flex gap-2">
+      <button
+        onClick={() => setShowForm(false)}
+        className="flex-1 py-2.5 rounded-xl text-sm font-bold text-gray-500 bg-white border border-gray-200 hover:bg-gray-50 transition-colors"
+      >
+        ยกเลิก
+      </button>
+      <button
+        onClick={handleSubmit}
+        disabled={!form.title.trim()}
+        className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white bg-sky-500 hover:bg-sky-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+      >
+        บันทึก
+      </button>
+    </div>
+  </div>
+)}
 
             {/* Plan list */}
             {dayPlans.length === 0 && !showForm ? (
@@ -660,10 +633,10 @@ export default function CalendarPage() {
                             {d.getDate()} {MONTHS_TH[d.getMonth()]} {d.getFullYear() + 543}
                           </p>
                           {dayHolidays.map((h) => (
-                            <span key={h.id} className={`inline-flex text-[10px] font-bold px-1.5 py-0.5 rounded-md border mr-1 ${HOLIDAY_TYPE_CONFIG[h.type].color}`}>
-                              {h.name}
-                            </span>
-                          ))}
+  <span key={h.id} className={`inline-flex text-[10px] font-bold px-1.5 py-0.5 rounded-md border mr-1 ${HOLIDAY_TYPE_CONFIG[h.type].color}`}>
+    {h.name}
+  </span>
+))}
                         </div>
                       </div>
 

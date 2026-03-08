@@ -282,8 +282,8 @@ function ReportCalendar({
           const isSunday     = col === 0;
           const isSat        = col === 6;
           // ตรวจสอบจาก log ว่าเป็น working_sat หรือเปล่า (ถ้า log มีข้อมูล = วันนั้นทำงานอยู่)
-          const isOffWeekend = isSunday || (isSat && (!log || log.status === "holiday"));
-          const isWork       = log && log.workType !== "holiday" && log.status !== "leave" && !isOffWeekend;
+          const isOffWeekend = (isSunday || isSat) && (!log || log.status === "holiday");
+          const isWork       = log && log.checkIn !== null && log.workType !== "holiday" && log.status !== "leave" && !isOffWeekend;
 
           return (
             <div key={day} className="relative group flex flex-col items-center">
@@ -484,158 +484,158 @@ export default function ProfilePage() {
     })();
   }, []);
 
-  // ─── 2. โหลดข้อมูลประจำเดือน ────────────────────────────────────────────────
-  // ดึง 4 ตารางพร้อมกัน: daily_time_logs, holidays, daily_reports, ot_requests
-  const fetchMonthLogs = useCallback(async () => {
-    if (!userId) return;
-    setLogsLoading(true);
+// ─── 2. โหลดข้อมูลประจำเดือน ────────────────────────────────────────────────
+// ดึง 4 ตารางพร้อมกัน: daily_time_logs, holidays, daily_reports, ot_requests
+const fetchMonthLogs = useCallback(async () => {
+  if (!userId) return;
+  setLogsLoading(true);
 
-    const { start, end } = getMonthRange(viewYear, viewMonth);
-    const todayStr = today.toISOString().split("T")[0];
+  const { start, end } = getMonthRange(viewYear, viewMonth);
+  const todayStr = today.toISOString().split("T")[0];
 
-    try {
-      const [timeRes, holidayRes, reportRes, otReqRes] = await Promise.all([
-        // ── time logs ของ user เดือนนี้
-        supabase
-          .from("daily_time_logs")
-          .select("log_date, work_type, first_check_in, last_check_out, ot_hours, status")
-          .eq("user_id", userId)
-          .gte("log_date", start)
-          .lte("log_date", end),
+  try {
+    const [timeRes, holidayRes, reportRes, otReqRes] = await Promise.all([
+      // ── time logs ของ user เดือนนี้
+      supabase
+        .from("daily_time_logs")
+        .select("log_date, work_type, first_check_in, last_check_out, ot_hours, status")
+        .eq("user_id", userId)
+        .gte("log_date", start)
+        .lte("log_date", end),
 
-        // ── วันหยุดทั้งเดือน
-        supabase
-          .from("holidays")
-          .select("holiday_date, holiday_type") 
-          .gte("holiday_date", start)
-          .lte("holiday_date", end),
+      // ── วันหยุดทั้งเดือน
+      supabase
+        .from("holidays")
+        .select("holiday_date, holiday_type")
+        .gte("holiday_date", start)
+        .lte("holiday_date", end),
 
-        // ── วันที่ส่ง daily report แล้ว
-        supabase
-          .from("daily_reports")
-          .select("report_date")
-          .eq("user_id", userId)
-          .gte("report_date", start)
-          .lte("report_date", end),
+      // ── วันที่ส่ง daily report แล้ว
+      supabase
+        .from("daily_reports")
+        .select("report_date")
+        .eq("user_id", userId)
+        .gte("report_date", start)
+        .lte("report_date", end),
 
-        // ── [NEW] OT requests ที่ได้รับการอนุมัติแล้ว
-        supabase
-          .from("ot_requests")
-          .select("request_date, start_time, end_time, hours")
-          .eq("user_id", userId)
-          .eq("status", "approved")
-          .gte("request_date", start)
-          .lte("request_date", end),
-      ]);
+      // ── OT requests ที่ได้รับการอนุมัติแล้ว
+      supabase
+        .from("ot_requests")
+        .select("request_date, start_time, end_time, hours")
+        .eq("user_id", userId)
+        .eq("status", "approved")
+        .gte("request_date", start)
+        .lte("request_date", end),
+    ]);
 
-      // Build lookup maps
-const timeLogMap: Record<string, TimeLogRow> = {};
-(timeRes.data ?? []).forEach(r => { timeLogMap[r.log_date] = r; });
+    // ── Build lookup maps ────────────────────────────────────────────────────
+    const timeLogMap: Record<string, TimeLogRow> = {};
+    (timeRes.data ?? []).forEach(r => { timeLogMap[r.log_date] = r; });
 
-// ✅ ถูก — ลบบรรทัดเก่าออก แล้วใส่ของใหม่แทน
-type HolidayRow = { holiday_date: string; holiday_type: string };
-const holidayData = (holidayRes.data ?? []) as HolidayRow[];
+    type HolidayRow = { holiday_date: string; holiday_type: string };
+    const holidayData = (holidayRes.data ?? []) as HolidayRow[];
 
-const holidaySet = new Set<string>(
-  holidayData
-    .filter(h => h.holiday_type !== "working_sat")
-    .map(h => h.holiday_date)
-);
-const workingSatSet = new Set<string>(
-  holidayData
-    .filter(h => h.holiday_type === "working_sat")
-    .map(h => h.holiday_date)
-);
+    const holidaySet = new Set<string>(
+      holidayData
+        .filter(h => h.holiday_type !== "working_sat")
+        .map(h => h.holiday_date)
+    );
+    const workingSatSet = new Set<string>(
+      holidayData
+        .filter(h => h.holiday_type === "working_sat")
+        .map(h => h.holiday_date)
+    );
 
-const reportSet = new Set<string>((reportRes.data ?? []).map(r => r.report_date));
+    const reportSet = new Set<string>((reportRes.data ?? []).map(r => r.report_date));
 
-      // [NEW] สร้าง map: request_date -> approved OT hours รวม
-      const otRequestMap: Record<string, number> = {};
-      ((otReqRes.data ?? []) as OTRequestRow[]).forEach(r => {
-        // ถ้า column hours มีค่าให้ใช้เลย ถ้าไม่มีให้คำนวณจาก start_time/end_time
-        const h = (r.hours != null && r.hours > 0)
-          ? r.hours
-          : calcOTHours(r.start_time, r.end_time);
-        otRequestMap[r.request_date] = (otRequestMap[r.request_date] ?? 0) + h;
-      });
+    // สร้าง map: request_date -> approved OT hours รวม
+    const otRequestMap: Record<string, number> = {};
+    ((otReqRes.data ?? []) as OTRequestRow[]).forEach(r => {
+      const h = (r.hours != null && r.hours > 0)
+        ? r.hours
+        : calcOTHours(r.start_time, r.end_time);
+      otRequestMap[r.request_date] = (otRequestMap[r.request_date] ?? 0) + h;
+    });
 
-      // สร้าง DayLog ครบทุกวันในเดือน
-      const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
-      const result: DayLog[] = [];
+    // ── สร้าง DayLog ครบทุกวันในเดือน ───────────────────────────────────────
+    const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+    const result: DayLog[] = [];
 
-      for (let d = 1; d <= daysInMonth; d++) {
-        const dateStr   = `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-        const dow       = new Date(viewYear, viewMonth, d).getDay();
-        const isWorkingSat = workingSatSet.has(dateStr);
-        const isWeekend    = (dow === 0) || (dow === 6 && !isWorkingSat);
-        const isHoliday    = holidaySet.has(dateStr);
-        const timeLog   = timeLogMap[dateStr];
-        const isFuture  = dateStr > todayStr;
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dateStr      = `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+      const dow          = new Date(viewYear, viewMonth, d).getDay();
+      const isWorkingSat = workingSatSet.has(dateStr);
+      const isWeekend    = (dow === 0) || (dow === 6 && !isWorkingSat);
+      const isHoliday    = holidaySet.has(dateStr);
+      const timeLog      = timeLogMap[dateStr];
+      const isFuture     = dateStr > todayStr;
 
-        // วันหยุด / เสาร์-อาทิตย์
-        if (isWeekend || isHoliday) {
-  result.push({
-    date: dateStr, checkIn: null, checkOut: null,
-    workType: isHoliday ? "holiday" : null,
-    status: "holiday",
-    isReportSent: false,
-    otHours: 0,
-  });
-  continue;
-}
-
-        // วันทำงานปกติ
-        const checkIn  = timeLog?.first_check_in  ? fmtTime(timeLog.first_check_in)  : null;
-        const checkOut = timeLog?.last_check_out   ? fmtTime(timeLog.last_check_out)  : null;
-
-        // [NEW] รวม OT จาก daily_time_logs และ ot_requests ที่อนุมัติ
-        const otFromLog = timeLog?.ot_hours ?? 0;
-        const otFromReq = otRequestMap[dateStr] ?? 0;
-        // ใช้ค่าสูงสุดระหว่างสองแหล่ง (กรณี trigger ยัง sync ไม่ได้)
-        const combinedOT = otFromLog + otFromReq;
-
-        if (timeLog?.status === "leave") {
-          result.push({
-            date: dateStr, checkIn: null, checkOut: null,
-            workType: "leave",
-            status: "leave",
-            isReportSent: reportSet.has(dateStr),
-            otHours: 0,
-          });
-          continue;
-        }
-
-        if (!checkIn && !isFuture) {
-          result.push({
-            date: dateStr, checkIn: null, checkOut: null,
-            workType: null,
-            status: "absent",
-            isReportSent: false,
-            otHours: 0,
-          });
-          continue;
-        }
-
-        if (isFuture && !checkIn) continue;
-
+      // ── 1. Leave มา priority สูงสุด ──────────────────────────────────────
+      if (timeLog?.status === "leave") {
         result.push({
-          date: dateStr,
-          checkIn,
-          checkOut,
-          workType: timeLog?.work_type as DayLog["workType"] ?? null,
-          status: classifyStatus(timeLog?.first_check_in ?? null, timeLog, isFuture),
+          date: dateStr, checkIn: null, checkOut: null,
+          workType: "leave",
+          status: "leave",
           isReportSent: reportSet.has(dateStr),
-          otHours: combinedOT,
+          otHours: 0,
         });
+        continue;
       }
 
-      setLogs(result);
-    } catch (err) {
-      console.error("fetchMonthLogs error:", err);
-    } finally {
-      setLogsLoading(false);
+      // ── 2. Weekend / Holiday — แต่ถ้ามี check-in จริงให้ไหลต่อ ──────────
+      if ((isWeekend || isHoliday) && !timeLog?.first_check_in) {
+        result.push({
+          date: dateStr, checkIn: null, checkOut: null,
+          workType: isHoliday ? "holiday" : null,
+          status: "holiday",
+          isReportSent: false,
+          otHours: 0,
+        });
+        continue;
+      }
+
+      // ── 3. วันทำงานปกติ (รวม weekend / holiday ที่มี check-in จริง) ──────
+      const checkIn  = timeLog?.first_check_in ? fmtTime(timeLog.first_check_in) : null;
+      const checkOut = timeLog?.last_check_out  ? fmtTime(timeLog.last_check_out) : null;
+
+      const otFromLog  = timeLog?.ot_hours ?? 0;
+      const otFromReq  = otRequestMap[dateStr] ?? 0;
+      const combinedOT = otFromLog + otFromReq;
+
+      // ── 3a. ขาดงาน ───────────────────────────────────────────────────────
+      if (!checkIn && !isFuture) {
+        result.push({
+          date: dateStr, checkIn: null, checkOut: null,
+          workType: null,
+          status: "absent",
+          isReportSent: false,
+          otHours: 0,
+        });
+        continue;
+      }
+
+      // ── 3b. อนาคตที่ยังไม่มีข้อมูล → ข้ามไม่แสดง ────────────────────────
+      if (isFuture && !checkIn) continue;
+
+      // ── 3c. มี check-in → แสดงปกติ ───────────────────────────────────────
+      result.push({
+        date: dateStr,
+        checkIn,
+        checkOut,
+        workType: timeLog?.work_type as DayLog["workType"] ?? null,
+        status: classifyStatus(timeLog?.first_check_in ?? null, timeLog, isFuture),
+        isReportSent: reportSet.has(dateStr),
+        otHours: combinedOT,
+      });
     }
-  }, [userId, viewYear, viewMonth]);
+
+    setLogs(result);
+  } catch (err) {
+    console.error("fetchMonthLogs error:", err);
+  } finally {
+    setLogsLoading(false);
+  }
+}, [userId, viewYear, viewMonth]);
 
   // Re-fetch ทุกครั้งที่ userId โหลดเสร็จหรือเปลี่ยนเดือน
   useEffect(() => {
