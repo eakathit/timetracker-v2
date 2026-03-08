@@ -5,7 +5,7 @@
 // หน้าห้อง On-site — แสดงสมาชิก + ปุ่ม Check-in/out
 // ============================================================
 
-import { useState, useEffect, useTransition } from "react";
+import { useState, useEffect, useTransition, useMemo  } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   getOnsiteSession,
@@ -43,6 +43,16 @@ const getInitials = (m: OnsiteSessionMemberWithProfile) => {
     ? name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase()
     : "?";
 };
+
+// คำนวณ OT On-site เหมือนใน actions (นับจาก 17:30, floor nearest 0.5)
+function calcOnsiteOTHoursPreview(checkoutIso: string): number {
+  const checkout = new Date(checkoutIso);
+  const otStart  = new Date(checkout);
+  otStart.setHours(17, 30, 0, 0);
+  if (checkout <= otStart) return 0;
+  const diffHours = (checkout.getTime() - otStart.getTime()) / (1000 * 60 * 60);
+  return Math.floor(diffHours * 2) / 2;
+}
 
 // ─── Status Badge Map ─────────────────────────────────────────────────────────
 const STATUS_MAP: Record<OnsiteSessionStatus, { label: string; color: string; dot: string }> = {
@@ -189,6 +199,7 @@ function EarlyLeaveModal({
   );
 }
 
+// ─── OT Break Modal (ใช้แทน GroupCheckoutModal เมื่อมี OT) ──────────────────
 // ─── Group Checkout Confirm Modal ─────────────────────────────────────────────
 function GroupCheckoutModal({
   memberCount,
@@ -241,6 +252,157 @@ function GroupCheckoutModal({
   );
 }
 
+function OTBreakModal({
+  pendingCount,
+  memberCount,
+  currentOTHours,
+  onConfirm,
+  onCancel,
+  loading,
+}: {
+  pendingCount:   number;
+  memberCount:    number;
+  currentOTHours: number;
+  onConfirm:      (breakMinutes: number) => void;
+  onCancel:       () => void;
+  loading:        boolean;
+}) {
+  const [hasBreak,   setHasBreak]   = useState(false);
+  const [breakStart, setBreakStart] = useState("17:30"); // ✅ default 17:30
+  const [breakEnd,   setBreakEnd]   = useState("");
+
+  // คำนวณ break minutes
+  const breakMinutes = useMemo(() => {
+    if (!hasBreak || !breakStart || !breakEnd) return 0;
+    const [sh, sm] = breakStart.split(":").map(Number);
+    const [eh, em] = breakEnd.split(":").map(Number);
+    const diff = (eh * 60 + em) - (sh * 60 + sm);
+    return Math.max(0, diff);
+  }, [hasBreak, breakStart, breakEnd]);
+
+  // OT หลังหักเบรค (preview)
+  const adjOT = useMemo(() => {
+    const adj = Math.max(0, currentOTHours - breakMinutes / 60);
+    return Math.floor(adj * 2) / 2;
+  }, [currentOTHours, breakMinutes]);
+
+  const isValid = !hasBreak || (breakEnd !== "" && breakMinutes >= 0);
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-6">
+      <div className="w-full max-w-sm bg-white rounded-3xl p-6 space-y-5">
+
+        {/* Header */}
+        <div className="text-center">
+          <div className="w-12 h-12 bg-sky-50 rounded-2xl flex items-center justify-center mx-auto mb-3">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-6 h-6 text-sky-500">
+              <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/>
+              <path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>
+            </svg>
+          </div>
+          <h3 className="text-base font-extrabold text-gray-800">Check-out ทั้งกลุ่ม</h3>
+          <p className="text-sm text-gray-500 mt-1">
+            {pendingCount} คน
+            {memberCount !== pendingCount && ` (จาก ${memberCount} คน)`}
+          </p>
+        </div>
+
+        {/* OT Badge */}
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 flex items-center justify-between">
+          <span className="text-sm font-bold text-amber-700">OT วันนี้</span>
+          <span className="text-lg font-black text-amber-600">{currentOTHours} ชม.</span>
+        </div>
+
+        {/* Break toggle */}
+        <div className="space-y-3">
+          <p className="text-sm font-extrabold text-gray-700">มีพักเบรคช่วง OT ไหม?</p>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => setHasBreak(false)}
+              className={`py-3 rounded-xl text-sm font-bold border transition-all ${
+                !hasBreak
+                  ? "bg-sky-500 text-white border-sky-500 shadow-md shadow-sky-100"
+                  : "bg-white text-gray-500 border-gray-200 hover:bg-gray-50"
+              }`}
+            >
+              ไม่มี
+            </button>
+            <button
+              onClick={() => setHasBreak(true)}
+              className={`py-3 rounded-xl text-sm font-bold border transition-all ${
+                hasBreak
+                  ? "bg-sky-500 text-white border-sky-500 shadow-md shadow-sky-100"
+                  : "bg-white text-gray-500 border-gray-200 hover:bg-gray-50"
+              }`}
+            >
+              มีเบรค
+            </button>
+          </div>
+
+          {/* Break time inputs */}
+          {hasBreak && (
+            <div className="bg-gray-50 rounded-2xl p-4 space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-gray-500 block mb-1.5">
+                    เริ่มเบรค
+                  </label>
+                  <input
+                    type="time"
+                    value={breakStart}
+                    onChange={(e) => setBreakStart(e.target.value)}
+                    className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-800 outline-none focus:border-sky-400 text-center"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-gray-500 block mb-1.5">
+                    หมดเบรค
+                  </label>
+                  <input
+                    type="time"
+                    value={breakEnd}
+                    onChange={(e) => setBreakEnd(e.target.value)}
+                    className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-800 outline-none focus:border-sky-400 text-center"
+                  />
+                </div>
+              </div>
+
+              {/* OT preview หลังหักเบรค */}
+              {breakMinutes > 0 && (
+                <div className="flex items-center justify-between pt-1">
+                  <span className="text-xs text-gray-500">
+                    หัก {breakMinutes} นาที →
+                  </span>
+                  <span className="text-sm font-black text-emerald-600">
+                    OT จริง {adjOT} ชม.
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Buttons */}
+        <div className="flex gap-3">
+          <button
+            onClick={onCancel}
+            className="flex-1 py-3 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition"
+          >
+            ยกเลิก
+          </button>
+          <button
+            onClick={() => onConfirm(breakMinutes)}
+            disabled={loading || !isValid}
+            className="flex-1 py-3 rounded-xl bg-sky-500 text-white text-sm font-bold hover:bg-sky-600 disabled:opacity-50 transition"
+          >
+            {loading ? "กำลัง Check-out..." : "ยืนยัน"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 export default function OnsiteSessionPage() {
   const { sessionId } = useParams<{ sessionId: string }>();
@@ -254,7 +416,9 @@ export default function OnsiteSessionPage() {
 
   // Modals
   const [showEarlyLeave, setShowEarlyLeave]         = useState(false);
+
   const [showGroupCheckout, setShowGroupCheckout]   = useState(false);
+  const [showOTBreak, setShowOTBreak] = useState(false);
 
   // ─── Load current user ─────────────────────────────────
   useEffect(() => {
@@ -289,14 +453,24 @@ export default function OnsiteSessionPage() {
     });
   };
 
-  const handleGroupCheckOut = () => {
-    setShowGroupCheckout(false);
-    startTransition(async () => {
-      const res = await groupCheckOut(sessionId);
-      if (res.success) await loadSession();
-      else setError(res.error ?? "Check-out ไม่สำเร็จ");
-    });
-  };
+  const handleGroupCheckOut = (breakMinutes: number = 0) => {
+  setShowGroupCheckout(false);
+  setShowOTBreak(false);
+  startTransition(async () => {
+    const res = await groupCheckOut(sessionId, breakMinutes);
+    if (res.success) await loadSession();
+    else setError(res.error ?? "Check-out ไม่สำเร็จ");
+  });
+};
+
+const handleCheckOutClick = () => {
+  const otHours = calcOnsiteOTHoursPreview(new Date().toISOString());
+  if (otHours > 0) {
+    setShowOTBreak(true);      // มี OT → ถามเบรค
+  } else {
+    setShowGroupCheckout(true); // ไม่มี OT → confirm ปกติ
+  }
+};
 
   const handleEarlyLeave = (note: string) => {
     setShowEarlyLeave(false);
@@ -340,14 +514,24 @@ export default function OnsiteSessionPage() {
         />
       )}
       {showGroupCheckout && (
-        <GroupCheckoutModal
-          memberCount={session.members.length}
-          pendingCount={pendingMembers.length}
-          onConfirm={handleGroupCheckOut}
-          onCancel={() => setShowGroupCheckout(false)}
-          loading={isPending}
-        />
-      )}
+  <GroupCheckoutModal
+    memberCount={session.members.length}
+    pendingCount={pendingMembers.length}
+    onConfirm={() => handleGroupCheckOut(0)}
+    onCancel={() => setShowGroupCheckout(false)}
+    loading={isPending}
+  />
+)}
+{showOTBreak && (
+  <OTBreakModal
+    pendingCount={pendingMembers.length}
+    memberCount={session.members.length}
+    currentOTHours={calcOnsiteOTHoursPreview(new Date().toISOString())}
+    onConfirm={(breakMins) => handleGroupCheckOut(breakMins)}
+    onCancel={() => setShowOTBreak(false)}
+    loading={isPending}
+  />
+)}
 
       <div className="min-h-screen bg-gray-50 flex flex-col pb-52 md:pb-32">
         {/* ── Header ── */}
@@ -481,7 +665,7 @@ export default function OnsiteSessionPage() {
 
           {isLeader && session.status === "checked_in" && (
             <button
-              onClick={() => setShowGroupCheckout(true)}
+              onClick={handleCheckOutClick}
               disabled={isPending}
               className="w-full bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white font-extrabold py-4 rounded-2xl transition-colors flex items-center justify-center gap-2"
             >

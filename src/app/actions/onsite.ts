@@ -222,6 +222,27 @@ function calcAttendanceStatus(checkInIso: string): "on_time" | "late" {
   return checkIn > lateThreshold ? "late" : "on_time";
 }
 
+// Helper: ตรวจสอบสิทธิ์เบี้ยเลี้ยง On-site (Check-in ก่อน 08:30)
+function calcDailyAllowance(checkInIso: string): boolean {
+  const checkIn = new Date(checkInIso);
+  const cutoff  = new Date(checkIn);
+  cutoff.setHours(8, 30, 0, 0);
+  return checkIn < cutoff; // true = ก่อน 08:30 → ได้เบี้ยเลี้ยง
+}
+
+// Helper: คำนวณ OT On-site นับจาก 17:30 (ต่างจาก Factory ที่นับ 18:00)
+// ปัดลงทีละ 0.5 ชม. เช่น Checkout 18:00 → 0.5, 18:45 → 1.0
+function calcOnsiteOTHours(checkoutIso: string): number {
+  const checkout = new Date(checkoutIso);
+  const otStart  = new Date(checkout);
+  otStart.setHours(17, 30, 0, 0);
+
+  if (checkout <= otStart) return 0;
+
+  const diffHours = (checkout.getTime() - otStart.getTime()) / (1000 * 60 * 60);
+  return Math.floor(diffHours * 2) / 2; // ปัดลง nearest 0.5
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 4. Group Check-in
 // ─────────────────────────────────────────────────────────────────────────────
@@ -233,7 +254,7 @@ export async function groupCheckIn(sessionId: string): Promise<ActionResult> {
 
     const now   = new Date().toISOString();
     const today = getLocalToday();
-
+    
     const { data: sessions, error: sessionErr } = await supabase
       .from("onsite_sessions")
       .select("id, status, site_name, members:onsite_session_members(user_id)")
@@ -280,21 +301,24 @@ export async function groupCheckIn(sessionId: string): Promise<ActionResult> {
 
     // ✅ คำนวณ attendance status ที่ถูกต้อง
     const attendanceStatus = calcAttendanceStatus(now);
+    const dailyAllowance   = calcDailyAllowance(now); // ก่อน 08:30 = true
+
 
     const { error: upsertErr } = await supabase
-      .from("daily_time_logs")
-      .upsert(
-        memberUserIds.map((uid) => ({
-          user_id:           uid,
-          log_date:          today,
-          work_type:         "on_site",
-          first_check_in:    now,
-          onsite_session_id: sessionId,
-          timeline_events:   [...(existingMap.get(uid) ?? []), newEvent],
-          status:            attendanceStatus, // ✅ "on_time" | "late" แทน "active"
-        })),
-        { onConflict: "user_id,log_date" }
-      );
+  .from("daily_time_logs")
+  .upsert(
+    memberUserIds.map((uid) => ({
+      user_id:           uid,
+      log_date:          today,
+      work_type:         "on_site",
+      first_check_in:    now,
+      onsite_session_id: sessionId,
+      timeline_events:   [...(existingMap.get(uid) ?? []), newEvent],
+      status:            attendanceStatus,
+      daily_allowance:   dailyAllowance, // ✅ เพิ่มบรรทัดนี้
+    })),
+    { onConflict: "user_id,log_date" }
+  );
 
     if (upsertErr) return { success: false, error: upsertErr.message };
     return { success: true };
@@ -306,7 +330,11 @@ export async function groupCheckIn(sessionId: string): Promise<ActionResult> {
 // ─────────────────────────────────────────────────────────────────────────────
 // 5. Group Check-out
 // ─────────────────────────────────────────────────────────────────────────────
-export async function groupCheckOut(sessionId: string): Promise<ActionResult> {
+export async function groupCheckOut(
+  sessionId: string,
+  breakMinutes: number = 0   // ✅ เพิ่ม param นี้
+): Promise<ActionResult> {
+
   try {
     const supabase = await getSupabaseServer();
     const { data: { user } } = await supabase.auth.getUser();
@@ -352,27 +380,35 @@ export async function groupCheckOut(sessionId: string): Promise<ActionResult> {
       };
 
       const { data: existingLogs } = await supabase
-        .from("daily_time_logs")
-        .select("user_id, timeline_events")
-        .in("user_id", pendingUids)
-        .eq("log_date", today);
+  .from("daily_time_logs")
+  .select("user_id, timeline_events, first_check_in") // ✅ เพิ่ม first_check_in
+  .in("user_id", pendingUids)
+  .eq("log_date", today);
 
-      const existingMap = new Map(
-        (existingLogs ?? []).map((l) => [l.user_id, l.timeline_events ?? []])
-      );
+const existingMap = new Map(
+  (existingLogs ?? []).map((l) => [l.user_id, l])
+);
+
+const rawOT   = calcOnsiteOTHours(now);
+  const adjHours = Math.max(0, rawOT - breakMinutes / 60);
+  const otHours  = Math.floor(adjHours * 2) / 2;
 
       await supabase
-        .from("daily_time_logs")
-        .upsert(
-          pendingUids.map((uid) => ({
-            user_id:         uid,
-            log_date:        today,
-            work_type:       "on_site",
-            last_check_out:  now,
-            timeline_events: [...(existingMap.get(uid) ?? []), checkoutEvent],
-          })),
-          { onConflict: "user_id,log_date" }
-        );
+    .from("daily_time_logs")
+    .upsert(
+      pendingUids.map((uid) => {
+        const existing = existingMap.get(uid);
+        return {
+          user_id:         uid,
+          log_date:        today,
+          work_type:       "on_site",
+          last_check_out:  now,
+          ot_hours:        otHours,   // ✅ OT หลังหักเบรค
+          timeline_events: [...(existing?.timeline_events ?? []), checkoutEvent],
+        };
+      }),
+      { onConflict: "user_id,log_date" }
+    );
     }
 
     return { success: true };
@@ -421,10 +457,13 @@ export async function earlyLeave(sessionId: string, note: string): Promise<Actio
       { event: "onsite_checkout", timestamp: now, session_id: sessionId, checkout_type: "early" } as OnsiteTimelineEvent,
     ];
 
-    await supabase
+    const otHours = calcOnsiteOTHours(now); // นับจาก 17:30
+
+await supabase
   .from("daily_time_logs")
   .update({
-    last_check_out: now,
+    last_check_out:  now,
+    ot_hours:        otHours,
     timeline_events: timeline,
   })
   .eq("user_id", user.id)

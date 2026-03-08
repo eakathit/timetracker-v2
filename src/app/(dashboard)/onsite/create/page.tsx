@@ -285,7 +285,7 @@ export default function CreateOnsiteSessionPage() {
         {/* ── EndUser + Project ──────────────────────────────────────────────── */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 space-y-3">
           <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block">
-            สถานที่ทำงาน <span className="text-rose-400">*</span>
+            รายละเอียด On-site <span className="text-rose-400">*</span>
           </label>
 
           {loadingMaster ? (
@@ -303,7 +303,7 @@ export default function CreateOnsiteSessionPage() {
                   }}
                   className="w-full appearance-none px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-800 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100 transition pr-9"
                 >
-                  <option value="">🏢 Select End User...</option>
+                  <option value="">Select End User...</option>
                   {endUsers.map((u) => (
                     <option key={u.id} value={u.id}>{u.name}</option>
                   ))}
@@ -323,7 +323,7 @@ export default function CreateOnsiteSessionPage() {
                   disabled={filteredProjects.length === 0}
                   className="w-full appearance-none px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-800 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100 transition pr-9 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <option value="">📁 Select Project No....</option>
+                  <option value="">Select Project No....</option>
                   {filteredProjects.map((p) => (
                     <option key={p.id} value={p.id}>
                       #{p.project_no}{p.name ? ` · ${p.name}` : ""}
