@@ -40,6 +40,7 @@ export async function GET(req: NextRequest) {
       .from("daily_time_logs")
       .select("id, user_id, timeline_events")
       .eq("log_date", today)
+      .eq("work_type", "in_factory")
       .eq("auto_checked_out", false)
       .is("last_check_out", null)
       .not("first_check_in", "is", null); // ✅ ลบ work_type filter ออก
