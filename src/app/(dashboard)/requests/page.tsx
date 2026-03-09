@@ -569,24 +569,34 @@ export default function RequestsPage() {
 
   // ── Fetch dept requests (manager) ─────────────────────────────────────────────
   const fetchDeptRequests = useCallback(async () => {
-    if (!profile || !isManager) return;
+  if (!profile || !isManager) return;
 
-    const [otRes, lvRes] = await Promise.all([
-      supabase
-        .from("ot_requests_with_profile")           // ← ใช้ View ที่สร้างใน migration
-        .select("*")
-        .eq("status", "pending")
-        .order("created_at", { ascending: true }),
-      supabase
-        .from("leave_requests_with_profile")        // ← ใช้ View ที่สร้างใน migration
-        .select("*")
-        .eq("status", "pending")
-        .order("created_at", { ascending: true }),
-    ]);
+  const isAdmin = profile.role === "admin";
 
-    if (otRes.data) setDeptOT(otRes.data as OTRequest[]);
-    if (lvRes.data) setDeptLeave(lvRes.data as LeaveRequest[]);
-  }, [profile, isManager]);
+  // Base query
+  let otQuery = supabase
+    .from("ot_requests_with_profile")
+    .select("*")
+    .eq("status", "pending")
+    .order("created_at", { ascending: true });
+
+  let lvQuery = supabase
+    .from("leave_requests_with_profile")
+    .select("*")
+    .eq("status", "pending")
+    .order("created_at", { ascending: true });
+
+  // Manager เห็นแค่แผนกตัวเอง, Admin เห็นทั้งหมด
+  if (!isAdmin) {
+    otQuery = otQuery.eq("department", profile.department);
+    lvQuery = lvQuery.eq("department", profile.department);
+  }
+
+  const [otRes, lvRes] = await Promise.all([otQuery, lvQuery]);
+
+  if (otRes.data) setDeptOT(otRes.data as OTRequest[]);
+  if (lvRes.data) setDeptLeave(lvRes.data as LeaveRequest[]);
+}, [profile, isManager]);
 
   useEffect(() => { fetchMyRequests(); },   [fetchMyRequests]);
   useEffect(() => { fetchDeptRequests(); }, [fetchDeptRequests]);
@@ -704,9 +714,17 @@ const handleRejectLeave = async (id: string, reason: string) => {
           <div>
             <h1 className="text-xl font-black text-gray-900 tracking-tight">Requests</h1>
             <p className="text-xs text-gray-400 mt-0.5">
-              {dept ? `แผนก ${dept}` : "กำลังโหลด..."}
-              {isManager && <span className="ml-2 text-indigo-400 font-semibold">· Manager</span>}
-            </p>
+  {profile?.role === "admin"
+    ? "ทุกแผนก"
+    : dept ? `แผนก ${dept}` : "กำลังโหลด..."}
+  {isManager && (
+    <span className={`ml-2 font-semibold ${
+      profile?.role === "admin" ? "text-rose-400" : "text-indigo-400"
+    }`}>
+      · {profile?.role === "admin" ? "Admin" : "Manager"}
+    </span>
+  )}
+</p>
           </div>
           {(isManager ? totalDeptPending : myPendingOT + myPendingLeave) > 0 && (
             <span className="flex items-center gap-1.5 text-xs font-bold text-amber-600 bg-amber-50 border border-amber-200 px-2.5 py-1.5 rounded-full">
@@ -728,9 +746,9 @@ const handleRejectLeave = async (id: string, reason: string) => {
                   managerTab === t.id ? "bg-white text-gray-900 shadow-sm" : "text-gray-400"
                 }`}>
                 {t.label}
-                {t.badge && t.badge > 0 && (
-                  <span className="w-5 h-5 rounded-full bg-amber-400 text-white text-[10px] font-black flex items-center justify-center">{t.badge}</span>
-                )}
+                {!!t.badge && t.badge > 0 && (
+  <span className="w-5 h-5 rounded-full bg-amber-400 text-white text-[10px] font-black flex items-center justify-center">{t.badge}</span>
+)}
               </button>
             ))}
           </div>

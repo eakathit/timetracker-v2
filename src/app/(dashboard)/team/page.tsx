@@ -55,6 +55,30 @@ function extractStartEnd(row: ReportRow): [string, string] {
   return ["–", "–"];
 }
 
+// ─── คำนวณชั่วโมงทำงาน ────────────────────────────────────────────────────────
+function calcWorkHours(row: ReportRow): number | null {
+  const [startStr, endStr] = extractStartEnd(row);
+  if (startStr === "–" || endStr === "–") return null;
+
+  const parseMin = (t: string) => {
+    const [h, m] = t.split(":").map(Number);
+    return h * 60 + (m ?? 0);
+  };
+
+  const diff = parseMin(endStr) - parseMin(startStr); // หน่วย นาที
+  if (diff <= 0) return null;
+
+  let hours = diff / 60;
+
+  // หักพักเที่ยง 1 ชม. เฉพาะ ALL DAY
+  const label = row.period_label ?? "";
+  const isAllDay =
+    row.period_type !== "some_time" && label.includes("ALL");
+  if (isAllDay) hours -= 1;
+
+  return Math.round(hours * 10) / 10; // ปัดทศนิยม 1 ตำแหน่ง
+}
+
 function fmtTime(t: string | null) {
   if (!t) return "–";
   return t.slice(0, 5);
@@ -107,28 +131,34 @@ async function exportExcel(
   const title   = `PROJECT SUMMARY — ${MONTHS_TH[month]} ${year + 543}${selProj ? ` | Project #${selProj.project_no}` : ""}`;
 
   const header = [
-  [title], [],
-  ["วันที่", "ชื่อพนักงาน", "End User", "Project No.", "ประเภทงาน", "ช่วงเวลา", "Start Time", "End Time"],
-];
-const data = rows.map((r) => {
-  const { full } = fmtDateTH(r.report_date);
-  const pr = project[r.project_id];
-  const p  = profile[r.user_id];
-  const [startTime, endTime] = extractStartEnd(r);  // ← เปลี่ยนตรงนี้
-  return [
-    full, getFullName(p),
-    eu[r.end_user_id]?.name || "–",
-    pr?.project_no || "–",
-    detail[r.detail_id]?.title || "–",
-    getPeriodLabel(r),
-    startTime,  // ← เปลี่ยนตรงนี้
-    endTime,    // ← เปลี่ยนตรงนี้
+    [title], [],
+    ["Date", "Employee Name", "End User", "Project No.", "Work Type", "Period", "Start Time", "End Time", "Total (hrs.)"],
   ];
-});
 
-const ws = utils.aoa_to_sheet([...header, ...data]);
-ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 7 } }];
-ws["!cols"]   = [22, 18, 14, 10, 22, 18, 12, 12].map((w) => ({ wch: w }));
+  const data = rows.map((r) => {
+    const { full } = fmtDateTH(r.report_date);
+    const pr = project[r.project_id];
+    const p  = profile[r.user_id];
+    const [startTime, endTime] = extractStartEnd(r);
+    const totalHours = calcWorkHours(r); // ← คำนวณ
+
+    return [
+      full, getFullName(p),
+      eu[r.end_user_id]?.name || "–",
+      pr?.project_no || "–",
+      detail[r.detail_id]?.title || "–",
+      getPeriodLabel(r),
+      startTime,
+      endTime,
+      totalHours ?? "–", // ← เพิ่ม col
+    ];
+  });
+
+  const ws = utils.aoa_to_sheet([...header, ...data]);
+
+  // merge title ครอบ 9 คอลัมน์ (A–I)
+  ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 8 } }];          // ← เปลี่ยน c:7 → c:8
+  ws["!cols"]   = [22, 18, 14, 10, 22, 14, 12, 12, 10].map((w) => ({ wch: w })); // ← เพิ่ม 10
 
   const wb = utils.book_new();
   utils.book_append_sheet(wb, ws, `${MONTHS_TH[month].slice(0, 3)}_${year + 543}`);

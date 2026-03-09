@@ -730,7 +730,9 @@ const fetchMonthLogs = useCallback(async () => {
   </div>
   <span className="absolute bottom-0 right-0 w-4 h-4 bg-emerald-400 rounded-full border-2 border-white" />
   {/* ❌ ลบ <input type="file" ...> ออกด้วย */}
-</div>
+</div >
+
+              <div className="mt-10">
               {!isEditing ? (
                 <button
                   onClick={() => setIsEditing(true)}
@@ -760,7 +762,8 @@ const fetchMonthLogs = useCallback(async () => {
                 </div>
               )}
             </div>
-
+              </div>
+              
             <div className="mt-4">
               {profileLoading ? (
                 <div className="animate-pulse space-y-2 mt-2">

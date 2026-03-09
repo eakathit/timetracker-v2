@@ -7,7 +7,7 @@ type ChangelogTag = "feature" | "fix" | "improvement" | "breaking";
 
 interface ChangelogEntry {
   version: string;
-  date: string;       // ISO date string "2025-07-10"
+  date: string;
   items: {
     tag: ChangelogTag;
     text: string;
@@ -16,9 +16,19 @@ interface ChangelogEntry {
 
 // ─── Changelog Data (Dev/Admin แก้ตรงนี้) ────────────────────────────────────
 const CHANGELOG: ChangelogEntry[] = [
-    {
-    version: "1.4.0",           // เลข version
+  {
+    version: "1.4.1",           // เลข version
     date: "2026-03-09",         // วันที่ release (YYYY-MM-DD)
+    items: [
+      { tag: "feature",     text: "Project Summary เพิ่มช่อง Total (hrs.) ตอน Export Excel" },
+      { tag: "feature",     text: "หน้า Request ใบลาเเละใบขอคำโอทีเเยกช่องตามเเผนก" },
+      { tag: "feature",     text: "ตกเเต่ง Redesign  หน้า Login หน้า Webapp" },
+      { tag: "fix", text: "ฟังก์ชัน Auto-checkout ยังไม่ทำงาน" },
+    ],
+  },
+    {
+    version: "1.4.0", 
+    date: "2026-03-09",
     items: [
       { tag: "feature",     text: "เพิ่มระบบแจ้งเตือน Changelog 🎉" },
       { tag: "fix",         text: "แก้ไขปุ่ม Check-in กดแล้ว delay นาน" },
