@@ -39,7 +39,9 @@ interface DayLog {
   status: "present" | "late" | "absent" | "leave" | "holiday" | "weekend";
   checkIn: string;
   checkOut: string;
-  isHoliday?: boolean; // เพื่อแสดงชื่อวันหยุดในอนาคต
+  isHoliday?: boolean;
+  otStart?: string;
+  otEnd?: string;
 }
 
 interface TimeLogRow {
@@ -140,6 +142,11 @@ function fmtTime(iso: string | null): string {
     minute: "2-digit",
     hour12: false,
   });
+}
+
+function fmtOTTime(t?: string | null): string | undefined {
+  if (!t) return undefined;
+  return t.slice(0, 5); // "HH:mm"
 }
 
 /** คำนวณชั่วโมง OT จาก time string "HH:mm:ss" */
@@ -253,10 +260,10 @@ function DrillDownPanel({
     const title = `${emp.first_name} ${emp.last_name} — ${MONTHS_TH[month]} ${year + 543}`;
 
     const header = [
-      [title],
-      [],
-      ["วันที่", "วัน", "สถานะ", "เข้างาน", "ออกงาน"],
-    ];
+    [title],
+    [],
+    ["วันที่", "วัน", "สถานะ", "เข้างาน", "ออกงาน", "Start OT", "End OT"],
+  ];
 
     const STATUS_TEXT: Record<string, string> = {
       present: "มาปกติ",
@@ -273,6 +280,8 @@ function DrillDownPanel({
       STATUS_TEXT[log.status] ?? log.status,
       log.checkIn,
       log.checkOut,
+      (log.status === "present" || log.status === "late") ? (log.otStart ?? "–") : "",
+      (log.status === "present" || log.status === "late") ? (log.otEnd   ?? "–") : "",
     ]);
 
     // Summary row
@@ -290,8 +299,9 @@ function DrillDownPanel({
 
     const ws = utils.aoa_to_sheet([...header, ...data, ...summary]);
     ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 4 } }];
-    ws["!cols"] = [12, 6, 10, 10, 10].map(w => ({ wch: w }));
+    ws["!cols"] = [12, 6, 10, 10, 10, 10, 10].map(w => ({ wch: w }));
 
+    
     const wb = utils.book_new();
     const sheetName = `${emp.first_name}_${MONTHS_TH[month].slice(0, 3)}`;
     utils.book_append_sheet(wb, ws, sheetName);
@@ -730,6 +740,15 @@ const leaveMap = useMemo(() => {
     const result: Record<string, DayLog[]> = {};
     const todayStr = new Date().toISOString().split("T")[0];
 
+    const otByUserDate: Record<string, Record<string, { start_time: string; end_time: string }>> = {};
+  otRequests.forEach((r) => {
+    if (!otByUserDate[r.user_id]) otByUserDate[r.user_id] = {};
+    otByUserDate[r.user_id][r.request_date] = {
+      start_time: r.start_time,
+      end_time: r.end_time,
+    };
+  });
+
     employees.forEach((emp) => {
       const userLogs = timeLogs.filter((l) => l.user_id === emp.id);
       const logMap: Record<string, TimeLogRow> = {};
@@ -774,10 +793,14 @@ if (log) {
   if (log.status === "on_time") status = "present";
   else if (log.status === "late") status = "late";
   
+  const otEntry = otByUserDate[emp.id]?.[dateStr];
+
   days.push({
     day: d, dow, date: dateStr, status,
     checkIn:  fmtTime(log.first_check_in),
     checkOut: fmtTime(log.last_check_out),
+    otStart: fmtOTTime(otEntry?.start_time),
+    otEnd:   fmtOTTime(otEntry?.end_time),
   });
 } else {
     // ไม่มี log = ขาดงาน asd

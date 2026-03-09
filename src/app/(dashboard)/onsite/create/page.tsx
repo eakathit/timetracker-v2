@@ -280,7 +280,7 @@ export default function CreateOnsiteSessionPage() {
         </div>
       </header>
 
-      <div className="flex-1 overflow-y-auto px-4 py-5 space-y-5 pb-36">
+      <div className="flex-1 overflow-y-auto px-4 py-5 space-y-5 pb-52 md:pb-36">
 
         {/* ── EndUser + Project ──────────────────────────────────────────────── */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 space-y-3">
@@ -409,7 +409,7 @@ export default function CreateOnsiteSessionPage() {
       </div>
 
       {/* ── Footer ────────────────────────────────────────────────────────────── */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-4 py-4 space-y-2">
+      <div className="fixed bottom-20 md:bottom-0 left-0 right-0 z-30 bg-white border-t border-gray-100 px-4 py-4 space-y-2">
         <div className="flex items-center justify-between text-xs text-gray-500 px-1">
           <span>
             โปรเจกต์:{" "}
