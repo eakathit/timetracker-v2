@@ -5,6 +5,7 @@ import DailyReportForm from "@/components/DailyReportForm";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import OTWindowCard from "@/components/OTWindowCard";
+import { ChangelogBellButton } from "@/components/ChangelogPanel";
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface DashboardUIProps {
   userName?: string;
@@ -587,14 +588,20 @@ export default function DashboardUI({ userName, userEmail, userId }: DashboardUI
   return (
     <main className="p-4 md:p-6 pb-24 space-y-6 w-full">
       {/* ── 1. HEADER ──────────────────────────────────────────────────────── */}
-      <div className="flex justify-between items-center relative gap-4">
-        <div className="overflow-hidden">
-          <p className="text-gray-500">TimeTracker System</p>
-<h2 className="text-xl md:text-2xl font-bold truncate text-sky-700">
-  {userName || userEmail || "ผู้ใช้งาน"}
-</h2>
-        </div>
-      </div>
+<div className="flex justify-between items-center relative gap-4">
+  <div className="overflow-hidden">
+    <p className="text-gray-500">TimeTracker System</p>
+    <h2 className="text-xl md:text-2xl font-bold truncate text-sky-700">
+      {userName || userEmail || "ผู้ใช้งาน"}
+    </h2>
+  </div>
+
+  {/* ← เพิ่มตรงนี้ */}
+  <div className="flex-shrink-0">
+    <ChangelogBellButton />
+  </div>
+
+</div>
 
       {/* ── 2. ACTION BUTTON CARD ───────────────────────────────────────────── */}
       <div className="card text-center bg-white p-6 rounded-2xl shadow-sm border border-gray-100 min-h-[380px]">
