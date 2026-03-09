@@ -17,13 +17,20 @@ interface ChangelogEntry {
 // ─── Changelog Data (Dev/Admin แก้ตรงนี้) ────────────────────────────────────
 const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.4.5",           // เลข version
+    date: "2026-03-10",         // วันที่ release (YYYY-MM-DD)
+    items: [
+      { tag: "feature",     text: "HR Attendance Export Excel รายบุคคลเพิ่มช่องรายละเอียด OT" },
+    ],
+  },
+  {
     version: "1.4.1",           // เลข version
     date: "2026-03-09",         // วันที่ release (YYYY-MM-DD)
     items: [
       { tag: "feature",     text: "Project Summary เพิ่มช่อง Total (hrs.) ตอน Export Excel" },
       { tag: "feature",     text: "หน้า Request ใบลาเเละใบขอคำโอทีเเยกช่องตามเเผนก" },
       { tag: "feature",     text: "ตกเเต่ง Redesign  หน้า Login หน้า Webapp" },
-      { tag: "fix", text: "ฟังก์ชัน Auto-checkout ยังไม่ทำงาน" },
+      { tag: "fix", text: "เเก้ไขกดสร้างห้อง On-site ในมือถือไม่ได้" },
     ],
   },
     {

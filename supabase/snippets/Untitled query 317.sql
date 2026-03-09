@@ -1,69 +1,51 @@
--- supabase/migrations/20260309_dept_approval_rls.sql
+-- ① เข้างาน 08:30 เลิก 19:30 (OT จาก checkout = 18:00-19:30)
+INSERT INTO daily_time_logs 
+  (user_id, log_date, status, first_check_in, last_check_out, ot_hours, work_type)
+VALUES (
+  'ead99f60-41c2-49c5-9261-bc4ebabf03ef',
+  '2026-03-05',
+  'on_time',
+  '2026-03-05T08:30:00+07:00',
+  '2026-03-05T19:30:00+07:00',
+  1.5,
+  'in_factory'
+);
 
--- ── OT Requests: Manager เห็นแค่แผนกตัวเอง, Admin เห็นทุกแผนก ──────────────
-drop policy if exists "manager_sees_dept_ot" on ot_requests;
-create policy "manager_sees_dept_ot" on ot_requests
-  for select using (
-    auth.uid() = user_id  -- เจ้าของดูของตัวเองได้
-    or exists (
-      select 1 from profiles p
-      where p.id = auth.uid()
-        and p.role = 'admin'  -- admin เห็นทั้งหมด
-    )
-    or exists (
-      select 1 from profiles manager_p
-      join  profiles requester_p on requester_p.id = ot_requests.user_id
-      where manager_p.id   = auth.uid()
-        and manager_p.role = 'manager'
-        and manager_p.department = requester_p.department  -- manager เห็นแค่แผนกตัวเอง
-    )
-  );
+-- ② เข้างาน 08:45 (มาสาย) เลิก 19:00 + มี OT Request เพิ่ม 19:00-20:30
+INSERT INTO daily_time_logs 
+  (user_id, log_date, status, first_check_in, last_check_out, ot_hours, work_type)
+VALUES (
+  'ead99f60-41c2-49c5-9261-bc4ebabf03ef',
+  '2026-03-06',
+  'late',
+  '2026-03-06T08:45:00+07:00',
+  '2026-03-06T19:00:00+07:00',
+  1.0,
+  'in_factory'
+);
 
--- ── Leave Requests: เหมือนกัน ─────────────────────────────────────────────────
-drop policy if exists "manager_sees_dept_leave" on leave_requests;
-create policy "manager_sees_dept_leave" on leave_requests
-  for select using (
-    auth.uid() = user_id
-    or exists (
-      select 1 from profiles p
-      where p.id = auth.uid() and p.role = 'admin'
-    )
-    or exists (
-      select 1 from profiles manager_p
-      join  profiles requester_p on requester_p.id = leave_requests.user_id
-      where manager_p.id   = auth.uid()
-        and manager_p.role = 'manager'
-        and manager_p.department = requester_p.department
-    )
-  );
+-- OT Request สำหรับวันที่ 6 (approved)
+INSERT INTO ot_requests 
+  (user_id, request_date, start_time, end_time, hours, reason, status)
+VALUES (
+  'ead99f60-41c2-49c5-9261-bc4ebabf03ef',
+  '2026-03-06',
+  '19:00',
+  '20:30',
+  1.5,
+  'งานด่วน',
+  'approved'
+);
 
--- ── Allow manager/admin to UPDATE (approve/reject) ───────────────────────────
-drop policy if exists "manager_can_action_ot" on ot_requests;
-create policy "manager_can_action_ot" on ot_requests
-  for update using (
-    exists (
-      select 1 from profiles manager_p
-      join  profiles requester_p on requester_p.id = ot_requests.user_id
-      where manager_p.id   = auth.uid()
-        and manager_p.role in ('manager', 'admin')
-        and (
-          manager_p.role = 'admin'
-          or manager_p.department = requester_p.department
-        )
-    )
-  );
-
-drop policy if exists "manager_can_action_leave" on leave_requests;
-create policy "manager_can_action_leave" on leave_requests
-  for update using (
-    exists (
-      select 1 from profiles manager_p
-      join  profiles requester_p on requester_p.id = leave_requests.user_id
-      where manager_p.id   = auth.uid()
-        and manager_p.role in ('manager', 'admin')
-        and (
-          manager_p.role = 'admin'
-          or manager_p.department = requester_p.department
-        )
-    )
-  );
+-- ③ เข้างาน 08:20 เลิก 17:30 (ไม่มี OT)
+INSERT INTO daily_time_logs 
+  (user_id, log_date, status, first_check_in, last_check_out, ot_hours, work_type)
+VALUES (
+  'ead99f60-41c2-49c5-9261-bc4ebabf03ef',
+  '2026-03-07',
+  'on_time',
+  '2026-03-07T08:20:00+07:00',
+  '2026-03-07T17:30:00+07:00',
+  0,
+  'in_factory'
+);

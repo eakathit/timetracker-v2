@@ -40,8 +40,8 @@ interface DayLog {
   checkIn: string;
   checkOut: string;
   isHoliday?: boolean;
-  otStart?: string;
-  otEnd?: string;
+  otPeriods: { start: string; end: string }[];
+  otTotal: number;               
 }
 
 interface TimeLogRow {
@@ -159,6 +159,32 @@ function calcOTHours(startTime: string, endTime: string): number {
   return diff > 0 ? Math.round((diff / 60) * 10) / 10 : 0;
 }
 
+/** รวม OT หลายช่วง โดย merge overlap แล้วนับ hours จริง */
+function calcTotalOT(periods: { start: string; end: string }[]): number {
+  if (!periods.length) return 0;
+  const toMins = (t: string) => {
+    const [h, m] = t.split(":").map(Number);
+    return h * 60 + m;
+  };
+  const sorted = [...periods].sort((a, b) => toMins(a.start) - toMins(b.start));
+  let total = 0;
+  let curStart = toMins(sorted[0].start);
+  let curEnd   = toMins(sorted[0].end);
+  for (let i = 1; i < sorted.length; i++) {
+    const s = toMins(sorted[i].start);
+    const e = toMins(sorted[i].end);
+    if (s <= curEnd) {
+      curEnd = Math.max(curEnd, e); // merge overlap
+    } else {
+      total += curEnd - curStart;  // นับช่วงที่แยกกัน
+      curStart = s;
+      curEnd   = e;
+    }
+  }
+  total += curEnd - curStart;
+  return Math.round((total / 60) * 10) / 10;
+}
+
 function calcAvgTime(times: string[]): string {
   if (!times.length) return "–";
   const converted = times.map((t) => fmtTime(t)).filter((v) => v !== "–");
@@ -262,7 +288,7 @@ function DrillDownPanel({
     const header = [
     [title],
     [],
-    ["วันที่", "วัน", "สถานะ", "เข้างาน", "ออกงาน", "Start OT", "End OT"],
+    ["วันที่", "วัน", "สถานะ", "เข้างาน", "ออกงาน", "Start OT", "End OT", "Req. Start OT", "Req. End OT", "OT รวม (ชม.)"],
   ];
 
     const STATUS_TEXT: Record<string, string> = {
@@ -274,16 +300,26 @@ function DrillDownPanel({
       weekend: "เสาร์-อา",
     };
 
-    const data = dailyLogs.map(log => [
-      log.date,
-      DAYS_SHORT[log.dow],
-      STATUS_TEXT[log.status] ?? log.status,
-      log.checkIn,
-      log.checkOut,
-      (log.status === "present" || log.status === "late") ? (log.otStart ?? "–") : "",
-      (log.status === "present" || log.status === "late") ? (log.otEnd   ?? "–") : "",
-    ]);
+    const data = dailyLogs.map(log => {
+  const workOT  = log.otPeriods[0]; // จาก checkout จริง
+  const reqOT   = log.otPeriods[1]; // จาก OT Request
 
+  return [
+    log.date,
+    DAYS_SHORT[log.dow],
+    STATUS_TEXT[log.status] ?? log.status,
+    log.checkIn,
+    log.checkOut,
+    workOT?.start ?? "–",  // Start OT จาก checkout
+    workOT?.end   ?? "–",  // End OT จาก checkout
+    reqOT?.start  ?? "–",  // Req. Start OT
+    reqOT?.end    ?? "–",  // Req. End OT
+    log.otTotal > 0 ? log.otTotal : "–",
+  ];
+}); 
+
+    const totalOTFromLogs = dailyLogs.reduce((sum, l) => sum + l.otTotal, 0);
+    const totalOTRounded  = Math.round(totalOTFromLogs * 10) / 10;
     // Summary row
     const summary = [
       [],
@@ -294,12 +330,12 @@ function DrillDownPanel({
       ["ลา",          "", att.leave,          "", ""],
       ["เข้าเฉลี่ย",  "", att.avgIn,          "", ""],
       ["ออกเฉลี่ย",   "", att.avgOut,         "", ""],
-      ["OT รวม (ชม.)", "", att.totalOT,       "", ""],
+      ["OT รวม (ชม.)", "", totalOTRounded,    "", "", "", "", "", "", ""],
     ];
 
     const ws = utils.aoa_to_sheet([...header, ...data, ...summary]);
     ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 4 } }];
-    ws["!cols"] = [12, 6, 10, 10, 10, 10, 10].map(w => ({ wch: w }));
+    ws["!cols"] = [12, 6, 10, 10, 10, 10, 10, 12, 12, 10].map(w => ({ wch: w }));
 
     
     const wb = utils.book_new();
@@ -741,13 +777,13 @@ const leaveMap = useMemo(() => {
     const todayStr = new Date().toISOString().split("T")[0];
 
     const otByUserDate: Record<string, Record<string, { start_time: string; end_time: string }>> = {};
-  otRequests.forEach((r) => {
-    if (!otByUserDate[r.user_id]) otByUserDate[r.user_id] = {};
-    otByUserDate[r.user_id][r.request_date] = {
-      start_time: r.start_time,
-      end_time: r.end_time,
-    };
-  });
+otRequests.forEach((r) => {
+  if (!otByUserDate[r.user_id]) otByUserDate[r.user_id] = {};
+  otByUserDate[r.user_id][r.request_date] = {
+    start_time: r.start_time,
+    end_time: r.end_time,
+  };
+});
 
     employees.forEach((emp) => {
       const userLogs = timeLogs.filter((l) => l.user_id === emp.id);
@@ -773,17 +809,29 @@ const log = logMap[dateStr];
 
 // ส่วนที่เหลือด้านล่างไม่ต้องแก้อะไรเลย ✅
 if (log?.status === "leave") {
-  days.push({ day: d, dow, date: dateStr, status: "leave", checkIn: "–", checkOut: "–" });
+  days.push({ 
+    day: d, dow, date: dateStr, status: "leave", 
+    checkIn: "–", checkOut: "–",
+    otPeriods: [], otTotal: 0, // ← เพิ่ม
+  });
   continue;
 }
 
 if (isHoliday) {
-  days.push({ day: d, dow, date: dateStr, status: "holiday", checkIn: "–", checkOut: "–" });
+  days.push({ 
+    day: d, dow, date: dateStr, status: "holiday", 
+    checkIn: "–", checkOut: "–",
+    otPeriods: [], otTotal: 0, // ← เพิ่ม
+  });
   continue;
 }
 
 if (isWeekend && !log) {
-  days.push({ day: d, dow, date: dateStr, status: "weekend", checkIn: "–", checkOut: "–" });
+  days.push({ 
+    day: d, dow, date: dateStr, status: "weekend", 
+    checkIn: "–", checkOut: "–",
+    otPeriods: [], otTotal: 0, // ← เพิ่ม
+  });
   continue;
 }
 
@@ -792,19 +840,40 @@ if (log) {
   let status: DayLog["status"] = "absent";
   if (log.status === "on_time") status = "present";
   else if (log.status === "late") status = "late";
-  
-  const otEntry = otByUserDate[emp.id]?.[dateStr];
+
+  const periods: { start: string; end: string }[] = [];
+
+  // ① จาก checkout จริง
+  const checkoutFormatted = fmtTime(log.last_check_out);
+  if (checkoutFormatted && checkoutFormatted !== "–" && checkoutFormatted >= "18:00") {
+    periods.push({ start: "18:00", end: checkoutFormatted });
+  }
+
+  // ② จาก OT Request ที่ approved
+  const otReq = otByUserDate[emp.id]?.[dateStr];
+  if (otReq) {
+    periods.push({
+      start: otReq.start_time.slice(0, 5),
+      end:   otReq.end_time.slice(0, 5),
+    });
+  }
+
+  const otTotal = calcTotalOT(periods);
 
   days.push({
     day: d, dow, date: dateStr, status,
     checkIn:  fmtTime(log.first_check_in),
     checkOut: fmtTime(log.last_check_out),
-    otStart: fmtOTTime(otEntry?.start_time),
-    otEnd:   fmtOTTime(otEntry?.end_time),
+    otPeriods: periods,
+    otTotal,
   });
 } else {
     // ไม่มี log = ขาดงาน asd
-    days.push({ day: d, dow, date: dateStr, status: "absent", checkIn: "–", checkOut: "–" });
+    days.push({ 
+  day: d, dow, date: dateStr, status: "absent", 
+  checkIn: "–", checkOut: "–",
+  otPeriods: [], otTotal: 0, // ← เพิ่ม
+});
   }
 } 
       result[emp.id] = days;
