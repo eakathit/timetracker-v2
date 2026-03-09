@@ -389,5 +389,5 @@ s3_secret_key = "env(S3_SECRET_KEY)"
 
 [auth.external.google]
 enabled = true
-client_id = "878746223086-49ad11m7du1jm339skdjhj8dufa0hin6.apps.googleusercontent.com"
-secret = "<your-google-client-secret>"
+client_id = "env(GOOGLE_CLIENT_ID)"
+secret = "env(GOOGLE_CLIENT_SECRET)"

@@ -18,37 +18,11 @@ interface ChangelogEntry {
 const CHANGELOG: ChangelogEntry[] = [
     {
     version: "1.4.0",           // เลข version
-    date: "2025-07-15",         // วันที่ release (YYYY-MM-DD)
+    date: "2026-03-09",         // วันที่ release (YYYY-MM-DD)
     items: [
       { tag: "feature",     text: "เพิ่มระบบแจ้งเตือน Changelog 🎉" },
       { tag: "fix",         text: "แก้ไขปุ่ม Check-in กดแล้ว delay นาน" },
       { tag: "improvement", text: "ปรับ UI หน้า Dashboard ให้โหลดเร็วขึ้น" },
-    ],
-  },
-  {
-    version: "1.3.0",
-    date: "2025-07-10",
-    items: [
-      { tag: "feature",     text: "เพิ่มระบบ OT Request — พนักงานยื่นขอ OT และ Manager อนุมัติได้" },
-      { tag: "feature",     text: "เพิ่มหน้า HR Dashboard สำหรับดูสรุปการเข้างานรายเดือน" },
-      { tag: "improvement", text: "ปรับ Daily Report Form ให้รองรับหลายโปรเจกต์ในคราวเดียว" },
-    ],
-  },
-  {
-    version: "1.2.1",
-    date: "2025-06-25",
-    items: [
-      { tag: "fix", text: "แก้ไขปัญหา Check-in ไม่บันทึกตำแหน่ง GPS ในบางอุปกรณ์" },
-      { tag: "fix", text: "แก้ไข Timer แสดงเวลาผิดพลาดเมื่อ Timezone ต่างกัน" },
-    ],
-  },
-  {
-    version: "1.2.0",
-    date: "2025-06-10",
-    items: [
-      { tag: "feature",     text: "เปิดใช้งาน PWA — สามารถติดตั้งเป็น App บนมือถือได้" },
-      { tag: "improvement", text: "เพิ่ม Offline Support สำหรับหน้า Dashboard" },
-      { tag: "fix",         text: "แก้ไข Sidebar Collapse บน iPad ไม่ทำงาน" },
     ],
   },
 ];
@@ -156,7 +130,7 @@ export function ChangelogPanel({ isOpen, onClose }: ChangelogPanelProps) {
 
         {/* Footer */}
         <div className="px-5 py-3 border-t border-gray-100 bg-gray-50/50">
-          <p className="text-xs text-center text-gray-400">อัพเดทโดย Dev Team · Time Tracker V2</p>
+          <p className="text-xs text-center text-gray-400">อัพเดทโดย Dev · Time Tracker</p>
         </div>
       </div>
     </>
