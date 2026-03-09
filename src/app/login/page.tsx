@@ -35,7 +35,7 @@ export default function LoginPage() {
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
-        fontFamily: "'Prompt', sans-serif", // ← ใช้ Prompt ทั้งหน้า
+        fontFamily: "'Prompt', sans-serif",
         position: "relative",
         overflow: "hidden",
         padding: "24px 16px",
@@ -159,9 +159,7 @@ export default function LoginPage() {
             overflow: "hidden",
           }}
         >
-          {/* Top color bar */}
-          <div style={{ height: "4px", background: "linear-gradient(90deg, #1a3a8f 0%, #2563eb 50%, #16a34a 100%)" }} />
-
+          
           <div style={{ padding: "26px 24px 22px" }}>
 
             {/* ── Heading ── */}
