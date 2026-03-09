@@ -1,18 +1,18 @@
 "use client";
 
 // ============================================================
-// LoginPage.jsx — Time Tracker V2 · HSD Edition
-// วาง logo.jpg ไว้ที่ /public/logo.jpg แล้วใช้งานได้เลย
+// LoginPage.tsx — Time Tracker V2 · HSD Edition
 // ============================================================
 
 import { useState, useEffect } from "react";
 import Image from "next/image";
+import { createClient } from "@/lib/supabase"; // ← ปรับ path ให้ตรงกับ project
 
 // ─── COMPANY CONFIG ──────────────────────────────────────────
 const COMPANY = {
   name: "HSD",
-  fullName: "HARU SYSTEM DEVELOPMENT (THAILAND) CO.,LTD.",   // ← ปรับชื่อเต็มบริษัทได้ที่นี่
-  logoSrc: "/logo.jpg",          // ← วาง logo ไว้ที่ /public/logo.jpg
+  fullName: "HARU SYSTEM DEVELOPMENT (THAILAND) CO.,LTD.",
+  logoSrc: "/logo.jpg",
   appName: "Time Tracker",
 };
 // ─────────────────────────────────────────────────────────────
@@ -34,53 +34,14 @@ const DownloadIcon = () => (
   </svg>
 );
 
-// ── Live Clock ──────────────────────────────────────────────
-function LiveClock() {
-  const [time, setTime] = useState({ h: "--", m: "--", s: "--" });
-  const [date, setDate] = useState("");
-
-  useEffect(() => {
-    const fmt = () => {
-      const now = new Date();
-      const parts = now.toLocaleTimeString("th-TH", {
-        hour: "2-digit", minute: "2-digit", second: "2-digit",
-      }).split(":");
-      setTime({ h: parts[0], m: parts[1], s: parts[2] });
-      setDate(now.toLocaleDateString("th-TH", {
-        weekday: "long", day: "numeric", month: "long", year: "numeric",
-      }));
-    };
-    fmt();
-    const id = setInterval(fmt, 1000);
-    return () => clearInterval(id);
-  }, []);
-
-  return (
-    <div style={{ textAlign: "center" }}>
-      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "center", gap: "1px" }}>
-        <span style={{ fontSize: "38px", fontWeight: 800, color: "#0f172a", letterSpacing: "-2px", fontFamily: "'Sarabun', sans-serif" }}>
-          {time.h}
-        </span>
-        <span style={{ fontSize: "28px", fontWeight: 700, color: "#2563eb", paddingBottom: "4px" }}>:</span>
-        <span style={{ fontSize: "38px", fontWeight: 800, color: "#0f172a", letterSpacing: "-2px", fontFamily: "'Sarabun', sans-serif" }}>
-          {time.m}
-        </span>
-        <span style={{ fontSize: "20px", fontWeight: 600, color: "#94a3b8", marginLeft: "5px", letterSpacing: "-1px", minWidth: "30px" }}>
-          {time.s}
-        </span>
-      </div>
-      <div style={{ fontSize: "12.5px", color: "#64748b", marginTop: "4px", fontFamily: "'Sarabun', sans-serif" }}>
-        {date}
-      </div>
-    </div>
-  );
-}
-
 // ── Main Login Page ─────────────────────────────────────────
 export default function LoginPage() {
   const [mounted, setMounted] = useState(false);
   const [googleHover, setGoogleHover] = useState(false);
   const [installHover, setInstallHover] = useState(false);
+  const [loadingGoogle, setLoadingGoogle] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [canInstall, setCanInstall] = useState(false);
 
   useEffect(() => {
     const link = document.createElement("link");
@@ -88,8 +49,49 @@ export default function LoginPage() {
     link.href = "https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700;800&display=swap";
     document.head.appendChild(link);
     const t = setTimeout(() => setMounted(true), 80);
-    return () => clearTimeout(t);
+
+    // ── รับ PWA install prompt ──
+    const handler = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e as BeforeInstallPromptEvent);
+      setCanInstall(true);
+    };
+    window.addEventListener("beforeinstallprompt", handler);
+
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener("beforeinstallprompt", handler);
+    };
   }, []);
+
+  // ── Google Sign-in ──────────────────────────────────────
+  const handleGoogleLogin = async () => {
+    try {
+      setLoadingGoogle(true);
+      const supabase = createClient();
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
+      if (error) throw error;
+    } catch (err) {
+      console.error("Google login error:", err);
+      setLoadingGoogle(false);
+    }
+  };
+
+  // ── PWA Install ─────────────────────────────────────────
+  const handleInstall = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === "accepted") {
+      setCanInstall(false);
+      setDeferredPrompt(null);
+    }
+  };
 
   return (
     <div style={{
@@ -105,16 +107,11 @@ export default function LoginPage() {
       padding: "24px 16px",
     }}>
 
-      {/* Decorative circles (gear-like) */}
+      {/* Decorative circles */}
       <div style={{ position: "absolute", top: "-140px", right: "-140px", width: "420px", height: "420px", borderRadius: "50%", border: "2px solid rgba(255,255,255,0.05)", pointerEvents: "none" }} />
       <div style={{ position: "absolute", top: "-90px", right: "-90px", width: "300px", height: "300px", borderRadius: "50%", border: "2px solid rgba(255,255,255,0.08)", pointerEvents: "none" }} />
-
-      {/* Green glow - bottom left */}
       <div style={{ position: "absolute", bottom: "-80px", left: "-80px", width: "320px", height: "320px", borderRadius: "50%", background: "rgba(22,163,74,0.18)", filter: "blur(70px)", pointerEvents: "none" }} />
-      {/* Blue glow - top right */}
       <div style={{ position: "absolute", top: "25%", right: "-50px", width: "240px", height: "240px", borderRadius: "50%", background: "rgba(37,99,235,0.25)", filter: "blur(60px)", pointerEvents: "none" }} />
-
-      {/* Dot grid */}
       <div style={{ position: "absolute", inset: 0, pointerEvents: "none", backgroundImage: "radial-gradient(circle, rgba(255,255,255,0.07) 1px, transparent 1px)", backgroundSize: "30px 30px" }} />
 
       {/* ── Card Container ── */}
@@ -132,7 +129,6 @@ export default function LoginPage() {
           opacity: mounted ? 1 : 0,
           transition: "opacity 0.8s ease 0.15s",
         }}>
-          {/* Logo with glow ring */}
           <div style={{ position: "relative" }}>
             <div style={{
               position: "absolute", inset: "-10px", borderRadius: "50%",
@@ -159,7 +155,6 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {/* Company name + badge */}
           <div style={{ textAlign: "center" }}>
             <div style={{ fontSize: "19px", fontWeight: 800, color: "white", letterSpacing: "0.02em", lineHeight: 1 }}>
               {COMPANY.fullName}
@@ -187,25 +182,12 @@ export default function LoginPage() {
           boxShadow: "0 24px 64px rgba(0,0,0,0.35), 0 8px 24px rgba(0,0,0,0.15)",
           overflow: "hidden",
         }}>
-
-          {/* HSD brand colors top bar */}
           <div style={{ height: "4px", background: "linear-gradient(90deg, #1a3a8f 0%, #2563eb 50%, #16a34a 100%)" }} />
 
           <div style={{ padding: "26px 24px 22px" }}>
 
-            {/* Clock */}
-            <div style={{
-              background: "linear-gradient(135deg, #f8faff 0%, #eff4ff 100%)",
-              borderRadius: "16px", padding: "18px 16px",
-              marginBottom: "22px",
-              border: "1px solid #dde8ff",
-              boxShadow: "inset 0 1px 3px rgba(37,99,235,0.07)",
-            }}>
-              <LiveClock />
-            </div>
-
             {/* Heading */}
-            <div style={{ marginBottom: "18px" }}>
+            <div style={{ marginBottom: "18px", textAlign: "center" }}>
               <h1 style={{ fontSize: "20px", fontWeight: 800, color: "#0f172a", margin: "0 0 4px", letterSpacing: "-0.3px" }}>
                 เข้าสู่ระบบ
               </h1>
@@ -214,8 +196,10 @@ export default function LoginPage() {
               </p>
             </div>
 
-            {/* Google Button */}
+            {/* ── Google Button ── */}
             <button
+              onClick={handleGoogleLogin}
+              disabled={loadingGoogle}
               onMouseEnter={() => setGoogleHover(true)}
               onMouseLeave={() => setGoogleHover(false)}
               style={{
@@ -223,16 +207,25 @@ export default function LoginPage() {
                 display: "flex", alignItems: "center", justifyContent: "center", gap: "12px",
                 padding: "13px 20px", borderRadius: "12px",
                 border: `2px solid ${googleHover ? "#2563eb" : "#e2e8f0"}`,
-                background: googleHover ? "#f0f7ff" : "white",
-                cursor: "pointer", fontSize: "14.5px", fontWeight: 600,
+                background: loadingGoogle ? "#f8fafc" : googleHover ? "#f0f7ff" : "white",
+                cursor: loadingGoogle ? "not-allowed" : "pointer",
+                fontSize: "14.5px", fontWeight: 600,
                 color: "#1e293b", fontFamily: "'Sarabun', sans-serif",
                 transition: "all 0.18s ease",
                 boxShadow: googleHover ? "0 4px 16px rgba(37,99,235,0.15)" : "0 2px 6px rgba(0,0,0,0.06)",
-                transform: googleHover ? "translateY(-1px)" : "none",
+                transform: googleHover && !loadingGoogle ? "translateY(-1px)" : "none",
+                opacity: loadingGoogle ? 0.7 : 1,
               }}
             >
-              <GoogleIcon />
-              เข้าสู่ระบบด้วย Google
+              {loadingGoogle ? (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2.5"
+                  style={{ animation: "spin 0.8s linear infinite" }}>
+                  <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+                </svg>
+              ) : (
+                <GoogleIcon />
+              )}
+              {loadingGoogle ? "กำลังเข้าสู่ระบบ..." : "เข้าสู่ระบบด้วย Google"}
             </button>
 
             {/* Divider */}
@@ -242,26 +235,34 @@ export default function LoginPage() {
               <div style={{ flex: 1, height: "1px", background: "#e2e8f0" }} />
             </div>
 
-            {/* Install Button */}
+            {/* ── Install Button ── */}
             <button
+              onClick={handleInstall}
+              disabled={!canInstall}
               onMouseEnter={() => setInstallHover(true)}
               onMouseLeave={() => setInstallHover(false)}
               style={{
                 width: "100%",
                 display: "flex", alignItems: "center", justifyContent: "center", gap: "10px",
                 padding: "13px 20px", borderRadius: "12px", border: "none",
-                background: installHover
-                  ? "linear-gradient(135deg, #1a3a8f, #1d4ed8)"
-                  : "linear-gradient(135deg, #1e40af, #2563eb)",
-                cursor: "pointer", fontSize: "14.5px", fontWeight: 600,
+                background: !canInstall
+                  ? "linear-gradient(135deg, #94a3b8, #cbd5e1)"
+                  : installHover
+                    ? "linear-gradient(135deg, #1a3a8f, #1d4ed8)"
+                    : "linear-gradient(135deg, #1e40af, #2563eb)",
+                cursor: canInstall ? "pointer" : "not-allowed",
+                fontSize: "14.5px", fontWeight: 600,
                 color: "white", fontFamily: "'Sarabun', sans-serif",
                 transition: "all 0.18s ease",
-                boxShadow: installHover ? "0 8px 24px rgba(26,58,143,0.45)" : "0 4px 14px rgba(37,99,235,0.3)",
-                transform: installHover ? "translateY(-1px)" : "none",
+                boxShadow: canInstall
+                  ? installHover ? "0 8px 24px rgba(26,58,143,0.45)" : "0 4px 14px rgba(37,99,235,0.3)"
+                  : "none",
+                transform: installHover && canInstall ? "translateY(-1px)" : "none",
+                opacity: canInstall ? 1 : 0.6,
               }}
             >
               <DownloadIcon />
-              ติดตั้งแอป {COMPANY.appName}
+              {canInstall ? `ติดตั้งแอป ${COMPANY.appName}` : "เปิดในเบราว์เซอร์เพื่อติดตั้ง"}
             </button>
 
             {/* Security note */}
@@ -289,6 +290,16 @@ export default function LoginPage() {
         </div>
 
       </div>
+
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
+}
+
+// TypeScript type สำหรับ BeforeInstallPromptEvent
+declare global {
+  interface BeforeInstallPromptEvent extends Event {
+    prompt(): Promise<void>;
+    userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
+  }
 }
