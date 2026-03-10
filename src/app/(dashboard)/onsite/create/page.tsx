@@ -85,6 +85,11 @@ export default function CreateOnsiteSessionPage() {
   const [projects, setProjects]     = useState<Project[]>([]);
   const [endUserId, setEndUserId]   = useState("");
   const [projectId, setProjectId]   = useState("");
+  const [customEndUserName, setCustomEndUserName] = useState("");
+  const [customProjectNo, setCustomProjectNo]     = useState("");
+
+  const OTHER_EU_VALUE = "__other__";
+  const isOtherEndUser = endUserId === OTHER_EU_VALUE;
 
   // ── Member state ─────────────────────────────────────────────────────────────
   const [search, setSearch]             = useState("");
@@ -161,10 +166,13 @@ export default function CreateOnsiteSessionPage() {
 
   // ─── Submit ───────────────────────────────────────────────────────────────────
   const handleSubmit = async () => {
-    if (!projectId) {
-      setError("กรุณาเลือกโปรเจกต์");
-      return;
-    }
+    if (isOtherEndUser) {
+  if (!customEndUserName.trim()) { setError("กรุณากรอกชื่อ End User"); return; }
+  if (!customProjectNo.trim())   { setError("กรุณากรอก Project No."); return; }
+} else if (!projectId) {
+  setError("กรุณาเลือกโปรเจกต์");
+  return;
+}
     if (selectedIds.size === 0) {
       setError("กรุณาเลือกสมาชิกอย่างน้อย 1 คน");
       return;
@@ -173,22 +181,20 @@ export default function CreateOnsiteSessionPage() {
     // สร้าง site_name อัตโนมัติจาก EndUser + Project No.
     const selectedEndUser = endUsers.find((u) => u.id === endUserId);
     const selectedProject = projects.find((p) => p.id === projectId);
-    const siteName = [
-      selectedEndUser?.name,
-      selectedProject ? `#${selectedProject.project_no}` : null,
-    ]
-      .filter(Boolean)
-      .join(" · ");
+    const siteName = isOtherEndUser
+  ? `${customEndUserName.trim()} · #${customProjectNo.trim()}`
+  : [selectedEndUser?.name, selectedProject ? `#${selectedProject.project_no}` : null]
+      .filter(Boolean).join(" · ");
 
     setError(null);
     setIsSubmitting(true);
 
     try {
       const input: CreateSessionInput = {
-        site_name:  siteName,
-        project_id: projectId,
-        member_ids: Array.from(selectedIds),
-      };
+  site_name:  siteName,
+  project_id: isOtherEndUser ? null : projectId,
+  member_ids: Array.from(selectedIds),
+};
 
       const res = await createOnsiteSession(input);
 
@@ -206,13 +212,20 @@ export default function CreateOnsiteSessionPage() {
     }
   };
 
-  const canSubmit = !!projectId && selectedIds.size > 0 && !isSubmitting;
+  const canSubmit =
+  (isOtherEndUser
+    ? customEndUserName.trim().length > 0 && customProjectNo.trim().length > 0
+    : !!projectId) &&
+  selectedIds.size > 0 &&
+  !isSubmitting;
 
   // ─── Success Screen ───────────────────────────────────────────────────────────
   if (step === "success") {
     const selectedProject = projects.find((p) => p.id === projectId);
     const selectedEndUser = endUsers.find((u) => u.id === endUserId);
-    const displaySite = [selectedEndUser?.name, selectedProject ? `#${selectedProject.project_no}` : null]
+    const displaySite = isOtherEndUser
+  ? `${customEndUserName} · #${customProjectNo}`
+  : [selectedEndUser?.name, selectedProject ? `#${selectedProject.project_no}` : null]
       .filter(Boolean).join(" · ");
 
     return (
@@ -297,17 +310,20 @@ export default function CreateOnsiteSessionPage() {
                 <select
                   value={endUserId}
                   onChange={(e) => {
-                    setEndUserId(e.target.value);
-                    setProjectId(""); // reset project เมื่อเปลี่ยน end user
-                    setError(null);
-                  }}
+  setEndUserId(e.target.value);
+  setProjectId("");
+  setCustomProjectNo("");
+  setCustomEndUserName("");
+  setError(null);
+}}
                   className="w-full appearance-none px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-800 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100 transition pr-9"
                 >
                   <option value="">Select End User...</option>
                   {endUsers.map((u) => (
-                    <option key={u.id} value={u.id}>{u.name}</option>
-                  ))}
-                </select>
+    <option key={u.id} value={u.id}>{u.name}</option>
+  ))}
+  <option value="__other__">Other</option>
+</select>
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3.5 h-3.5">
                     <polyline points="6 9 12 15 18 9"/>
@@ -315,27 +331,48 @@ export default function CreateOnsiteSessionPage() {
                 </span>
               </div>
 
-              {/* Project No. */}
-              <div className="relative">
-                <select
-                  value={projectId}
-                  onChange={(e) => { setProjectId(e.target.value); setError(null); }}
-                  disabled={filteredProjects.length === 0}
-                  className="w-full appearance-none px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-800 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100 transition pr-9 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <option value="">Select Project No....</option>
-                  {filteredProjects.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      #{p.project_no}{p.name ? ` · ${p.name}` : ""}
-                    </option>
-                  ))}
-                </select>
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3.5 h-3.5">
-                    <polyline points="6 9 12 15 18 9"/>
-                  </svg>
-                </span>
-              </div>
+              {/* Custom End User Name (แสดงเฉพาะตอนเลือก Other) */}
+{isOtherEndUser && (
+  <input
+    type="text"
+    value={customEndUserName}
+    onChange={(e) => { setCustomEndUserName(e.target.value); setError(null); }}
+    placeholder="กรอกชื่อ End User"
+    className="w-full px-4 py-3 bg-gray-50 border border-sky-300 rounded-xl text-sm font-medium text-gray-800 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100 transition placeholder-gray-400"
+  />
+)}
+
+{/* Project No. */}
+{isOtherEndUser ? (
+  <input
+    type="text"
+    value={customProjectNo}
+    onChange={(e) => { setCustomProjectNo(e.target.value); setError(null); }}
+    placeholder="กรอก Project No. (เช่น H1-0551)"
+    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-800 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100 transition placeholder-gray-400"
+  />
+) : (
+  <div className="relative">
+    <select
+      value={projectId}
+      onChange={(e) => { setProjectId(e.target.value); setError(null); }}
+      disabled={!endUserId || filteredProjects.length === 0}
+      className="w-full appearance-none px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-800 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100 transition pr-9 disabled:opacity-50 disabled:cursor-not-allowed"
+    >
+      <option value="">Select Project No....</option>
+      {filteredProjects.map((p) => (
+        <option key={p.id} value={p.id}>
+          #{p.project_no}{p.name ? ` — ${p.name}` : ""}
+        </option>
+      ))}
+    </select>
+    <span className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3.5 h-3.5">
+        <polyline points="6 9 12 15 18 9"/>
+      </svg>
+    </span>
+  </div>
+)}
 
               {/* Preview badge */}
               {projectId && (
