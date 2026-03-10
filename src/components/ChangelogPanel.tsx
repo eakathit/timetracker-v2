@@ -17,11 +17,12 @@ interface ChangelogEntry {
 // ─── Changelog Data (Dev/Admin แก้ตรงนี้) ────────────────────────────────────
 const CHANGELOG: ChangelogEntry[] = [
   {
-    version: "1.4.5",           // เลข version
-    date: "2026-03-10",         // วันที่ release (YYYY-MM-DD)
+    version: "1.4.5",
+    date: "2026-03-10",
     items: [
       { tag: "feature",     text: "HR Attendance Export Excel รายบุคคลเพิ่มช่องรายละเอียด OT" },
       { tag: "feature",     text: "Project Summary ตัวกรองลบประเภทงานออก เเล้วใส่ EndUser เเทน" },
+      { tag: "feature",     text: "เพิ่มรายละเอียดข้อมูลหน้า HR Attendance เเยกชม.เเละโอที วันปกติกับวันหยุด" },
     ],
   },
   {

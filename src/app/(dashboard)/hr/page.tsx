@@ -40,8 +40,10 @@ interface DayLog {
   checkIn: string;
   checkOut: string;
   isHoliday?: boolean;
+  holidayName?: string;
+  isWorkingSat?: boolean;
   otPeriods: { start: string; end: string }[];
-  otTotal: number;               
+  otTotal: number;
 }
 
 interface TimeLogRow {
@@ -62,10 +64,10 @@ interface OTRequestRow {
 }
 
 interface LeaveRequestRow {
-  user_id:    string;
+  user_id: string;
   start_date: string;
-  end_date:   string;
-  status:     string;
+  end_date: string;
+  status: string;
 }
 // ════════════════════════════════════════════════════════
 //  CONSTANTS
@@ -169,16 +171,16 @@ function calcTotalOT(periods: { start: string; end: string }[]): number {
   const sorted = [...periods].sort((a, b) => toMins(a.start) - toMins(b.start));
   let total = 0;
   let curStart = toMins(sorted[0].start);
-  let curEnd   = toMins(sorted[0].end);
+  let curEnd = toMins(sorted[0].end);
   for (let i = 1; i < sorted.length; i++) {
     const s = toMins(sorted[i].start);
     const e = toMins(sorted[i].end);
     if (s <= curEnd) {
       curEnd = Math.max(curEnd, e); // merge overlap
     } else {
-      total += curEnd - curStart;  // นับช่วงที่แยกกัน
+      total += curEnd - curStart; // นับช่วงที่แยกกัน
       curStart = s;
-      curEnd   = e;
+      curEnd = e;
     }
   }
   total += curEnd - curStart;
@@ -255,7 +257,6 @@ function TableSkeleton() {
   );
 }
 
-
 // ════════════════════════════════════════════════════════
 //  DRILL-DOWN PANEL (รายละเอียดรายบุคคล)
 // ════════════════════════════════════════════════════════
@@ -279,73 +280,127 @@ function DrillDownPanel({
   const [exporting, setExporting] = useState(false);
 
   const handleExportIndividual = async () => {
-  setExporting(true);
-  try {
-    const { utils, writeFile } = await import("xlsx");
+    setExporting(true);
+    try {
+      const { utils, writeFile } = await import("xlsx");
 
-    const title = `${emp.first_name} ${emp.last_name} — ${MONTHS_TH[month]} ${year + 543}`;
+      const getDayTypeLabel = (log: DayLog): string => {
+        if (log.holidayName) {
+          return `วันหยุด (${log.holidayName})`; // ✅ มี log แต่ก็เป็นวันหยุด
+        }
+        if (log.status === "holiday") {
+          return "วันหยุด";
+        }
+        if (log.status === "weekend") {
+          return "วันหยุดประจำสัปดาห์";
+        }
+        return "วันปกติ";
+      };
 
-    const header = [
-    [title],
-    [],
-    ["วันที่", "วัน", "สถานะ", "เข้างาน", "ออกงาน", "Start OT", "End OT", "Req. Start OT", "Req. End OT", "OT รวม (ชม.)"],
-  ];
+      const title = `${emp.first_name} ${emp.last_name} — ${MONTHS_TH[month]} ${year + 543}`;
 
-    const STATUS_TEXT: Record<string, string> = {
-      present: "มาปกติ",
-      late:    "มาสาย",
-      absent:  "ขาดงาน",
-      leave:   "ลา",
-      holiday: "วันหยุด",
-      weekend: "เสาร์-อา",
-    };
+      const header = [
+        [title],
+        [],
+        [
+          "วันที่",
+          "วัน",
+          "ประเภทวัน",
+          "สถานะ",
+          "เข้างาน",
+          "ออกงาน",
+          "Start OT",
+          "End OT",
+          "Req. Start OT",
+          "Req. End OT",
+          "OT รวม (ชม.)",
+        ],
+      ];
 
-    const data = dailyLogs.map(log => {
-  const workOT  = log.otPeriods[0]; // จาก checkout จริง
-  const reqOT   = log.otPeriods[1]; // จาก OT Request
+      const STATUS_TEXT: Record<string, string> = {
+        present: "มาปกติ",
+        late: "มาสาย",
+        absent: "ขาดงาน",
+        leave: "ลา",
+        holiday: "วันหยุด",
+        weekend: "เสาร์-อา",
+      };
 
-  return [
-    log.date,
-    DAYS_SHORT[log.dow],
-    STATUS_TEXT[log.status] ?? log.status,
-    log.checkIn,
-    log.checkOut,
-    workOT?.start ?? "–",  // Start OT จาก checkout
-    workOT?.end   ?? "–",  // End OT จาก checkout
-    reqOT?.start  ?? "–",  // Req. Start OT
-    reqOT?.end    ?? "–",  // Req. End OT
-    log.otTotal > 0 ? log.otTotal : "–",
-  ];
-}); 
+      const data = dailyLogs.map((log) => {
+        const workOT = log.otPeriods[0]; // จาก checkout จริง
+        const reqOT = log.otPeriods[1]; // จาก OT Request
 
-    const totalOTFromLogs = dailyLogs.reduce((sum, l) => sum + l.otTotal, 0);
-    const totalOTRounded  = Math.round(totalOTFromLogs * 10) / 10;
-    // Summary row
-    const summary = [
-      [],
-      ["สรุป", "", "", "", ""],
-      ["วันมาทำงาน",  "", att.present,       "", ""],
-      ["มาสาย",       "", att.late,           "", ""],
-      ["ขาดงาน",      "", att.absent,         "", ""],
-      ["ลา",          "", att.leave,          "", ""],
-      ["เข้าเฉลี่ย",  "", att.avgIn,          "", ""],
-      ["ออกเฉลี่ย",   "", att.avgOut,         "", ""],
-      ["OT รวม (ชม.)", "", totalOTRounded,    "", "", "", "", "", "", ""],
-    ];
+        return [
+          log.date,
+          DAYS_SHORT[log.dow],
+          getDayTypeLabel(log), // ← คอลัมน์ใหม่
+          STATUS_TEXT[log.status] ?? log.status,
+          log.checkIn,
+          log.checkOut,
+          workOT?.start ?? "–",
+          workOT?.end ?? "–",
+          reqOT?.start ?? "–",
+          reqOT?.end ?? "–",
+          log.otTotal > 0 ? log.otTotal : "–",
+        ];
+      });
 
-    const ws = utils.aoa_to_sheet([...header, ...data, ...summary]);
-    ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 4 } }];
-    ws["!cols"] = [12, 6, 10, 10, 10, 10, 10, 12, 12, 10].map(w => ({ wch: w }));
+      const workedLogs = dailyLogs.filter((l) => l.checkIn !== "–");
 
-    
-    const wb = utils.book_new();
-    const sheetName = `${emp.first_name}_${MONTHS_TH[month].slice(0, 3)}`;
-    utils.book_append_sheet(wb, ws, sheetName);
-    writeFile(wb, `attendance_${emp.first_name}_${emp.last_name}_${year}_${String(month + 1).padStart(2, "0")}.xlsx`);
-  } finally {
-    setExporting(false);
-  }
-};
+      // วันหยุดที่มาทำงาน
+      const holidayWorkedLogs = workedLogs.filter((l) => l.holidayName);
+      const holidayWorkHours =
+        Math.round(holidayWorkedLogs.length * 8 * 10) / 10;
+      const holidayOT =
+        Math.round(holidayWorkedLogs.reduce((s, l) => s + l.otTotal, 0) * 10) /
+        10;
+
+      // วันปกติที่มาทำงาน
+      const normalWorkedLogs = workedLogs.filter((l) => !l.holidayName);
+      const normalWorkHours = Math.round(normalWorkedLogs.length * 8 * 10) / 10;
+      const normalOT =
+        Math.round(normalWorkedLogs.reduce((s, l) => s + l.otTotal, 0) * 10) /
+        10;
+
+      const totalOTFromLogs = dailyLogs.reduce((sum, l) => sum + l.otTotal, 0);
+      const totalOTRounded = Math.round(totalOTFromLogs * 10) / 10;
+
+      // ─── Summary rows ────────────────────────────────────────
+      const summary = [
+        [],
+        ["สรุป"],
+        ["วันมาทำงาน", "", att.present, ""],
+        ["มาสาย", "", att.late, ""],
+        ["ขาดงาน", "", att.absent, ""],
+        ["ลา", "", att.leave, ""],
+        [],
+        ["─── วันปกติ ───"],
+        ["ชั่วโมงทำงาน (วันปกติ)", "", normalWorkHours, "ชม."],
+        ["OT รวม (วันปกติ)", "", normalOT, "ชม."],
+        [],
+        ["─── วันหยุด ───"],
+        ["ชั่วโมงทำงาน (วันหยุด)", "", holidayWorkHours, "ชม."],
+        ["OT รวม (วันหยุด)", "", holidayOT, "ชม."],
+      ];
+
+      const ws = utils.aoa_to_sheet([...header, ...data, ...summary]);
+      ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 4 } }];
+
+      ws["!cols"] = [12, 6, 18, 10, 10, 10, 10, 10, 12, 12, 10].map((w) => ({
+        wch: w,
+      }));
+
+      const wb = utils.book_new();
+      const sheetName = `${emp.first_name}_${MONTHS_TH[month].slice(0, 3)}`;
+      utils.book_append_sheet(wb, ws, sheetName);
+      writeFile(
+        wb,
+        `attendance_${emp.first_name}_${emp.last_name}_${year}_${String(month + 1).padStart(2, "0")}.xlsx`,
+      );
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const counts = useMemo(
     () =>
@@ -361,19 +416,19 @@ function DrillDownPanel({
       {/* Header */}
       <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-50 bg-sky-50/50">
         {emp.avatar_url ? (
-  <img
-    src={emp.avatar_url}
-    alt={`${emp.first_name} ${emp.last_name}`}
-    referrerPolicy="no-referrer"
-    className="w-10 h-10 rounded-xl object-cover flex-shrink-0 shadow-sm"
-  />
-) : (
-  <div
-    className={`w-10 h-10 rounded-xl flex items-center justify-center text-white font-extrabold bg-gradient-to-br ${AVATAR_GRAD[empIdx % AVATAR_GRAD.length]} shadow-sm flex-shrink-0`}
-  >
-    {emp.first_name.charAt(0)}
-  </div>
-)}
+          <img
+            src={emp.avatar_url}
+            alt={`${emp.first_name} ${emp.last_name}`}
+            referrerPolicy="no-referrer"
+            className="w-10 h-10 rounded-xl object-cover flex-shrink-0 shadow-sm"
+          />
+        ) : (
+          <div
+            className={`w-10 h-10 rounded-xl flex items-center justify-center text-white font-extrabold bg-gradient-to-br ${AVATAR_GRAD[empIdx % AVATAR_GRAD.length]} shadow-sm flex-shrink-0`}
+          >
+            {emp.first_name.charAt(0)}
+          </div>
+        )}
         <div className="flex-1 min-w-0">
           <p className="font-extrabold text-gray-800 truncate">
             {emp.first_name} {emp.last_name}
@@ -501,24 +556,30 @@ function DrillDownPanel({
       </div>
 
       {/* Footer export */}
-<div className="px-5 py-3 border-t border-gray-50 bg-gray-50/50 flex justify-end">
-  <button
-    onClick={handleExportIndividual}
-    disabled={exporting}
-    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500 text-white text-xs font-bold shadow-sm hover:bg-emerald-600 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
-  >
-    {exporting ? (
-      <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-    ) : (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
-        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
-        <polyline points="7 10 12 15 17 10"/>
-        <line x1="12" y1="15" x2="12" y2="3"/>
-      </svg>
-    )}
-    {exporting ? "กำลัง Export..." : "Export รายบุคคล"}
-  </button>
-</div>
+      <div className="px-5 py-3 border-t border-gray-50 bg-gray-50/50 flex justify-end">
+        <button
+          onClick={handleExportIndividual}
+          disabled={exporting}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500 text-white text-xs font-bold shadow-sm hover:bg-emerald-600 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+        >
+          {exporting ? (
+            <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+          ) : (
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              className="w-3.5 h-3.5"
+            >
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+          )}
+          {exporting ? "กำลัง Export..." : "Export รายบุคคล"}
+        </button>
+      </div>
     </div>
   );
 }
@@ -530,6 +591,7 @@ function DrillDownPanel({
 async function exportHRExcel(
   employees: Employee[],
   attendances: Record<string, AttendanceStat>,
+  dailyLogsPerUser: Record<string, DayLog[]>,  // ← เพิ่ม parameter
   year: number,
   month: number,
 ) {
@@ -543,17 +605,29 @@ async function exportHRExcel(
     [
       "ชื่อ-นามสกุล", "แผนก",
       "วันทำงาน", "มาทำงาน", "มาสาย", "ขาดงาน", "ลา",
-      "ชม.ปกติ", "OT (ชม.)",
-      "เข้าเฉลี่ย", "ออกเฉลี่ย",
+      "ชม.ปกติ", "ชม.วันหยุด", "OT ปกติ (ชม.)", "OT วันหยุด (ชม.)",
     ],
   ];
 
+  // ↓ วางตรงนี้ แทนที่ const data เดิม
   const data = employees.map(emp => {
-    const att = attendances[emp.id];
+    const att      = attendances[emp.id];
+    const dayLogs  = dailyLogsPerUser[emp.id] ?? [];
+
+    const workedLogs        = dayLogs.filter(l => l.checkIn !== "–");
+    const holidayWorkedLogs = workedLogs.filter(l => l.holidayName);
+    const normalWorkedLogs  = workedLogs.filter(l => !l.holidayName);
+
+    const normalWorkHours   = Math.round(normalWorkedLogs.length * 8 * 10) / 10;
+    const holidayWorkHours  = Math.round(holidayWorkedLogs.length * 8 * 10) / 10;
+    const normalOT          = Math.round(normalWorkedLogs.reduce((s, l) => s + l.otTotal, 0) * 10) / 10;
+    const holidayOT         = Math.round(holidayWorkedLogs.reduce((s, l) => s + l.otTotal, 0) * 10) / 10;
+
     if (!att) return [
       `${emp.first_name} ${emp.last_name}`, emp.department,
-      0, 0, 0, 0, 0, 0, 0, "–", "–",
+      0, 0, 0, 0, 0, 0, 0, 0, 0,
     ];
+
     return [
       `${emp.first_name} ${emp.last_name}`,
       emp.department,
@@ -562,20 +636,17 @@ async function exportHRExcel(
       att.late,
       att.absent,
       att.leave,
-      att.totalRegHours,
-      att.totalOT,
-      att.avgIn,
-      att.avgOut,
+      normalWorkHours,
+      holidayWorkHours,
+      normalOT,
+      holidayOT,
     ];
   });
 
   const ws = utils.aoa_to_sheet([...header, ...data]);
 
-  // Merge title row
   ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 10 } }];
-
-  // Column widths
-  ws["!cols"] = [20, 14, 9, 9, 9, 9, 6, 9, 9, 10, 10].map(w => ({ wch: w }));
+  ws["!cols"] = [20, 14, 9, 9, 9, 9, 6, 9, 10, 13, 14].map(w => ({ wch: w }));
 
   const wb = utils.book_new();
   utils.book_append_sheet(wb, ws, `${MONTHS_TH[month].slice(0, 3)}_${year + 543}`);
@@ -595,9 +666,12 @@ export default function HRAttendancePage() {
   const [otRequests, setOtRequests] = useState<OTRequestRow[]>([]);
   const [holidays, setHolidays] = useState<Set<string>>(new Set());
   const [workingSats, setWorkingSats] = useState<Set<string>>(new Set());
+  const [holidayNames, setHolidayNames] = useState<Map<string, string>>(
+    new Map(),
+  );
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequestRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [exporting,  setExporting]  = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   // ── Month range ───────────────────────────────────────
   const { start, end } = useMemo(
@@ -638,43 +712,62 @@ export default function HRAttendancePage() {
 
       // 2. Time logs + holidays + OT requests พร้อมกัน
       const [logRes, holidayRes, otRes, leaveRes] = await Promise.all([
-  supabase
-    .from("daily_time_logs")
-    .select("user_id, log_date, status, first_check_in, last_check_out, ot_hours")
-    .in("user_id", userIds)
-    .gte("log_date", start)
-    .lte("log_date", end),
+        supabase
+          .from("daily_time_logs")
+          .select(
+            "user_id, log_date, status, first_check_in, last_check_out, ot_hours",
+          )
+          .in("user_id", userIds)
+          .gte("log_date", start)
+          .lte("log_date", end),
 
-  supabase
-    .from("holidays")
-    .select("holiday_date, holiday_type")
-    .gte("holiday_date", start)
-    .lte("holiday_date", end),
+        supabase
+          .from("holidays")
+          .select("holiday_date, holiday_type, name")
+          .gte("holiday_date", start)
+          .lte("holiday_date", end),
 
-  supabase
-    .from("ot_requests")
-    .select("user_id, request_date, start_time, end_time, hours")
-    .in("user_id", userIds)
-    .eq("status", "approved")
-    .gte("request_date", start)
-    .lte("request_date", end),
+        supabase
+          .from("ot_requests")
+          .select("user_id, request_date, start_time, end_time, hours")
+          .in("user_id", userIds)
+          .eq("status", "approved")
+          .gte("request_date", start)
+          .lte("request_date", end),
 
-  // ✅ เพิ่ม query นี้
-  supabase
-    .from("leave_requests")
-    .select("user_id, start_date, end_date")
-    .in("user_id", userIds)
-    .eq("status", "approved")
-    .lte("start_date", end)
-    .gte("end_date", start),
-]);
+        // ✅ เพิ่ม query นี้
+        supabase
+          .from("leave_requests")
+          .select("user_id, start_date, end_date")
+          .in("user_id", userIds)
+          .eq("status", "approved")
+          .lte("start_date", end)
+          .gte("end_date", start),
+      ]);
 
       setTimeLogs((logRes.data ?? []) as TimeLogRow[]);
       // ✅ แยก holidays ออกเป็น 2 set
-      type HolidayRow = { holiday_date: string; holiday_type: string };
+      type HolidayRow = {
+        holiday_date: string;
+        holiday_type: string;
+        name: string;
+      };
       const hData = (holidayRes.data ?? []) as HolidayRow[];
-      setHolidays(new Set(hData.filter(h => h.holiday_type !== "working_sat").map(h => h.holiday_date)));
-      setWorkingSats(new Set(hData.filter(h => h.holiday_type === "working_sat").map(h => h.holiday_date)));
+      setHolidays(
+        new Set(
+          hData
+            .filter((h) => h.holiday_type !== "working_sat")
+            .map((h) => h.holiday_date),
+        ),
+      );
+      setWorkingSats(
+        new Set(
+          hData
+            .filter((h) => h.holiday_type === "working_sat")
+            .map((h) => h.holiday_date),
+        ),
+      );
+      setHolidayNames(new Map(hData.map((h) => [h.holiday_date, h.name])));
 
       setOtRequests((otRes.data ?? []) as OTRequestRow[]);
       setLeaveRequests((leaveRes.data ?? []) as LeaveRequestRow[]);
@@ -703,20 +796,20 @@ export default function HRAttendancePage() {
   }, [otRequests]);
 
   // ── สร้าง leaveMap จาก leave_requests ──────────────
-const leaveMap = useMemo(() => {
-  const map = new Set<string>();
-  leaveRequests.forEach(r => {
-    const [sy, sm, sd] = r.start_date.split("-").map(Number);
-    const [ey, em, ed] = r.end_date.split("-").map(Number);
-    const s = new Date(sy, sm - 1, sd);
-    const e = new Date(ey, em - 1, ed);
-    for (const d = new Date(s); d <= e; d.setDate(d.getDate() + 1)) {
-      const ds = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
-      map.add(`${r.user_id}_${ds}`);
-    }
-  });
-  return map;
-}, [leaveRequests]);
+  const leaveMap = useMemo(() => {
+    const map = new Set<string>();
+    leaveRequests.forEach((r) => {
+      const [sy, sm, sd] = r.start_date.split("-").map(Number);
+      const [ey, em, ed] = r.end_date.split("-").map(Number);
+      const s = new Date(sy, sm - 1, sd);
+      const e = new Date(ey, em - 1, ed);
+      for (const d = new Date(s); d <= e; d.setDate(d.getDate() + 1)) {
+        const ds = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+        map.add(`${r.user_id}_${ds}`);
+      }
+    });
+    return map;
+  }, [leaveRequests]);
 
   // ── สร้าง AttendanceStat ต่อ user ───────────────────
   const attendances = useMemo(() => {
@@ -727,14 +820,14 @@ const leaveMap = useMemo(() => {
     const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
     let expectedWorkdays = 0;
     for (let d = 1; d <= daysInMonth; d++) {
-  const dateStr = `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-  if (dateStr > todayStr) break;
-  const dow = new Date(viewYear, viewMonth, d).getDay();
-  if (dow === 0) continue;                                       // อาทิตย์ → ข้าม
-  if (dow === 6 && !workingSats.has(dateStr)) continue;         // เสาร์ปกติ → ข้าม
-  if (holidays.has(dateStr)) continue;                           // วันหยุดจริง → ข้าม
-  expectedWorkdays++;
-}
+      const dateStr = `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+      if (dateStr > todayStr) break;
+      const dow = new Date(viewYear, viewMonth, d).getDay();
+      if (dow === 0) continue; // อาทิตย์ → ข้าม
+      if (dow === 6 && !workingSats.has(dateStr)) continue; // เสาร์ปกติ → ข้าม
+      if (holidays.has(dateStr)) continue; // วันหยุดจริง → ข้าม
+      expectedWorkdays++;
+    }
 
     employees.forEach((emp) => {
       const logs = timeLogs.filter((l) => l.user_id === emp.id);
@@ -769,21 +862,32 @@ const leaveMap = useMemo(() => {
       };
     });
     return result;
-  }, [employees, timeLogs, otReqMap, viewYear, viewMonth, holidays, workingSats]); // ✅ เพิ่ม holidays dep
+  }, [
+    employees,
+    timeLogs,
+    otReqMap,
+    viewYear,
+    viewMonth,
+    holidays,
+    workingSats,
+  ]); // ✅ เพิ่ม holidays dep
 
   // ── สร้าง DayLog รายวัน ต่อ user (สำหรับ DrillDownPanel) ──
   const dailyLogsPerUser = useMemo(() => {
     const result: Record<string, DayLog[]> = {};
     const todayStr = new Date().toISOString().split("T")[0];
 
-    const otByUserDate: Record<string, Record<string, { start_time: string; end_time: string }>> = {};
-otRequests.forEach((r) => {
-  if (!otByUserDate[r.user_id]) otByUserDate[r.user_id] = {};
-  otByUserDate[r.user_id][r.request_date] = {
-    start_time: r.start_time,
-    end_time: r.end_time,
-  };
-});
+    const otByUserDate: Record<
+      string,
+      Record<string, { start_time: string; end_time: string }>
+    > = {};
+    otRequests.forEach((r) => {
+      if (!otByUserDate[r.user_id]) otByUserDate[r.user_id] = {};
+      otByUserDate[r.user_id][r.request_date] = {
+        start_time: r.start_time,
+        end_time: r.end_time,
+      };
+    });
 
     employees.forEach((emp) => {
       const userLogs = timeLogs.filter((l) => l.user_id === emp.id);
@@ -797,89 +901,123 @@ otRequests.forEach((r) => {
 
       for (let d = 1; d <= daysInMonth; d++) {
         const dateStr = `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-        if (dateStr > todayStr) break; // ไม่แสดงอนาคต
-const dow = new Date(viewYear, viewMonth, d).getDay();
 
-// ✅ แก้ 2 บรรทัดนี้
-const isWorkingSat = workingSats.has(dateStr);
-const isWeekend    = (dow === 0) || (dow === 6 && !isWorkingSat);
-const isHoliday    = holidays.has(dateStr);
+        if (dateStr > todayStr) break;
+        const dow = new Date(viewYear, viewMonth, d).getDay();
+        const isWorkingSat = workingSats.has(dateStr);
+        const isWeekend = dow === 0 || (dow === 6 && !isWorkingSat);
+        const isHoliday = holidays.has(dateStr);
+        const log = logMap[dateStr];
 
-const log = logMap[dateStr];
+        if (dateStr === todayStr && !log) continue;
 
-// ส่วนที่เหลือด้านล่างไม่ต้องแก้อะไรเลย ✅
-if (log?.status === "leave") {
-  days.push({ 
-    day: d, dow, date: dateStr, status: "leave", 
-    checkIn: "–", checkOut: "–",
-    otPeriods: [], otTotal: 0, // ← เพิ่ม
-  });
-  continue;
-}
+        if (log?.status === "leave") {
+          days.push({
+            day: d,
+            dow,
+            date: dateStr,
+            status: "leave",
+            checkIn: "–",
+            checkOut: "–",
+            otPeriods: [],
+            otTotal: 0,
+          });
+          continue;
+        }
 
-if (isHoliday) {
-  days.push({ 
-    day: d, dow, date: dateStr, status: "holiday", 
-    checkIn: "–", checkOut: "–",
-    otPeriods: [], otTotal: 0, // ← เพิ่ม
-  });
-  continue;
-}
+        if (isHoliday && !log) {
+          days.push({
+            day: d,
+            dow,
+            date: dateStr,
+            status: "holiday",
+            holidayName: holidayNames.get(dateStr),
+            checkIn: "–",
+            checkOut: "–",
+            otPeriods: [],
+            otTotal: 0,
+          });
+          continue;
+        }
 
-if (isWeekend && !log) {
-  days.push({ 
-    day: d, dow, date: dateStr, status: "weekend", 
-    checkIn: "–", checkOut: "–",
-    otPeriods: [], otTotal: 0, // ← เพิ่ม
-  });
-  continue;
-}
+        if (isWeekend && !log) {
+          days.push({
+            day: d,
+            dow,
+            date: dateStr,
+            status: "weekend",
+            checkIn: "–",
+            checkOut: "–",
+            otPeriods: [],
+            otTotal: 0,
+          });
+          continue;
+        }
 
-// working_sat จะไหลมาถึงตรงนี้ได้แล้ว ✅
-if (log) {
-  let status: DayLog["status"] = "absent";
-  if (log.status === "on_time") status = "present";
-  else if (log.status === "late") status = "late";
+        // working_sat จะไหลมาถึงตรงนี้ได้แล้ว ✅
+        if (log) {
+          let status: DayLog["status"] = "absent";
+          if (log.status === "on_time") status = "present";
+          else if (log.status === "late") status = "late";
 
-  const periods: { start: string; end: string }[] = [];
+          const periods: { start: string; end: string }[] = [];
 
-  // ① จาก checkout จริง
-  const checkoutFormatted = fmtTime(log.last_check_out);
-  if (checkoutFormatted && checkoutFormatted !== "–" && checkoutFormatted >= "18:00") {
-    periods.push({ start: "18:00", end: checkoutFormatted });
-  }
+          const checkoutFormatted = fmtTime(log.last_check_out);
+          if (
+            checkoutFormatted &&
+            checkoutFormatted !== "–" &&
+            checkoutFormatted >= "18:00"
+          ) {
+            periods.push({ start: "18:00", end: checkoutFormatted });
+          }
 
-  // ② จาก OT Request ที่ approved
-  const otReq = otByUserDate[emp.id]?.[dateStr];
-  if (otReq) {
-    periods.push({
-      start: otReq.start_time.slice(0, 5),
-      end:   otReq.end_time.slice(0, 5),
-    });
-  }
+          const otReq = otByUserDate[emp.id]?.[dateStr];
+          if (otReq) {
+            periods.push({
+              start: otReq.start_time.slice(0, 5),
+              end: otReq.end_time.slice(0, 5),
+            });
+          }
 
-  const otTotal = calcTotalOT(periods);
+          const otTotal = calcTotalOT(periods);
 
-  days.push({
-    day: d, dow, date: dateStr, status,
-    checkIn:  fmtTime(log.first_check_in),
-    checkOut: fmtTime(log.last_check_out),
-    otPeriods: periods,
-    otTotal,
-  });
-} else {
-    // ไม่มี log = ขาดงาน asd
-    days.push({ 
-  day: d, dow, date: dateStr, status: "absent", 
-  checkIn: "–", checkOut: "–",
-  otPeriods: [], otTotal: 0, // ← เพิ่ม
-});
-  }
-} 
+          days.push({
+            day: d,
+            dow,
+            date: dateStr,
+            status,
+            isWorkingSat,
+            holidayName: holidayNames.get(dateStr),
+            checkIn: fmtTime(log.first_check_in),
+            checkOut: fmtTime(log.last_check_out),
+            otPeriods: periods,
+            otTotal,
+          });
+        } else {
+          days.push({
+            day: d,
+            dow,
+            date: dateStr,
+            status: "absent",
+            checkIn: "–",
+            checkOut: "–",
+            otPeriods: [],
+            otTotal: 0,
+          });
+        }
+      }
       result[emp.id] = days;
     });
     return result;
-  }, [employees, timeLogs, viewYear, viewMonth, holidays, leaveMap, workingSats]);
+  }, [
+    employees,
+    timeLogs,
+    viewYear,
+    viewMonth,
+    holidays,
+    leaveMap,
+    workingSats,
+  ]);
 
   // ── Derived: depts, filtered, agg ────────────────────
   const depts = useMemo(() => {
@@ -942,7 +1080,7 @@ if (log) {
   if (employees.length === 0) return;
   setExporting(true);
   try {
-    await exportHRExcel(filtered, attendances, viewYear, viewMonth);
+    await exportHRExcel(filtered, attendances, dailyLogsPerUser, viewYear, viewMonth);
   } finally {
     setExporting(false);
   }
@@ -971,21 +1109,29 @@ if (log) {
           </div>
           {/* Export button */}
           <button
-  onClick={handleExport}
-  disabled={exporting || loading || employees.length === 0}
-  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-500 text-white text-sm font-bold shadow-sm hover:bg-emerald-600 active:scale-95 transition-all disabled:bg-gray-300 disabled:cursor-not-allowed"
->
-  {exporting ? (
-    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-  ) : (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
-      <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
-      <polyline points="7 10 12 15 17 10"/>
-      <line x1="12" y1="15" x2="12" y2="3"/>
-    </svg>
-  )}
-  <span className="hidden sm:inline">{exporting ? "กำลัง Export..." : "Export Excel"}</span>
-</button>
+            onClick={handleExport}
+            disabled={exporting || loading || employees.length === 0}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-500 text-white text-sm font-bold shadow-sm hover:bg-emerald-600 active:scale-95 transition-all disabled:bg-gray-300 disabled:cursor-not-allowed"
+          >
+            {exporting ? (
+              <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            ) : (
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                className="w-4 h-4"
+              >
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+            )}
+            <span className="hidden sm:inline">
+              {exporting ? "กำลัง Export..." : "Export Excel"}
+            </span>
+          </button>
         </div>
 
         {/* Month nav + dept filter */}
@@ -1213,20 +1359,20 @@ if (log) {
                       }`}
                     >
                       {/* Avatar */}
-{emp.avatar_url ? (
-  <img
-    src={emp.avatar_url}
-    alt={`${emp.first_name} ${emp.last_name}`}
-    referrerPolicy="no-referrer"
-    className="w-9 h-9 rounded-xl object-cover flex-shrink-0 shadow-sm"
-  />
-) : (
-  <div
-    className={`w-9 h-9 rounded-xl flex items-center justify-center text-white text-sm font-extrabold flex-shrink-0 bg-gradient-to-br ${AVATAR_GRAD[idx % AVATAR_GRAD.length]} shadow-sm`}
-  >
-    {emp.first_name.charAt(0)}
-  </div>
-)}
+                      {emp.avatar_url ? (
+                        <img
+                          src={emp.avatar_url}
+                          alt={`${emp.first_name} ${emp.last_name}`}
+                          referrerPolicy="no-referrer"
+                          className="w-9 h-9 rounded-xl object-cover flex-shrink-0 shadow-sm"
+                        />
+                      ) : (
+                        <div
+                          className={`w-9 h-9 rounded-xl flex items-center justify-center text-white text-sm font-extrabold flex-shrink-0 bg-gradient-to-br ${AVATAR_GRAD[idx % AVATAR_GRAD.length]} shadow-sm`}
+                        >
+                          {emp.first_name.charAt(0)}
+                        </div>
+                      )}
 
                       {/* Name */}
                       <div className="flex-1 min-w-0">
