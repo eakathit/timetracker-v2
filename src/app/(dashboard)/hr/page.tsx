@@ -285,17 +285,20 @@ function DrillDownPanel({
       const { utils, writeFile } = await import("xlsx");
 
       const getDayTypeLabel = (log: DayLog): string => {
-        if (log.holidayName) {
-          return `วันหยุด (${log.holidayName})`; // ✅ มี log แต่ก็เป็นวันหยุด
-        }
-        if (log.status === "holiday") {
-          return "วันหยุด";
-        }
-        if (log.status === "weekend") {
-          return "วันหยุดประจำสัปดาห์";
-        }
-        return "วันปกติ";
-      };
+      if (log.holidayName) {
+        return `วันหยุด (${log.holidayName})`;
+      }
+      if (log.status === "holiday") {
+        return "วันหยุด";
+      }
+      if (log.status === "weekend") {
+        return "วันหยุดประจำสัปดาห์";
+      }
+      if ((log.dow === 0 || log.dow === 6) && !log.isWorkingSat) {
+        return "วันหยุดประจำสัปดาห์";
+      }
+      return "วันปกติ";
+    };
 
       const title = `${emp.first_name} ${emp.last_name} — ${MONTHS_TH[month]} ${year + 543}`;
 
