@@ -7,7 +7,6 @@ import UserAvatar from "@/components/UserAvatar";
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Project    { id: string; project_no: string; name: string | null; end_user_id: string }
 interface EndUser    { id: string; name: string }
-interface WorkDetail { id: string; title: string }
 interface Profile {
   id: string;
   first_name?: string;
@@ -120,12 +119,12 @@ function getPeriodStyle(row: ReportRow) {
 // ─── Export Excel ─────────────────────────────────────────────────────────────
 async function exportExcel(
   rows: ReportRow[],
-  maps: { project: Record<string, Project>; eu: Record<string, EndUser>; detail: Record<string, WorkDetail>; profile: Record<string, Profile> },
+  maps: { project: Record<string, Project>; eu: Record<string, EndUser>; profile:Record<string, Profile> },
   year: number, month: number,
   projectFilter: string,
 ) {
   const { utils, writeFile } = await import("xlsx");
-  const { project, eu, detail, profile } = maps;
+  const { project, eu, profile } = maps;
 
   const selProj = projectFilter !== "all" ? project[projectFilter] : null;
   const title   = `PROJECT SUMMARY — ${MONTHS_TH[month]} ${year + 543}${selProj ? ` | Project #${selProj.project_no}` : ""}`;
@@ -146,7 +145,6 @@ async function exportExcel(
       full, getFullName(p),
       eu[r.end_user_id]?.name || "–",
       pr?.project_no || "–",
-      detail[r.detail_id]?.title || "–",
       getPeriodLabel(r),
       startTime,
       endTime,
@@ -235,14 +233,13 @@ export default function TeamPage() {
   const [viewMode,  setViewMode]  = useState<"table" | "timeline">("table");
 
   // ── Filter state ─────────────────────────────────────────────────────────────
+  const [filterEndUser, setFilterEndUser] = useState("all");
   const [filterProject, setFilterProject] = useState("all");
   const [filterUser,    setFilterUser]    = useState("all");
-  const [filterDetail,  setFilterDetail]  = useState("all");
 
   // ── Master data ──────────────────────────────────────────────────────────────
   const [projects,  setProjects]  = useState<Project[]>([]);
   const [endUsers,  setEndUsers]  = useState<EndUser[]>([]);
-  const [details,   setDetails]   = useState<WorkDetail[]>([]);
   const [profiles,  setProfiles]  = useState<Profile[]>([]);
   const [masterReady, setMasterReady] = useState(false);
 
@@ -264,7 +261,6 @@ export default function TeamPage() {
     ]);
     if (pRes.data)  setProjects(pRes.data);
     if (uRes.data)  setEndUsers(uRes.data);
-    if (dRes.data)  setDetails(dRes.data);
     if (prRes.data) setProfiles(prRes.data);
     setMasterReady(true);
   })();
@@ -330,17 +326,17 @@ export default function TeamPage() {
   // ── Lookup maps ───────────────────────────────────────────────────────────────
   const projectMap = useMemo(() => Object.fromEntries(projects.map((p) => [p.id, p])), [projects]);
   const euMap      = useMemo(() => Object.fromEntries(endUsers.map((u) => [u.id, u])),  [endUsers]);
-  const detailMap  = useMemo(() => Object.fromEntries(details.map((d)  => [d.id, d])),  [details]);
   const profileMap = useMemo(() => Object.fromEntries(profiles.map((p) => [p.id, p])),  [profiles]);
 
   // ── Filtered rows ─────────────────────────────────────────────────────────────
   const filtered = useMemo(() => {
-    return rows
-      .filter((r) => filterProject === "all" || r.project_id === filterProject)
-      .filter((r) => filterUser    === "all" || r.user_id    === filterUser)
-      .filter((r) => filterDetail  === "all" || r.detail_id  === filterDetail)
-      .sort((a, b) => a.report_date.localeCompare(b.report_date) || a.user_id.localeCompare(b.user_id));
-  }, [rows, filterProject, filterUser, filterDetail]);
+  return rows
+    .filter((r) => filterEndUser === "all" || r.end_user_id === filterEndUser)
+    .filter((r) => filterProject === "all" || r.project_id  === filterProject)
+    .filter((r) => filterUser    === "all" || r.user_id     === filterUser)
+    .sort((a, b) => a.report_date.localeCompare(b.report_date) || a.user_id.localeCompare(b.user_id));
+}, [rows, filterEndUser, filterProject, filterUser]);
+
 
   // ── Timeline grouping ──────────────────────────────────────────────────────────
   const timelineGroups = useMemo(() => {
@@ -386,15 +382,15 @@ export default function TeamPage() {
     if (filtered.length === 0) return;
     setExporting(true);
     try {
-      await exportExcel(filtered, { project: projectMap, eu: euMap, detail: detailMap, profile: profileMap }, viewYear, viewMonth, filterProject);
+      await exportExcel(filtered, { project: projectMap, eu: euMap, profile: profileMap }, viewYear, viewMonth, filterProject);
     } finally {
       setExporting(false);
     }
   };
 
   // ── Reset filters ─────────────────────────────────────────────────────────────
-  const resetFilters = () => { setFilterProject("all"); setFilterUser("all"); setFilterDetail("all"); };
-  const hasFilter = filterProject !== "all" || filterUser !== "all" || filterDetail !== "all";
+  const resetFilters = () => { setFilterEndUser("all"); setFilterProject("all"); setFilterUser("all"); };
+  const hasFilter = filterEndUser !== "all" || filterProject !== "all" || filterUser !== "all";
 
   // ── Loading screen ────────────────────────────────────────────────────────────
   if (!masterReady) {
@@ -530,82 +526,94 @@ export default function TeamPage() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-            {/* Project */}
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Project</label>
-              <div className="relative">
-                <select
-                  value={filterProject}
-                  onChange={(e) => setFilterProject(e.target.value)}
-                  className={`w-full appearance-none px-3 py-2.5 pr-8 text-sm rounded-xl border outline-none cursor-pointer transition-all
-                    ${filterProject !== "all"
-                      ? "border-sky-300 bg-sky-50 text-sky-700 focus:ring-2 focus:ring-sky-100"
-                      : "border-gray-200 bg-gray-50 text-gray-700 focus:border-sky-300 focus:ring-2 focus:ring-sky-50"
-                    }`}
-                >
-                  <option value="all">ทุก Project ({projects.length})</option>
-                  {projects.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      #{p.project_no}{p.name ? ` · ${p.name}` : ""}{euMap[p.end_user_id] ? ` (${euMap[p.end_user_id].name})` : ""}
-                    </option>
-                  ))}
-                </select>
-                <span className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3.5 h-3.5"><polyline points="6 9 12 15 18 9"/></svg>
-                </span>
-              </div>
-            </div>
 
-            {/* Employee */}
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">พนักงาน</label>
-              <div className="relative">
-                <select
-                  value={filterUser}
-                  onChange={(e) => setFilterUser(e.target.value)}
-                  className={`w-full appearance-none px-3 py-2.5 pr-8 text-sm rounded-xl border outline-none cursor-pointer transition-all
-                    ${filterUser !== "all"
-                      ? "border-violet-300 bg-violet-50 text-violet-700 focus:ring-2 focus:ring-violet-100"
-                      : "border-gray-200 bg-gray-50 text-gray-700 focus:border-sky-300 focus:ring-2 focus:ring-sky-50"
-                    }`}
-                >
-                  <option value="all">ทุกคน ({profiles.length})</option>
-                  {profiles.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {getFullName(p)}{p.department ? ` · ${p.department}` : ""}
-                    </option>
-                  ))}
-                </select>
-                <span className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3.5 h-3.5"><polyline points="6 9 12 15 18 9"/></svg>
-                </span>
-              </div>
-            </div>
+  {/* ① End User */}
+  <div className="space-y-1">
+    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">End User</label>
+    <div className="relative">
+      <select
+        value={filterEndUser}
+        onChange={(e) => {
+          setFilterEndUser(e.target.value);
+          setFilterProject("all"); // reset project เมื่อเปลี่ยน end user
+        }}
+        className={`w-full appearance-none px-3 py-2.5 pr-8 text-sm rounded-xl border outline-none cursor-pointer transition-all
+          ${filterEndUser !== "all"
+            ? "border-emerald-300 bg-emerald-50 text-emerald-700 focus:ring-2 focus:ring-emerald-100"
+            : "border-gray-200 bg-gray-50 text-gray-700 focus:border-sky-300 focus:ring-2 focus:ring-sky-50"
+          }`}
+      >
+        <option value="all">ทุก End User ({endUsers.length})</option>
+        {endUsers.map((eu) => (
+          <option key={eu.id} value={eu.id}>{eu.name}</option>
+        ))}
+      </select>
+      <span className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3.5 h-3.5"><polyline points="6 9 12 15 18 9"/></svg>
+      </span>
+    </div>
+  </div>
 
-            {/* Work Detail */}
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">ประเภทงาน</label>
-              <div className="relative">
-                <select
-                  value={filterDetail}
-                  onChange={(e) => setFilterDetail(e.target.value)}
-                  className={`w-full appearance-none px-3 py-2.5 pr-8 text-sm rounded-xl border outline-none cursor-pointer transition-all
-                    ${filterDetail !== "all"
-                      ? "border-amber-300 bg-amber-50 text-amber-700 focus:ring-2 focus:ring-amber-100"
-                      : "border-gray-200 bg-gray-50 text-gray-700 focus:border-sky-300 focus:ring-2 focus:ring-sky-50"
-                    }`}
-                >
-                  <option value="all">ทุกประเภท ({details.length})</option>
-                  {details.map((d) => (
-                    <option key={d.id} value={d.id}>{d.title}</option>
-                  ))}
-                </select>
-                <span className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3.5 h-3.5"><polyline points="6 9 12 15 18 9"/></svg>
-                </span>
-              </div>
-            </div>
-          </div>
+  {/* ② Project — filter เฉพาะ project ที่อยู่ใน end user ที่เลือก */}
+  <div className="space-y-1">
+    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Project</label>
+    <div className="relative">
+      <select
+        value={filterProject}
+        onChange={(e) => setFilterProject(e.target.value)}
+        className={`w-full appearance-none px-3 py-2.5 pr-8 text-sm rounded-xl border outline-none cursor-pointer transition-all
+          ${filterProject !== "all"
+            ? "border-sky-300 bg-sky-50 text-sky-700 focus:ring-2 focus:ring-sky-100"
+            : "border-gray-200 bg-gray-50 text-gray-700 focus:border-sky-300 focus:ring-2 focus:ring-sky-50"
+          }`}
+      >
+        <option value="all">
+          ทุก Project ({filterEndUser === "all"
+            ? projects.length
+            : projects.filter((p) => p.end_user_id === filterEndUser).length})
+        </option>
+        {(filterEndUser === "all"
+          ? projects
+          : projects.filter((p) => p.end_user_id === filterEndUser)
+        ).map((p) => (
+          <option key={p.id} value={p.id}>
+            #{p.project_no}{p.name ? ` · ${p.name}` : ""}
+          </option>
+        ))}
+      </select>
+      <span className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3.5 h-3.5"><polyline points="6 9 12 15 18 9"/></svg>
+      </span>
+    </div>
+  </div>
+
+  {/* ③ พนักงาน */}
+  <div className="space-y-1">
+    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">พนักงาน</label>
+    <div className="relative">
+      <select
+        value={filterUser}
+        onChange={(e) => setFilterUser(e.target.value)}
+        className={`w-full appearance-none px-3 py-2.5 pr-8 text-sm rounded-xl border outline-none cursor-pointer transition-all
+          ${filterUser !== "all"
+            ? "border-violet-300 bg-violet-50 text-violet-700 focus:ring-2 focus:ring-violet-100"
+            : "border-gray-200 bg-gray-50 text-gray-700 focus:border-sky-300 focus:ring-2 focus:ring-sky-50"
+          }`}
+      >
+        <option value="all">ทุกคน ({profiles.length})</option>
+        {profiles.map((p) => (
+          <option key={p.id} value={p.id}>
+            {getFullName(p)}{p.department ? ` · ${p.department}` : ""}
+          </option>
+        ))}
+      </select>
+      <span className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3.5 h-3.5"><polyline points="6 9 12 15 18 9"/></svg>
+      </span>
+    </div>
+  </div>
+
+</div>
 
           {/* Active filter chips */}
           {hasFilter && (
@@ -622,12 +630,12 @@ export default function TeamPage() {
                   <button onClick={() => setFilterUser("all")} className="hover:text-violet-900">✕</button>
                 </span>
               )}
-              {filterDetail !== "all" && (
-                <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-[11px] font-bold">
-                  {detailMap[filterDetail]?.title}
-                  <button onClick={() => setFilterDetail("all")} className="hover:text-amber-900">✕</button>
-                </span>
-              )}
+              {filterEndUser !== "all" && (
+  <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[11px] font-bold">
+    {euMap[filterEndUser]?.name}
+    <button onClick={() => { setFilterEndUser("all"); setFilterProject("all"); }} className="hover:text-emerald-900">✕</button>
+  </span>
+)}
             </div>
           )}
         </div>
@@ -677,7 +685,6 @@ export default function TeamPage() {
                   {filtered.map((row, idx) => {
                     const proj    = projectMap[row.project_id];
                     const eu      = euMap[row.end_user_id];
-                    const detail  = detailMap[row.detail_id];
                     const profile = profileMap[row.user_id];
                     const { day, month, dow, isSun, isSat } = fmtDateTH(row.report_date);
                     const isToday = row.report_date === todayStr;
@@ -726,7 +733,7 @@ export default function TeamPage() {
 
                         {/* Detail */}
                         <td className="px-4 py-3 max-w-[160px]">
-                          <span className="text-xs font-semibold text-gray-700 line-clamp-2">{detail?.title || "–"}</span>
+                          <span className="text-xs font-semibold text-gray-700 line-clamp-2"></span>
                         </td>
 
                         {/* Period */}
@@ -747,7 +754,6 @@ export default function TeamPage() {
               {filtered.map((row) => {
                 const proj    = projectMap[row.project_id];
                 const eu      = euMap[row.end_user_id];
-                const detail  = detailMap[row.detail_id];
                 const profile = profileMap[row.user_id];
                 const { day, month, dow, isSun, isSat } = fmtDateTH(row.report_date);
                 const isToday = row.report_date === todayStr;
@@ -766,7 +772,7 @@ export default function TeamPage() {
                           {getPeriodLabel(row)}
                         </span>
                       </div>
-                      <p className="text-sm font-semibold text-gray-800 leading-snug">{detail?.title || "–"}</p>
+                      <p className="text-sm font-semibold text-gray-800 leading-snug"></p>
                       <p className="text-xs text-gray-400 mt-0.5 truncate">{eu?.name || "–"}{proj?.name ? ` · ${proj.name}` : ""}</p>
                       <div className="flex items-center gap-1.5 mt-1">
                         <AvatarChip profile={profile} showName />
@@ -861,7 +867,6 @@ export default function TeamPage() {
                               {userRows.map((row) => {
                                 const proj   = projectMap[row.project_id];
                                 const eu     = euMap[row.end_user_id];
-                                const detail = detailMap[row.detail_id];
                                 return (
                                   <div key={row.item_id} className="flex items-start gap-3 px-4 py-3 hover:bg-gray-50/50 transition-colors">
                                     <div className="w-1 self-stretch rounded-full flex-shrink-0 bg-sky-300 mt-0.5" />
@@ -875,7 +880,7 @@ export default function TeamPage() {
                                           {getPeriodLabel(row)}
                                         </span>
                                       </div>
-                                      <p className="text-sm font-semibold text-gray-800 mt-1 leading-snug">{detail?.title || "–"}</p>
+                                      <p className="text-sm font-semibold text-gray-800 mt-1 leading-snug"></p>
                                       {proj?.name && (
                                         <p className="text-[10px] text-gray-400 mt-0.5 truncate">{proj.name}</p>
                                       )}

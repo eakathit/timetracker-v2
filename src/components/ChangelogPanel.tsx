@@ -21,11 +21,12 @@ const CHANGELOG: ChangelogEntry[] = [
     date: "2026-03-10",         // วันที่ release (YYYY-MM-DD)
     items: [
       { tag: "feature",     text: "HR Attendance Export Excel รายบุคคลเพิ่มช่องรายละเอียด OT" },
+      { tag: "feature",     text: "Project Summary ตัวกรองลบประเภทงานออก เเล้วใส่ EndUser เเทน" },
     ],
   },
   {
-    version: "1.4.1",           // เลข version
-    date: "2026-03-09",         // วันที่ release (YYYY-MM-DD)
+    version: "1.4.1",
+    date: "2026-03-09",
     items: [
       { tag: "feature",     text: "Project Summary เพิ่มช่อง Total (hrs.) ตอน Export Excel" },
       { tag: "feature",     text: "หน้า Request ใบลาเเละใบขอคำโอทีเเยกช่องตามเเผนก" },
