@@ -21,6 +21,7 @@ const CHANGELOG: ChangelogEntry[] = [
     date: "2026-03-10",
     items: [
       { tag: "feature",     text: "เพิ่ม Other Enduser ตอนสร้างห้อง On-site" },
+      { tag: "fix", text: "ประเภทนงานเเละ Enduser ไม่สามารถลบได้" },
     ],
   },
   {

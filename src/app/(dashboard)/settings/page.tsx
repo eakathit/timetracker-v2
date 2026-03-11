@@ -1038,11 +1038,14 @@ function ReportManagementSection() {
   };
 
   const removeDetail = async (id: string) => {
-    if (!confirm("แน่ใจหรือไม่ที่จะลบประเภทงานนี้?")) return;
-    await supabase.from("work_details").delete().eq("id", id);
-    setDetails((prev) => prev.filter((d) => d.id !== id));
-  };
-
+  if (!confirm("แน่ใจหรือไม่ที่จะลบประเภทงานนี้?")) return;
+  const { error } = await supabase.from("work_details").delete().eq("id", id);
+  if (error) {
+    alert("ไม่สามารถลบได้: " + error.message);
+    return; // ✅ หยุดทันที ไม่ update state
+  }
+  setDetails((prev) => prev.filter((d) => d.id !== id));
+};
   const toggleDetail = async (id: string) => {
     const target = details.find((d) => d.id === id);
     if (!target) return;
