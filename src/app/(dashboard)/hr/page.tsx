@@ -44,6 +44,7 @@ interface DayLog {
   isWorkingSat?: boolean;
   otPeriods: { start: string; end: string }[];
   otTotal: number;
+  regHours: number | null;
 }
 
 interface TimeLogRow {
@@ -185,6 +186,26 @@ function calcTotalOT(periods: { start: string; end: string }[]): number {
   }
   total += curEnd - curStart;
   return Math.round((total / 60) * 10) / 10;
+}
+
+/** คำนวณชม.ทำงานจริง (หักพัก cap ที่ 8) */
+function calcRegHours(checkIn: string, checkOut: string | null): number | null {
+  if (!checkIn || checkIn === "–") return null;
+  if (!checkOut || checkOut === "–") return null;
+
+  const [ih, im] = checkIn.split(":").map(Number);
+  const [oh, om] = checkOut.split(":").map(Number);
+
+  const inMin   = ih * 60 + im;
+  const outMin  = oh * 60 + om;
+  const diffMin = outMin - inMin;
+
+  if (diffMin <= 0) return null;
+
+  const lunchDeduct = diffMin > 300 ? 60 : 0;
+  const regMin = Math.min(diffMin - lunchDeduct, 480);
+
+  return Math.round((regMin / 60) * 10) / 10;
 }
 
 function calcAvgTime(times: string[]): string {
@@ -332,16 +353,20 @@ function DrillDownPanel({
       l => (l.status === "present" || l.status === "late") &&
            (l.dow !== 0 && (l.dow !== 6 || l.isWorkingSat))  // จ-ศ + เสาร์ทำงาน
     );
-    
+
     const holidayLogs = dailyLogs.filter(
   l => (l.status === "present" || l.status === "late") &&
        !l.isWorkingSat &&
        (l.dow === 0 || l.dow === 6)
 );
 
-    const workdayRegHours = workdayLogs.length * 8;
+    const workdayRegHours = Math.round(
+      workdayLogs.reduce((s, l) => s + (l.regHours ?? 0), 0) * 10
+    ) / 10;
+    const holidayRegHours = Math.round(
+      holidayLogs.reduce((s, l) => s + (l.regHours ?? 0), 0) * 10
+    ) / 10;
     const workdayOT       = Math.round(workdayLogs.reduce((s, l) => s + l.otTotal, 0) * 10) / 10;
-    const holidayRegHours = holidayLogs.length * 8;
     const holidayOT       = Math.round(holidayLogs.reduce((s, l) => s + l.otTotal, 0) * 10) / 10;
 
     const summary = [
@@ -891,6 +916,8 @@ export default function HRAttendancePage() {
             status: "leave",
             checkIn: "–",
             checkOut: "–",
+            isWorkingSat: false,
+            regHours: null,
             otPeriods: [],
             otTotal: 0,
           });
@@ -906,6 +933,8 @@ export default function HRAttendancePage() {
             holidayName: holidayNames.get(dateStr),
             checkIn: "–",
             checkOut: "–",
+            isWorkingSat: false,
+            regHours: null,
             otPeriods: [],
             otTotal: 0,
           });
@@ -920,6 +949,8 @@ export default function HRAttendancePage() {
             status: "weekend",
             checkIn: "–",
             checkOut: "–",
+            isWorkingSat: false,
+            regHours: null,
             otPeriods: [],
             otTotal: 0,
           });
@@ -962,6 +993,10 @@ export default function HRAttendancePage() {
             holidayName: holidayNames.get(dateStr),
             checkIn: fmtTime(log.first_check_in),
             checkOut: fmtTime(log.last_check_out),
+            regHours: calcRegHours(
+            fmtTime(log.first_check_in),
+            fmtTime(log.last_check_out)
+          ),  
             otPeriods: periods,
             otTotal,
           });
@@ -974,6 +1009,7 @@ export default function HRAttendancePage() {
             checkIn: "–",
             checkOut: "–",
             isWorkingSat,
+            regHours: null,
             otPeriods: [],
             otTotal: 0,
           });
