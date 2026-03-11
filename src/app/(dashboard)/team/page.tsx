@@ -130,9 +130,9 @@ async function exportExcel(
   const title   = `PROJECT SUMMARY — ${MONTHS_TH[month]} ${year + 543}${selProj ? ` | Project #${selProj.project_no}` : ""}`;
 
   const header = [
-    [title], [],
-    ["Date", "Employee Name", "End User", "Project No.", "Period", "Start Time", "End Time", "Total (hrs.)"],
-  ];
+  [title], [],
+  ["Date", "Employee Name", "End User", "Project No.", "Work Type", "Period", "Start Time", "End Time", "Total (hrs.)"],
+];
 
   const data = rows.map((r) => {
     const { full } = fmtDateTH(r.report_date);
@@ -142,21 +142,23 @@ async function exportExcel(
     const totalHours = calcWorkHours(r); // ← คำนวณ
 
     return [
-  full, getFullName(p),
-  eu[r.end_user_id]?.name || "–",
-  pr?.project_no || "–",
-  getPeriodLabel(r),   // ← Period (เหลือแค่อันเดียว)
-  startTime,
-  endTime,
-  totalHours ?? "–",
-];
-  });
+    full,
+    getFullName(p),
+    eu[r.end_user_id]?.name || "–",
+    pr?.project_no || "–",
+    getPeriodLabel(r), 
+    r.period_label ?? "–",
+    startTime,            
+    endTime,                
+    totalHours ?? "–",
+  ];
+});
 
   const ws = utils.aoa_to_sheet([...header, ...data]);
 
   // merge title ครอบ 9 คอลัมน์ (A–I)
-  ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 8 } }];          // ← เปลี่ยน c:7 → c:8
-  ws["!cols"]   = [22, 18, 14, 10, 22, 14, 12, 12, 10].map((w) => ({ wch: w })); // ← เพิ่ม 10
+  ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 8 } }];
+  ws["!cols"]   = [22, 18, 14, 10, 12, 24, 10, 10, 10].map((w) => ({ wch: w }));
 
   const wb = utils.book_new();
   utils.book_append_sheet(wb, ws, `${MONTHS_TH[month].slice(0, 3)}_${year + 543}`);
