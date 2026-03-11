@@ -262,6 +262,7 @@ export default function TeamPage() {
     ]);
     if (pRes.data)  setProjects(pRes.data);
     if (uRes.data)  setEndUsers(uRes.data);
+    if (dRes.data)  setWorkDetails(dRes.data);
     if (prRes.data) setProfiles(prRes.data);
     setMasterReady(true);
   })();
@@ -387,11 +388,7 @@ export default function TeamPage() {
     if (filtered.length === 0) return;
     setExporting(true);
     try {
-      await exportExcel(
-  filtered,
-  { project: projectMap, eu: euMap, profile: profileMap, detail: detailMap },
-  viewYear, viewMonth, filterProject
-);
+      await exportExcel(filtered, { project: projectMap, eu: euMap, profile: profileMap, detail: detailMap }, viewYear, viewMonth, filterProject);
     } finally {
       setExporting(false);
     }
