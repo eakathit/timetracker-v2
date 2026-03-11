@@ -280,130 +280,99 @@ function DrillDownPanel({
   const [exporting, setExporting] = useState(false);
 
   const handleExportIndividual = async () => {
-    setExporting(true);
-    try {
-      const { utils, writeFile } = await import("xlsx");
+  setExporting(true);
+  try {
+    const { utils, writeFile } = await import("xlsx");
+    const title = `${emp.first_name} ${emp.last_name} — ${MONTHS_TH[month]} ${year + 543}`;
 
-      const getDayTypeLabel = (log: DayLog): string => {
-      if (log.holidayName) {
-        return `วันหยุด (${log.holidayName})`;
-      }
-      if (log.status === "holiday") {
-        return "วันหยุด";
-      }
-      if (log.status === "weekend") {
-        return "วันหยุดประจำสัปดาห์";
-      }
-      if ((log.dow === 0 || log.dow === 6) && !log.isWorkingSat) {
-        return "วันหยุดประจำสัปดาห์";
-      }
+    const header = [
+      [title],
+      [],
+      ["วันที่", "วัน", "ประเภทวัน", "สถานะ", "เข้างาน", "ออกงาน", "Start OT", "End OT", "Req. Start OT", "Req. End OT", "OT รวม (ชม.)"],
+    ];
+
+    // ── helper: กำหนด label ประเภทวัน ──────────────────────
+    const getDayTypeLabel = (log: DayLog): string => {
+      if (log.isWorkingSat) return "เสาร์ทำงาน";      // ← ไม่ใช่ "วันหยุด"
+      if (log.dow === 0 || log.dow === 6) return "วันหยุดประจำสัปดาห์";
+      if (log.status === "holiday") return "วันหยุด";
       return "วันปกติ";
     };
 
-      const title = `${emp.first_name} ${emp.last_name} — ${MONTHS_TH[month]} ${year + 543}`;
+    const STATUS_TEXT: Record<string, string> = {
+      present: "มาปกติ",
+      late:    "มาสาย",
+      absent:  "ขาดงาน",
+      leave:   "ลา",
+      holiday: "วันหยุด",
+      weekend: "เสาร์-อา",
+    };
 
-      const header = [
-        [title],
-        [],
-        [
-          "วันที่",
-          "วัน",
-          "ประเภทวัน",
-          "สถานะ",
-          "เข้างาน",
-          "ออกงาน",
-          "Start OT",
-          "End OT",
-          "Req. Start OT",
-          "Req. End OT",
-          "OT รวม (ชม.)",
-        ],
+    const data = dailyLogs.map(log => {
+      const workOT = log.otPeriods[0];
+      const reqOT  = log.otPeriods[1];
+      return [
+        log.date,
+        DAYS_SHORT[log.dow],
+        getDayTypeLabel(log),              // ← Column C: ใช้ helper ใหม่
+        STATUS_TEXT[log.status] ?? log.status,
+        log.checkIn,
+        log.checkOut,
+        workOT?.start ?? "–",
+        workOT?.end   ?? "–",
+        reqOT?.start  ?? "–",
+        reqOT?.end    ?? "–",
+        log.otTotal > 0 ? log.otTotal : "–",
       ];
+    });
 
-      const STATUS_TEXT: Record<string, string> = {
-        present: "มาปกติ",
-        late: "มาสาย",
-        absent: "ขาดงาน",
-        leave: "ลา",
-        holiday: "วันหยุด",
-        weekend: "เสาร์-อา",
-      };
+    // ── Summary แยก วันปกติ vs วันหยุดจริง ──────────────────
+    // working_sat = นับเป็นวันปกติ ✅
+    const workdayLogs = dailyLogs.filter(
+      l => (l.status === "present" || l.status === "late") &&
+           (l.dow !== 0 && (l.dow !== 6 || l.isWorkingSat))  // จ-ศ + เสาร์ทำงาน
+    );
+    
+    const holidayLogs = dailyLogs.filter(
+  l => (l.status === "present" || l.status === "late") &&
+       !l.isWorkingSat &&
+       (l.dow === 0 || l.dow === 6)
+);
 
-      const data = dailyLogs.map((log) => {
-        const workOT = log.otPeriods[0]; // จาก checkout จริง
-        const reqOT = log.otPeriods[1]; // จาก OT Request
+    const workdayRegHours = workdayLogs.length * 8;
+    const workdayOT       = Math.round(workdayLogs.reduce((s, l) => s + l.otTotal, 0) * 10) / 10;
+    const holidayRegHours = holidayLogs.length * 8;
+    const holidayOT       = Math.round(holidayLogs.reduce((s, l) => s + l.otTotal, 0) * 10) / 10;
 
-        return [
-          log.date,
-          DAYS_SHORT[log.dow],
-          getDayTypeLabel(log), // ← คอลัมน์ใหม่
-          STATUS_TEXT[log.status] ?? log.status,
-          log.checkIn,
-          log.checkOut,
-          workOT?.start ?? "–",
-          workOT?.end ?? "–",
-          reqOT?.start ?? "–",
-          reqOT?.end ?? "–",
-          log.otTotal > 0 ? log.otTotal : "–",
-        ];
-      });
+    const summary = [
+      [],
+      ["สรุป"],
+      ["วันมาทำงาน",  "", att.present],
+      ["มาสาย",       "", att.late],
+      ["ขาดงาน",      "", att.absent],
+      ["ลา",          "", att.leave],
+      [],
+      ["—— วันปกติ ——"],
+      ["ชั่วโมงทำงาน (วันปกติ)",  "", workdayRegHours, "ชม."],
+      ["OT รวม (วันปกติ)",        "", workdayOT,       "ชม."],
+      [],
+      ["—— วันหยุด ——"],
+      ["ชั่วโมงทำงาน (วันหยุด)", "", holidayRegHours, "ชม."],
+      ["OT รวม (วันหยุด)",       "", holidayOT,       "ชม."],
+    ];
 
-      const workedLogs = dailyLogs.filter((l) => l.checkIn !== "–");
+    const ws = utils.aoa_to_sheet([...header, ...data, ...summary]);
+    ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 5 } }];
+    ws["!cols"] = [12, 6, 16, 10, 10, 10, 10, 10, 12, 12, 10].map(w => ({ wch: w }));
 
-      // วันหยุดที่มาทำงาน
-      const holidayWorkedLogs = workedLogs.filter((l) => l.holidayName);
-      const holidayWorkHours =
-        Math.round(holidayWorkedLogs.length * 8 * 10) / 10;
-      const holidayOT =
-        Math.round(holidayWorkedLogs.reduce((s, l) => s + l.otTotal, 0) * 10) /
-        10;
-
-      // วันปกติที่มาทำงาน
-      const normalWorkedLogs = workedLogs.filter((l) => !l.holidayName);
-      const normalWorkHours = Math.round(normalWorkedLogs.length * 8 * 10) / 10;
-      const normalOT =
-        Math.round(normalWorkedLogs.reduce((s, l) => s + l.otTotal, 0) * 10) /
-        10;
-
-      const totalOTFromLogs = dailyLogs.reduce((sum, l) => sum + l.otTotal, 0);
-      const totalOTRounded = Math.round(totalOTFromLogs * 10) / 10;
-
-      // ─── Summary rows ────────────────────────────────────────
-      const summary = [
-        [],
-        ["สรุป"],
-        ["วันมาทำงาน", "", att.present, ""],
-        ["มาสาย", "", att.late, ""],
-        ["ขาดงาน", "", att.absent, ""],
-        ["ลา", "", att.leave, ""],
-        [],
-        ["─── วันปกติ ───"],
-        ["ชั่วโมงทำงาน (วันปกติ)", "", normalWorkHours, "ชม."],
-        ["OT รวม (วันปกติ)", "", normalOT, "ชม."],
-        [],
-        ["─── วันหยุด ───"],
-        ["ชั่วโมงทำงาน (วันหยุด)", "", holidayWorkHours, "ชม."],
-        ["OT รวม (วันหยุด)", "", holidayOT, "ชม."],
-      ];
-
-      const ws = utils.aoa_to_sheet([...header, ...data, ...summary]);
-      ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 4 } }];
-
-      ws["!cols"] = [12, 6, 18, 10, 10, 10, 10, 10, 12, 12, 10].map((w) => ({
-        wch: w,
-      }));
-
-      const wb = utils.book_new();
-      const sheetName = `${emp.first_name}_${MONTHS_TH[month].slice(0, 3)}`;
-      utils.book_append_sheet(wb, ws, sheetName);
-      writeFile(
-        wb,
-        `attendance_${emp.first_name}_${emp.last_name}_${year}_${String(month + 1).padStart(2, "0")}.xlsx`,
-      );
-    } finally {
-      setExporting(false);
-    }
-  };
+    const wb = utils.book_new();
+    const sheetName = `${emp.first_name}_${MONTHS_TH[month].slice(0, 3)}`;
+    utils.book_append_sheet(wb, ws, sheetName);
+    writeFile(wb, `attendance_${emp.first_name}_${emp.last_name}_${year}_${String(month + 1).padStart(2, "0")}.xlsx`);
+  } finally {
+    setExporting(false);
+  }
+};
 
   const counts = useMemo(
     () =>
@@ -1004,6 +973,7 @@ export default function HRAttendancePage() {
             status: "absent",
             checkIn: "–",
             checkOut: "–",
+            isWorkingSat,
             otPeriods: [],
             otTotal: 0,
           });
