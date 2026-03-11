@@ -5,7 +5,7 @@ import { Prompt } from "next/font/google";
 const prompt = Prompt({ subsets: ["thai", "latin"], weight: ["300", "400", "500", "700"] });
 
 export const metadata = {
-  title: "TimeTracker V2",
+  title: "TimeTracker",
   description: "ระบบบันทึกเวลาเข้า-ออกงาน",
 };
 
