@@ -131,7 +131,7 @@ async function exportExcel(
 
   const header = [
     [title], [],
-    ["Date", "Employee Name", "End User", "Project No.", "Work Type", "Period", "Start Time", "End Time", "Total (hrs.)"],
+    ["Date", "Employee Name", "End User", "Project No.", "Period", "Start Time", "End Time", "Total (hrs.)"],
   ];
 
   const data = rows.map((r) => {
@@ -142,14 +142,14 @@ async function exportExcel(
     const totalHours = calcWorkHours(r); // ← คำนวณ
 
     return [
-      full, getFullName(p),
-      eu[r.end_user_id]?.name || "–",
-      pr?.project_no || "–",
-      getPeriodLabel(r),
-      startTime,
-      endTime,
-      totalHours ?? "–", // ← เพิ่ม col
-    ];
+  full, getFullName(p),
+  eu[r.end_user_id]?.name || "–",
+  pr?.project_no || "–",
+  getPeriodLabel(r),   // ← Period (เหลือแค่อันเดียว)
+  startTime,
+  endTime,
+  totalHours ?? "–",
+];
   });
 
   const ws = utils.aoa_to_sheet([...header, ...data]);

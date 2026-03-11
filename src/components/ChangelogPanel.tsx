@@ -22,6 +22,7 @@ const CHANGELOG: ChangelogEntry[] = [
     items: [
       { tag: "feature",     text: "เพิ่ม Other Enduser ตอนสร้างห้อง On-site" },
       { tag: "fix", text: "ประเภทนงานเเละ Enduser ไม่สามารถลบได้" },
+      { tag: "fix", text: "เเก้ไข Project Export excel ช่องเกินมา" },
     ],
   },
   {
