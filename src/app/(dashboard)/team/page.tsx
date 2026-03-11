@@ -7,6 +7,7 @@ import UserAvatar from "@/components/UserAvatar";
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Project    { id: string; project_no: string; name: string | null; end_user_id: string }
 interface EndUser    { id: string; name: string }
+interface WorkDetail { id: string; title: string; }
 interface Profile {
   id: string;
   first_name?: string;
@@ -119,12 +120,12 @@ function getPeriodStyle(row: ReportRow) {
 // ─── Export Excel ─────────────────────────────────────────────────────────────
 async function exportExcel(
   rows: ReportRow[],
-  maps: { project: Record<string, Project>; eu: Record<string, EndUser>; profile:Record<string, Profile> },
+  maps: { project: Record<string, Project>; eu: Record<string, EndUser>; profile: Record<string, Profile>; detail: Record<string, WorkDetail> },
   year: number, month: number,
   projectFilter: string,
 ) {
   const { utils, writeFile } = await import("xlsx");
-  const { project, eu, profile } = maps;
+  const { project, eu, profile, detail } = maps;
 
   const selProj = projectFilter !== "all" ? project[projectFilter] : null;
   const title   = `PROJECT SUMMARY — ${MONTHS_TH[month]} ${year + 543}${selProj ? ` | Project #${selProj.project_no}` : ""}`;
@@ -142,14 +143,12 @@ async function exportExcel(
     const totalHours = calcWorkHours(r); // ← คำนวณ
 
     return [
-    full,
-    getFullName(p),
+    full, getFullName(p),
     eu[r.end_user_id]?.name || "–",
     pr?.project_no || "–",
-    getPeriodLabel(r), 
-    r.period_label ?? "–",
-    startTime,            
-    endTime,                
+    detail[r.detail_id]?.title || "–",  // ✅ Work Type จาก work_details จริงๆ
+    getPeriodLabel(r),
+    startTime, endTime,
     totalHours ?? "–",
   ];
 });
@@ -243,6 +242,7 @@ export default function TeamPage() {
   const [projects,  setProjects]  = useState<Project[]>([]);
   const [endUsers,  setEndUsers]  = useState<EndUser[]>([]);
   const [profiles,  setProfiles]  = useState<Profile[]>([]);
+  const [workDetails,  setWorkDetails]  = useState<WorkDetail[]>([]);
   const [masterReady, setMasterReady] = useState(false);
 
   // ── Report rows ───────────────────────────────────────────────────────────────
@@ -257,8 +257,7 @@ export default function TeamPage() {
     const [pRes, uRes, dRes, prRes] = await Promise.all([
       supabase.from("projects").select("id, project_no, name, end_user_id").order("project_no"),
       supabase.from("end_users").select("id, name").order("name"),
-      supabase.from("work_details").select("id, title").order("title"),
-      // ✅ [1] เปลี่ยน from และ เพิ่ม avatar_url
+      supabase.from("work_details").select("id, title").order("created_at"),
       supabase.from("profiles_with_avatar").select("id, first_name, last_name, department, avatar_url").order("first_name"),
     ]);
     if (pRes.data)  setProjects(pRes.data);
@@ -329,6 +328,10 @@ export default function TeamPage() {
   const projectMap = useMemo(() => Object.fromEntries(projects.map((p) => [p.id, p])), [projects]);
   const euMap      = useMemo(() => Object.fromEntries(endUsers.map((u) => [u.id, u])),  [endUsers]);
   const profileMap = useMemo(() => Object.fromEntries(profiles.map((p) => [p.id, p])),  [profiles]);
+  const detailMap = useMemo(
+  () => Object.fromEntries(workDetails.map((d) => [d.id, d])),
+  [workDetails]
+);
 
   // ── Filtered rows ─────────────────────────────────────────────────────────────
   const filtered = useMemo(() => {
@@ -384,7 +387,11 @@ export default function TeamPage() {
     if (filtered.length === 0) return;
     setExporting(true);
     try {
-      await exportExcel(filtered, { project: projectMap, eu: euMap, profile: profileMap }, viewYear, viewMonth, filterProject);
+      await exportExcel(
+  filtered,
+  { project: projectMap, eu: euMap, profile: profileMap, detail: detailMap },
+  viewYear, viewMonth, filterProject
+);
     } finally {
       setExporting(false);
     }
@@ -735,8 +742,10 @@ export default function TeamPage() {
 
                         {/* Detail */}
                         <td className="px-4 py-3 max-w-[160px]">
-                          <span className="text-xs font-semibold text-gray-700 line-clamp-2"></span>
-                        </td>
+  <span className="text-xs font-semibold text-gray-700 line-clamp-2">
+    {detailMap[row.detail_id]?.title || "–"}
+  </span>
+</td>
 
                         {/* Period */}
                         <td className="px-4 py-3 whitespace-nowrap">
@@ -882,7 +891,9 @@ export default function TeamPage() {
                                           {getPeriodLabel(row)}
                                         </span>
                                       </div>
-                                      <p className="text-sm font-semibold text-gray-800 mt-1 leading-snug"></p>
+                                      <p className="text-sm font-semibold text-gray-800 mt-1 leading-snug">
+  {detailMap[row.detail_id]?.title || "–"}
+</p>
                                       {proj?.name && (
                                         <p className="text-[10px] text-gray-400 mt-0.5 truncate">{proj.name}</p>
                                       )}
