@@ -831,7 +831,16 @@ export default function HRAttendancePage() {
 
       const present = logs.filter((l) => l.status === "on_time").length;
       const late = logs.filter((l) => l.status === "late").length;
-      const leave = logs.filter((l) => l.status === "leave").length;
+      const leave = logs.filter((l) => {
+  if (l.status !== "leave") return false;
+  const dow = new Date(l.log_date).getDay();
+  const isWsat = workingSats.has(l.log_date);
+  const isHol  = holidays.has(l.log_date);
+  if (dow === 0) return false;               // อาทิตย์
+  if (dow === 6 && !isWsat) return false;    // เสาร์ปกติ
+  if (isHol) return false;                   // วันหยุด
+  return true;
+}).length;
       // absent = วันทำงานที่ควรมา - วันที่มีข้อมูลจริง
       const absent = Math.max(0, expectedWorkdays - present - late - leave);
 
