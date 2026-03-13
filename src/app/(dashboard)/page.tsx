@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
-import DashboardUI from "@/components/DashboardUI"; // ดึง Component ที่เราเพิ่งสร้างมาใช้
+import DashboardUI from "@/components/DashboardUI";
 
 export default async function Home() {
   const cookieStore = await cookies();

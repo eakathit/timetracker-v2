@@ -1,9 +1,7 @@
 name: Auto Checkout 17:30
 
 on:
-  schedule:
-    - cron: '30 10 * * *'  # 17:30 ICT ทุกวัน
-  workflow_dispatch:        # รัน manual ได้
+  workflow_dispatch:
 
 jobs:
   auto-checkout:

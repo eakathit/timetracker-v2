@@ -1,8 +1,6 @@
 name: OT Notify 18:00
 
 on:
-  schedule:
-    - cron: '0 11 * * *'  # 18:00 ICT ทุกวัน
   workflow_dispatch:
 
 jobs:

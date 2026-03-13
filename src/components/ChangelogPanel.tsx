@@ -21,7 +21,7 @@ const CHANGELOG: ChangelogEntry[] = [
     date: "2026-03-13",
     items: [
       { tag: "feature",     text: "เพิ่มพนักงานมาทำงานระหว่างวัน On-site" },
-      { tag: "feature",     text: "ลบ session code ออกจาก Ons-site" },
+      { tag: "feature",     text: "ลบ session code ออกจาก On-site" },
     ],
   },
   {
