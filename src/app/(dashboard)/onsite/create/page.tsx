@@ -242,10 +242,6 @@ export default function CreateOnsiteSessionPage() {
             <p className="text-emerald-100 text-sm mt-1">ห้อง On-site พร้อมใช้งาน</p>
           </div>
           <div className="px-6 py-6 space-y-4">
-            <div className="bg-gray-50 rounded-2xl p-4 text-center">
-              <p className="text-xs text-gray-500 mb-1 font-medium">Session Code</p>
-              <p className="text-3xl font-black tracking-[0.3em] text-gray-800">{sessionCode}</p>
-            </div>
             <div className="flex items-center gap-2 text-sm text-gray-600">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 text-sky-500">
                 <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/>

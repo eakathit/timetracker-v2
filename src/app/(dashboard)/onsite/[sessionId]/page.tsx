@@ -748,10 +748,6 @@ const handleCheckOutClick = () => {
                     </div>
                   </>
                 )}
-                <div className="ml-auto text-right">
-                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Code</p>
-                  <p className="text-sm font-black text-gray-700 tracking-widest">{session.session_code}</p>
-                </div>
               </div>
             </div>
           )}

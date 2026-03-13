@@ -139,19 +139,11 @@ function SessionCard({
         </div>
 
         {/* Row 3: วันที่ (ถ้าไม่ใช่วันนี้) + Code */}
-        {(!isToday || session.session_code) && (
-          <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-50">
-            {!isToday && (
-              <span className="text-xs text-gray-400">{fmtDate(session.session_date)}</span>
-            )}
-            {isToday && <span />}
-            {session.session_code && (
-              <span className="text-xs font-black text-gray-400 tracking-widest">
-                {session.session_code}
-              </span>
-            )}
-          </div>
-        )}
+        {!isToday && (
+  <div className="mt-3 pt-3 border-t border-gray-50">
+    <span className="text-xs text-gray-400">{fmtDate(session.session_date)}</span>
+  </div>
+)}
       </div>
     </button>
   );
