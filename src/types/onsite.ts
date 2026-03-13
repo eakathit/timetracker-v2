@@ -33,9 +33,15 @@ export interface OnsiteSessionMember {
   user_id:              string;
   role:                 MemberRole;
   checkout_type:        CheckoutType;
-  early_checkout_at:    string | null;  // ISO timestamp
+  early_checkout_at:    string | null;
   early_checkout_note:  string | null;
   joined_at:            string;
+  /** เวลา check-in จริงของคนนี้
+   *  - สมาชิกเดิม  → copy มาจาก group_check_in ตอน groupCheckIn()
+   *  - เพิ่มกลางวัน → now() ณ เวลาที่ leader ดึงเข้า
+   *  - null         → session ยัง open (ยังไม่ได้ group check-in)
+   */
+  checkin_at: string | null;
 }
 
 // ─── Joined / Enriched Types ──────────────────────────────────────────────────
@@ -74,7 +80,7 @@ export type OnsiteTimelineEvent =
       timestamp:  string;
       session_id: string;
       site_name:  string;
-      synced_from: "leader";  // เวลายึดจาก Leader
+      synced_from: "leader" | "leader_mid_session"; 
     }
   | {
       event:           "onsite_early_leave";

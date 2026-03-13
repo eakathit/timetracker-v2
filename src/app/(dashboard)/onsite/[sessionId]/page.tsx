@@ -12,12 +12,15 @@ import {
   groupCheckIn,
   groupCheckOut,
   earlyLeave,
+  addMidSessionMember,    // ← เพิ่ม
+  getAvailableEmployees,  // ← เพิ่ม
 } from "@/app/actions/onsite";
 import { supabase } from "@/lib/supabase";
 import type {
   OnsiteSessionWithMembers,
   OnsiteSessionMemberWithProfile,
   OnsiteSessionStatus,
+  MemberProfile,
 } from "@/types/onsite";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -111,7 +114,24 @@ function MemberCard({
           )}
         </div>
         <p className="text-xs text-gray-400">{member.profile?.department || "–"}</p>
-      </div>
+
+  {/* ✅ ใหม่: แสดงเวลา check-in เฉพาะถ้า session checked_in แล้ว */}
+  {member.checkin_at && sessionStatus !== "open" && (
+    <div className="flex items-center gap-1 mt-0.5">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+        className="w-3 h-3 text-gray-300">
+        <circle cx="12" cy="12" r="9" /><polyline points="12 7 12 12 15 14" />
+      </svg>
+      <span className="text-[10px] text-gray-400">
+        เข้า {fmtTime(member.checkin_at)}
+        {/* badge ถ้าเข้าช้ากว่า 08:30 */}
+        {new Date(member.checkin_at).getHours() >= 9 && (
+          <span className="ml-1 text-amber-500 font-bold">(มาระหว่างวัน)</span>
+        )}
+      </span>
+    </div>
+  )}
+</div>
 
       {/* Status */}
       <div className="flex-shrink-0 text-right">
@@ -403,6 +423,145 @@ function OTBreakModal({
   );
 }
 
+// ─── Add Member Modal ─────────────────────────────────────────────────────────
+function AddMemberModal({
+  sessionId,
+  onAdded,
+  onClose,
+}: {
+  sessionId: string;
+  onAdded:   () => void;
+  onClose:   () => void;
+}) {
+  const [employees, setEmployees] = useState<MemberProfile[]>([]);
+  const [search, setSearch]       = useState("");
+  const [loading, setLoading]     = useState(true);
+  const [adding, setAdding]       = useState<string | null>(null); // user_id ที่กำลัง add
+  const [error, setError]         = useState<string | null>(null);
+
+  useEffect(() => {
+    getAvailableEmployees(sessionId).then((res) => {
+      if (res.success && res.data) setEmployees(res.data);
+      setLoading(false);
+    });
+  }, [sessionId]);
+
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase().trim();
+    if (!q) return employees;
+    return employees.filter(
+      (e) =>
+        [e.first_name, e.last_name].filter(Boolean).join(" ").toLowerCase().includes(q) ||
+        (e.department ?? "").toLowerCase().includes(q)
+    );
+  }, [employees, search]);
+
+  const handleAdd = async (emp: MemberProfile) => {
+    setAdding(emp.id);
+    setError(null);
+    const res = await addMidSessionMember(sessionId, emp.id);
+    if (res.success) {
+      setEmployees((prev) => prev.filter((e) => e.id !== emp.id));
+      onAdded();
+    } else {
+      setError(res.error ?? "เพิ่มไม่สำเร็จ");
+    }
+    setAdding(null);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4">
+      <div className="w-full max-w-sm bg-white rounded-3xl overflow-hidden shadow-xl">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <div>
+            <h3 className="text-base font-extrabold text-gray-800">เพิ่มสมาชิก</h3>
+            <p className="text-xs text-gray-400 mt-0.5">Check-in เวลาปัจจุบัน · ไม่ได้เบี้ยเลี้ยงเช้า</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+
+        {/* Search */}
+        <div className="px-4 py-3 border-b border-gray-50">
+          <div className="relative">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+              className="w-4 h-4 text-gray-300 absolute left-3 top-1/2 -translate-y-1/2">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="ค้นหาชื่อหรือแผนก..."
+              className="w-full pl-9 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-sky-400"
+            />
+          </div>
+        </div>
+
+        {/* Error */}
+        {error && (
+          <div className="mx-4 mt-3 px-3 py-2 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-600 font-medium">
+            {error}
+          </div>
+        )}
+
+        {/* List */}
+        <div className="max-h-72 overflow-y-auto divide-y divide-gray-50">
+          {loading ? (
+            <div className="py-10 text-center text-sm text-gray-400 animate-pulse">กำลังโหลด...</div>
+          ) : filtered.length === 0 ? (
+            <div className="py-10 text-center text-sm text-gray-400">ไม่พบพนักงาน</div>
+          ) : (
+            filtered.map((emp) => {
+              const name = [emp.first_name, emp.last_name].filter(Boolean).join(" ") || "ไม่ระบุชื่อ";
+              const initials = ((emp.first_name?.[0] ?? "") + (emp.last_name?.[0] ?? "")).toUpperCase() || "?";
+              const isAdding = adding === emp.id;
+
+              return (
+                <div key={emp.id} className="flex items-center gap-3 px-4 py-3">
+                  {emp.avatar_url ? (
+                    <img src={emp.avatar_url} referrerPolicy="no-referrer"
+                      className="w-9 h-9 rounded-xl object-cover flex-shrink-0" />
+                  ) : (
+                    <span className={`w-9 h-9 rounded-xl ${avatarColor(emp.id)} text-white text-sm font-bold flex items-center justify-center flex-shrink-0`}>
+                      {initials}
+                    </span>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-gray-800 truncate">{name}</p>
+                    <p className="text-xs text-gray-400">{emp.department || "–"}</p>
+                  </div>
+                  <button
+                    onClick={() => handleAdd(emp)}
+                    disabled={isAdding}
+                    className="flex-shrink-0 px-3 py-1.5 bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-colors"
+                  >
+                    {isAdding ? "..." : "+ เพิ่ม"}
+                  </button>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-4 py-3 border-t border-gray-50">
+          <button onClick={onClose} className="w-full py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition">
+            ปิด
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 export default function OnsiteSessionPage() {
   const { sessionId } = useParams<{ sessionId: string }>();
@@ -419,6 +578,7 @@ export default function OnsiteSessionPage() {
 
   const [showGroupCheckout, setShowGroupCheckout]   = useState(false);
   const [showOTBreak, setShowOTBreak] = useState(false);
+  const [showAddMember, setShowAddMember]         = useState(false);
 
   // ─── Load current user ─────────────────────────────────
   useEffect(() => {
@@ -532,6 +692,13 @@ const handleCheckOutClick = () => {
     loading={isPending}
   />
 )}
+{showAddMember && (
+  <AddMemberModal
+    sessionId={sessionId}
+    onAdded={loadSession}
+    onClose={() => setShowAddMember(false)}
+  />
+)}
 
       <div className="min-h-screen bg-gray-50 flex flex-col pb-52 md:pb-32">
         {/* ── Header ── */}
@@ -606,7 +773,20 @@ const handleCheckOutClick = () => {
                 </svg>
                 <h2 className="text-sm font-extrabold text-gray-700">สมาชิกในห้อง</h2>
               </div>
-              <span className="text-xs text-gray-400">{session.members.length} คน</span>
+              <div className="flex items-center gap-2">
+  {isLeader && session.status === "checked_in" && (
+    <button
+      onClick={() => setShowAddMember(true)}
+      className="flex items-center gap-1 text-xs font-bold text-sky-600 bg-sky-50 border border-sky-200 px-2.5 py-1 rounded-xl hover:bg-sky-100 transition-colors"
+    >
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3.5 h-3.5">
+        <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+      </svg>
+      เพิ่มคน
+    </button>
+  )}
+  <span className="text-xs text-gray-400">{session.members.length} คน</span>
+</div>
             </div>
             <div className="divide-y divide-gray-50">
               {session.members.map((member) => (

@@ -1,0 +1,1 @@
+SELECT id, first_name, last_name, department FROM profiles_with_avatar LIMIT 10;

@@ -9,6 +9,7 @@ import type {
   OnsiteSessionWithMembers,
   ActionResult,
   OnsiteTimelineEvent,
+  MemberProfile,
 } from "@/types/onsite";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -507,5 +508,140 @@ export async function getSessionHistory(limit = 10) {
     return { success: true as const, data: data ?? [] };
   } catch (err) {
     return { success: false as const, error: String(err) };
+  }
+
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 8. เพิ่มสมาชิกระหว่าง Session (Mid-session)
+// ─────────────────────────────────────────────────────────────────────────────
+export async function addMidSessionMember(
+  sessionId: string,
+  targetUserId: string
+): Promise<ActionResult<{ member: unknown }>> {
+  try {
+    const supabase = await getSupabaseServer();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { success: false, error: "Unauthorized" };
+
+    // เช็ค session + leader
+    const { data: sessions } = await supabase
+      .from("onsite_sessions")
+      .select("id, status, leader_id, site_name")
+      .eq("id", sessionId)
+      .limit(1);
+
+    const session = sessions?.[0];
+    if (!session) return { success: false, error: "ไม่พบ Session" };
+    if (session.leader_id !== user.id) return { success: false, error: "เฉพาะ Leader เท่านั้น" };
+    if (session.status !== "checked_in") return { success: false, error: "Session ต้องอยู่ในสถานะ checked_in" };
+
+    // เช็คซ้ำ
+    const { data: existing } = await supabase
+      .from("onsite_session_members")
+      .select("id")
+      .eq("session_id", sessionId)
+      .eq("user_id", targetUserId)
+      .maybeSingle();
+
+    if (existing) return { success: false, error: "พนักงานคนนี้อยู่ในห้องแล้ว" };
+
+    const now   = new Date().toISOString();
+    const today = getLocalToday();
+
+    // Insert member พร้อม checkin_at = now (ไม่ได้เบี้ยเลี้ยง)
+    const { data: newMember, error: mErr } = await supabase
+      .from("onsite_session_members")
+      .insert({
+        session_id:    sessionId,
+        user_id:       targetUserId,
+        role:          "member",
+        checkout_type: "pending",
+        checkin_at:    now,
+      })
+      .select()
+      .single();
+
+    if (mErr) return { success: false, error: mErr.message };
+
+    // Upsert daily_time_logs
+    const newEvent: OnsiteTimelineEvent = {
+      event:       "onsite_checkin",
+      timestamp:   now,
+      session_id:  sessionId,
+      site_name:   session.site_name,
+      synced_from: "leader_mid_session",
+    };
+
+    const { data: existingRows } = await supabase
+      .from("daily_time_logs")
+      .select("id, timeline_events")
+      .eq("user_id", targetUserId)
+      .eq("log_date", today)
+      .limit(1);
+
+    const existingLog = existingRows?.[0];
+
+    if (existingLog) {
+      await supabase
+        .from("daily_time_logs")
+        .update({
+          work_type:       "on_site",
+          timeline_events: [...(existingLog.timeline_events ?? []), newEvent],
+        })
+        .eq("id", existingLog.id);
+    } else {
+      await supabase.from("daily_time_logs").insert({
+        user_id:           targetUserId,
+        log_date:          today,
+        work_type:         "on_site",
+        first_check_in:    now,
+        onsite_session_id: sessionId,
+        timeline_events:   [newEvent],
+        status:            "late",      // เข้าหลัง 08:30 แน่นอน
+        daily_allowance:   false,       // ไม่ได้เบี้ยเลี้ยง
+      });
+    }
+
+    return { success: true, data: { member: newMember } };
+  } catch (err) {
+    return { success: false, error: String(err) };
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 9. ดึงพนักงานที่ยังไม่อยู่ใน Session (สำหรับ Add Member Modal)
+// ─────────────────────────────────────────────────────────────────────────────
+export async function getAvailableEmployees(
+  sessionId: string
+): Promise<ActionResult<MemberProfile[]>> {
+  try {
+    const supabase = await getSupabaseServer();
+
+    const { data: existing } = await supabase
+      .from("onsite_session_members")
+      .select("user_id")
+      .eq("session_id", sessionId);
+
+    const existingIds = (existing ?? []).map((m) => m.user_id);
+
+    let query = supabase
+      .from("profiles_with_avatar")
+      .select("id, first_name, last_name, department, role, avatar_url")
+      .order("first_name");
+
+    if (existingIds.length > 0) {
+      query = query.not("id", "in", `(${existingIds.join(",")})`);
+    }
+
+    const { data, error } = await query;
+    if (error) return { success: false, error: error.message };
+
+    return {
+      success: true,
+      data: (data ?? []) as import("@/types/onsite").MemberProfile[],
+    };
+  } catch (err) {
+    return { success: false, error: String(err) };
   }
 }
