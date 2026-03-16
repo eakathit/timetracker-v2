@@ -30,7 +30,9 @@ export async function middleware(request: NextRequest) {
   const isLoginPage    = url.pathname === "/login";
   const isAuthCallback = url.pathname.startsWith("/auth/callback");
   const isCronRoute    = url.pathname.startsWith("/api/cron/");
-  const isPublicPage   = isLoginPage || isAuthCallback || isCronRoute; 
+  const isQRDisplay     = url.pathname === "/qr-display";
+  const isQRTokenAPI    = url.pathname === "/api/qr-token";
+  const isPublicPage    = isLoginPage || isAuthCallback || isCronRoute || isQRDisplay || isQRTokenAPI;
 
   if (!user && !isPublicPage) {
     url.pathname = "/login";

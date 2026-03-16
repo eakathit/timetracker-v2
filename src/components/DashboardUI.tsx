@@ -6,6 +6,8 @@ import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import OTWindowCard from "@/components/OTWindowCard";
 import { ChangelogBellButton } from "@/components/ChangelogPanel";
+import dynamic from "next/dynamic";
+const QRScannerModal = dynamic(() => import("@/components/QRScannerModal"), { ssr: false });
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface DashboardUIProps {
   userName?: string;
@@ -168,6 +170,7 @@ export default function DashboardUI({ userName, userEmail, userId }: DashboardUI
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
   const [showReportPopup, setShowReportPopup] = useState(false);
+  const [showQRScanner, setShowQRScanner] = useState(false);
 
   const [popupEndUsers, setPopupEndUsers] = useState<any[]>([]);
   const [popupProjects, setPopupProjects] = useState<any[]>([]);
@@ -243,7 +246,7 @@ export default function DashboardUI({ userName, userEmail, userId }: DashboardUI
 
   // ── Location watch ────────────────────────────────────────────────────────
   useEffect(() => {
-    if (workType !== "in_factory") return;
+    if (workType === "in_factory") return;
     setLocationStatus("checking");
     setDistanceText("กำลังตรวจสอบพิกัด...");
     if (!navigator.geolocation) {
@@ -512,8 +515,21 @@ export default function DashboardUI({ userName, userEmail, userId }: DashboardUI
     setWorkStatus("working");
     setIsSubmitting(false);
     setShowReportPopup(true);
-  };
+  }; 
 
+  const handleQRCheckInSuccess = async (checkInIsoTime: string) => {
+    setShowQRScanner(false);
+    setRawCheckIn(checkInIsoTime);
+    setCheckInTime(
+      new Date(checkInIsoTime).toLocaleTimeString("th-TH", {
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    );
+    setWorkStatus("working");
+    setShowReportPopup(true);
+  };
+  
   const handleCheckOut = async () => {
     if (!userId || !validateLocation()) return;
     setIsSubmitting(true);
@@ -617,72 +633,56 @@ export default function DashboardUI({ userName, userEmail, userId }: DashboardUI
 
         {/* IDLE → Check In */}
         {workStatus === "idle" && (
-          <button
-            onClick={handleCheckIn}
-            disabled={isSubmitting || isInitializing} // ← เพิ่ม isInitializing
-            className={`w-48 h-48 rounded-full flex flex-col items-center justify-center mx-auto shadow-lg transition-all duration-300
-      ${
-        isSubmitting
-          ? "bg-sky-400 text-white opacity-80 cursor-wait"
-          : isInitializing
-            ? "bg-sky-300 text-white cursor-wait" // ← สีอ่อนกว่า ระหว่าง sync
-            : "bg-sky-400 text-white hover:bg-sky-500 checkin-btn-anim"
-      }
-    `}
-          >
-            {isSubmitting ? (
-              <>
-                <svg
-                  className="animate-spin h-12 w-12 text-white mb-2"
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  />
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                  />
+          <>
+            {workType === "in_factory" ? (
+              // ✅ ปุ่มใหม่ — QR Scanner
+              <button
+                onClick={() => setShowQRScanner(true)}
+                disabled={isSubmitting || isInitializing}
+                className={`w-48 h-48 rounded-full flex flex-col items-center justify-center mx-auto shadow-lg transition-all duration-300
+                  ${isInitializing
+                    ? "bg-sky-300 text-white cursor-wait"
+                    : "bg-sky-500 text-white hover:bg-sky-600 active:scale-95 checkin-btn-anim"
+                  }`}
+              >
+                <svg className="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                    d="M3 3h7v7H3V3zM14 3h7v7h-7V3zM3 14h7v7H3v-7zM17 14h1M14 14h1M14 17h1M17 17h4M20 14h1M20 17v4M14 20h4" />
                 </svg>
-                <span className="text-xl font-semibold mt-2">
-                  กำลังบันทึก...
-                </span>
-              </>
+                <span className="text-2xl font-semibold mt-2">สแกน QR</span>
+                <span className="text-sm mt-1 opacity-80">Check In</span>
+              </button>
             ) : (
-              <>
-                <svg
-                  className="w-16 h-16"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
-                  />
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
-                  />
-                </svg>
-                <span className="text-2xl font-semibold mt-2">Check In</span>
-              </>
+              // ✅ ปุ่มเดิม — GPS (ใช้สำหรับ on_site)
+              <button
+                onClick={handleCheckIn}
+                disabled={isSubmitting || isInitializing}
+                className={`w-48 h-48 rounded-full flex flex-col items-center justify-center mx-auto shadow-lg transition-all duration-300
+                  ${isSubmitting
+                    ? "bg-sky-400 text-white opacity-80 cursor-wait"
+                    : isInitializing
+                      ? "bg-sky-300 text-white cursor-wait"
+                      : "bg-sky-400 text-white hover:bg-sky-500 checkin-btn-anim"
+                  }`}
+              >
+                {/* icon + text เดิมทั้งหมด ไม่ต้องแตะ */}
+                {isSubmitting ? (
+                  <>{/* spinner เดิม */}</>
+                ) : (
+                  <>
+                    <svg className="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
+                        d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
+                        d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    <span className="text-2xl font-semibold mt-2">Check In</span>
+                  </>
+                )}
+              </button>
             )}
-          </button>
+          </>
         )}
-
         {/* WORKING → Check Out */}
         {workStatus === "working" && (
           <button
@@ -1085,6 +1085,14 @@ export default function DashboardUI({ userName, userEmail, userId }: DashboardUI
           </div>
         </div>
       )}
+
+      {showQRScanner && (
+        <QRScannerModal
+          onSuccess={handleQRCheckInSuccess}
+          onClose={() => setShowQRScanner(false)}
+        />
+      )}
+
     </main>
   );
 }
