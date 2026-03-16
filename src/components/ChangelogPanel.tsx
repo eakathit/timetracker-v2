@@ -17,6 +17,13 @@ interface ChangelogEntry {
 // ─── Changelog Data (Dev/Admin) ────────────────────────────────────
 const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.7.5",
+    date: "2026-03-16",
+    items: [
+      { tag: "feature",     text: "Qr code Checkin เพิ่มรายชื่อพนักงาน Checkin factory/on-site" },
+    ],
+  },
+  {
     version: "1.7.0",
     date: "2026-03-16",
     items: [

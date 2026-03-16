@@ -1,11 +1,12 @@
-INSERT INTO daily_time_logs 
-  (user_id, log_date, status, first_check_in, last_check_out, ot_hours, work_type)
-VALUES (
-  'ead99f60-41c2-49c5-9261-bc4ebabf03ef',
-  '2026-03-05',
-  'on_time',
-  '2026-03-05T08:30:00+07:00',
-  '2026-03-05T19:30:00+07:00',
-  1.5,
-  'in_factory'
+-- ลบ policy เก่าที่ใช้ CURRENT_DATE (UTC)
+DROP POLICY IF EXISTS "Anon can view today checkins for qr display" ON daily_time_logs;
+
+-- สร้างใหม่ให้ใช้ timezone Bangkok แทน
+CREATE POLICY "Anon can view today checkins for qr display"
+ON daily_time_logs
+FOR SELECT
+TO anon
+USING (
+  log_date = (NOW() AT TIME ZONE 'Asia/Bangkok')::date
+  AND first_check_in IS NOT NULL
 );

@@ -32,7 +32,9 @@ export async function middleware(request: NextRequest) {
   const isCronRoute    = url.pathname.startsWith("/api/cron/");
   const isQRDisplay     = url.pathname === "/qr-display";
   const isQRTokenAPI    = url.pathname === "/api/qr-token";
-  const isPublicPage    = isLoginPage || isAuthCallback || isCronRoute || isQRDisplay || isQRTokenAPI;
+  const isRecentCheckinsAPI = url.pathname === "/api/recent-checkins";
+  // แล้วเพิ่มเข้า isPublicPage:
+  const isPublicPage = isLoginPage || isAuthCallback || isCronRoute || isQRDisplay || isQRTokenAPI || isRecentCheckinsAPI;
 
   if (!user && !isPublicPage) {
     url.pathname = "/login";
