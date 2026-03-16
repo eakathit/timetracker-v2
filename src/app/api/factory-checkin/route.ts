@@ -64,10 +64,12 @@ export async function POST(req: NextRequest) {
     }
 
     // ── 4. คำนวณ status & day info ─────────────────────────────────────────
-    const checkInDate  = new Date(now);
-    const lateThreshold = new Date(checkInDate);
-    lateThreshold.setHours(8, 30, 0, 0);
-    const attendanceStatus = checkInDate > lateThreshold ? "late" : "on_time";
+    const checkInBangkok = new Date(
+  new Date(now).toLocaleString("en-US", { timeZone: "Asia/Bangkok" })
+);
+const lateThreshold = new Date(checkInBangkok);
+lateThreshold.setHours(8, 30, 0, 0);
+const attendanceStatus = checkInBangkok > lateThreshold ? "late" : "on_time";
 
     // ── 5. บันทึก daily_time_logs ──────────────────────────────────────────
     const newEvent = {

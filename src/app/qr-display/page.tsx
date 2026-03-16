@@ -124,7 +124,7 @@ export default function QRDisplayPage() {
 
       {/* Footer */}
       <p className="mt-8 text-slate-600 text-xs text-center">
-        QR Code จะเปลี่ยนทุก 1 นาที • ห้ามถ่ายรูปแชร์
+        QR Code จะเปลี่ยนทุก 1 นาที
       </p>
     </div>
   );
