@@ -13,7 +13,7 @@ interface QRPayload {
 export default function QRDisplayPage() {
   const canvasRef   = useRef<HTMLCanvasElement>(null);
   const [timeLeft, setTimeLeft]   = useState(60);
-  const [locLabel, setLocLabel]   = useState("โรงงานหลัก");
+  const [locLabel, setLocLabel]   = useState("HARU SYSTEM DEVELOPMENT (THAILAND) CO.,LTD.");
   const [currentTime, setCurrentTime] = useState("");
   const [isLoading, setIsLoading] = useState(true);
 
