@@ -549,7 +549,12 @@ export async function addMidSessionMember(
     const now   = new Date().toISOString();
     const today = getLocalToday();
 
-    // Insert member พร้อม checkin_at = now (ไม่ได้เบี้ยเลี้ยง)
+    // ✅ ใช้ now เป็น effective check-in เสมอ
+    // เพราะพนักงานที่เพิ่มกลางวันไม่ควรได้ daily_allowance เหมือนคนที่เข้าก่อน 08:30
+    const attendanceStatus = calcAttendanceStatus(now);
+    const dailyAllowance   = calcDailyAllowance(now);
+
+    // Insert member
     const { data: newMember, error: mErr } = await supabase
       .from("onsite_session_members")
       .insert({
@@ -557,14 +562,14 @@ export async function addMidSessionMember(
         user_id:       targetUserId,
         role:          "member",
         checkout_type: "pending",
-        checkin_at:    now,
+        checkin_at:    now, // ✅ เวลาที่ leader กดเพิ่มจริงๆ
       })
       .select()
       .single();
 
     if (mErr) return { success: false, error: mErr.message };
 
-    // Upsert daily_time_logs
+    // Timeline event
     const newEvent: OnsiteTimelineEvent = {
       event:       "onsite_checkin",
       timestamp:   now,
@@ -573,6 +578,7 @@ export async function addMidSessionMember(
       synced_from: "leader_mid_session",
     };
 
+    // ดึง existing log ของพนักงานวันนี้
     const { data: existingRows } = await supabase
       .from("daily_time_logs")
       .select("id, timeline_events")
@@ -583,14 +589,19 @@ export async function addMidSessionMember(
     const existingLog = existingRows?.[0];
 
     if (existingLog) {
+      // ✅ อัปเดต status + daily_allowance ด้วย (เดิมไม่มี)
       await supabase
         .from("daily_time_logs")
         .update({
-          work_type:       "on_site",
-          timeline_events: [...(existingLog.timeline_events ?? []), newEvent],
+          work_type:         "on_site",
+          onsite_session_id: sessionId,
+          status:            attendanceStatus,
+          daily_allowance:   dailyAllowance,
+          timeline_events:   [...(existingLog.timeline_events ?? []), newEvent],
         })
         .eq("id", existingLog.id);
     } else {
+      // ✅ คำนวณจริง ไม่ hardcode "late" / false แล้ว
       await supabase.from("daily_time_logs").insert({
         user_id:           targetUserId,
         log_date:          today,
@@ -598,8 +609,8 @@ export async function addMidSessionMember(
         first_check_in:    now,
         onsite_session_id: sessionId,
         timeline_events:   [newEvent],
-        status:            "late",      // เข้าหลัง 08:30 แน่นอน
-        daily_allowance:   false,       // ไม่ได้เบี้ยเลี้ยง
+        status:            attendanceStatus,
+        daily_allowance:   dailyAllowance,
       });
     }
 

@@ -168,7 +168,6 @@ export default function CreateOnsiteSessionPage() {
   const handleSubmit = async () => {
     if (isOtherEndUser) {
   if (!customEndUserName.trim()) { setError("กรุณากรอกชื่อ End User"); return; }
-  if (!customProjectNo.trim())   { setError("กรุณากรอก Project No."); return; }
 } else if (!projectId) {
   setError("กรุณาเลือกโปรเจกต์");
   return;
@@ -182,7 +181,7 @@ export default function CreateOnsiteSessionPage() {
     const selectedEndUser = endUsers.find((u) => u.id === endUserId);
     const selectedProject = projects.find((p) => p.id === projectId);
     const siteName = isOtherEndUser
-  ? `${customEndUserName.trim()} · #${customProjectNo.trim()}`
+  ? customEndUserName.trim()
   : [selectedEndUser?.name, selectedProject ? `#${selectedProject.project_no}` : null]
       .filter(Boolean).join(" · ");
 
@@ -214,7 +213,7 @@ export default function CreateOnsiteSessionPage() {
 
   const canSubmit =
   (isOtherEndUser
-    ? customEndUserName.trim().length > 0 && customProjectNo.trim().length > 0
+    ? customEndUserName.trim().length > 0
     : !!projectId) &&
   selectedIds.size > 0 &&
   !isSubmitting;
@@ -224,7 +223,7 @@ export default function CreateOnsiteSessionPage() {
     const selectedProject = projects.find((p) => p.id === projectId);
     const selectedEndUser = endUsers.find((u) => u.id === endUserId);
     const displaySite = isOtherEndUser
-  ? `${customEndUserName} · #${customProjectNo}`
+  ? customEndUserName
   : [selectedEndUser?.name, selectedProject ? `#${selectedProject.project_no}` : null]
       .filter(Boolean).join(" · ");
 
@@ -339,15 +338,7 @@ export default function CreateOnsiteSessionPage() {
 )}
 
 {/* Project No. */}
-{isOtherEndUser ? (
-  <input
-    type="text"
-    value={customProjectNo}
-    onChange={(e) => { setCustomProjectNo(e.target.value); setError(null); }}
-    placeholder="กรอก Project No. (เช่น H1-0551)"
-    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-800 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100 transition placeholder-gray-400"
-  />
-) : (
+{!isOtherEndUser && (
   <div className="relative">
     <select
       value={projectId}
