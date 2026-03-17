@@ -47,6 +47,7 @@ interface OTRequest {
   project_no?: string;
   project_name?: string;
   avatar_url?: string | null;
+  actioned_by_name?: string | null;
 }
 
 interface LeaveRequest {
@@ -66,6 +67,7 @@ interface LeaveRequest {
   full_name?: string;
   department?: string;
   avatar_url?: string | null;
+  actioned_by_name?: string | null;
 }
 
 // ─── Config ───────────────────────────────────────────────────────────────────
@@ -148,7 +150,7 @@ function Avatar({ name, userId, avatarUrl, size = "sm" }: {
 }
 
 function OTCard({ req, showUser, onClick }: { req: OTRequest; showUser: boolean; onClick: () => void }) {
-  const st = STATUS_CFG[req.status];
+  const st  = STATUS_CFG[req.status];
   const day   = req.request_date?.split("-")[2];
   const month = TH_MONTHS[Number(req.request_date?.split("-")[1])];
 
@@ -159,7 +161,6 @@ function OTCard({ req, showUser, onClick }: { req: OTRequest; showUser: boolean;
     >
       {/* Top row */}
       <div className="flex items-start gap-3 px-4 pt-4 pb-3">
-
         {/* Date badge */}
         <div className="flex-shrink-0 w-11 h-13 flex flex-col items-center justify-center bg-gray-50 rounded-xl px-2 py-2.5">
           <span className="text-base font-black text-gray-800 leading-none">{day}</span>
@@ -180,7 +181,7 @@ function OTCard({ req, showUser, onClick }: { req: OTRequest; showUser: boolean;
 
           <div className="flex items-start justify-between gap-2">
             <p className="text-sm font-bold text-gray-900 truncate leading-snug">
-              {req.project_no ? `#${req.project_no}${req.project_name ? ` ${req.project_name}` : ""}` : "ไม่ระบุโปรเจกต์"}
+              {req.project_no ? `#${req.project_no}${req.project_name ? ` – ${req.project_name}` : ""}` : "ไม่ระบุโปรเจกต์"}
             </p>
             <span className={`flex-shrink-0 text-[11px] font-bold px-2.5 py-1 rounded-full ${st.bg} ${st.text}`}>
               {st.label}
@@ -194,17 +195,18 @@ function OTCard({ req, showUser, onClick }: { req: OTRequest; showUser: boolean;
       </div>
 
       {/* Bottom bar */}
-      <div className={`flex items-center gap-4 px-4 py-2.5 border-t ${st.border} ${st.bg}`}>
-        <span className="flex items-center gap-1.5 text-xs font-semibold text-gray-600">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-gray-400">
-            <circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/>
-          </svg>
-          {fmtTime(req.start_time)} – {fmtTime(req.end_time)}
-        </span>
-        <span className={`text-xs font-black ${st.text}`}>{req.hours} ชม.</span>
-        {req.reject_reason && (
-          <span className="ml-auto text-[11px] text-rose-400 truncate max-w-[120px]">{req.reject_reason}</span>
-        )}
+      <div className={`px-4 py-2.5 border-t ${st.border} ${st.bg}`}>
+        {/* Row 1: เวลา OT */}
+        <div className="flex items-center gap-4">
+          <span className="flex items-center gap-1.5 text-xs font-semibold text-gray-600">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-gray-400">
+              <circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>
+            </svg>
+            {fmtTime(req.start_time)} – {fmtTime(req.end_time)}
+          </span>
+          <span className={`text-xs font-black ${st.text}`}>{req.hours} ชม.</span>
+        </div>
+
       </div>
     </div>
   );
@@ -251,7 +253,6 @@ function LeaveCard({ req, showUser, onClick }: { req: LeaveRequest; showUser: bo
     >
       {/* Top row */}
       <div className="flex items-start gap-3 px-4 pt-4 pb-3">
-
         {/* Type icon badge */}
         <div className={`flex-shrink-0 w-11 h-11 rounded-xl flex items-center justify-center ${lt.bg} ${lt.text}`}>
           {LeaveCardIcon[req.leave_type]}
@@ -283,19 +284,25 @@ function LeaveCard({ req, showUser, onClick }: { req: LeaveRequest; showUser: bo
       </div>
 
       {/* Bottom bar */}
-      <div className={`flex items-center gap-4 px-4 py-2.5 border-t ${st.border} ${st.bg}`}>
-        <span className="flex items-center gap-1.5 text-xs font-semibold text-gray-600">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-gray-400">
-            <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/>
-          </svg>
-          {isSameDay ? fmtDate(req.start_date) : `${fmtDate(req.start_date)} – ${fmtDate(req.end_date)}`}
-        </span>
-        <span className={`text-xs font-black ${st.text}`}>{req.days} วัน</span>
+      <div className={`px-4 py-2.5 border-t ${st.border} ${st.bg}`}>
+        {/* Row 1: วันที่ลา */}
+        <div className="flex items-center gap-4">
+          <span className="flex items-center gap-1.5 text-xs font-semibold text-gray-600">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-gray-400">
+              <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/>
+            </svg>
+            {isSameDay ? fmtDate(req.start_date) : `${fmtDate(req.start_date)} – ${fmtDate(req.end_date)}`}
+          </span>
+          <span className={`text-xs font-black ${st.text}`}>{req.days} วัน</span>
+        </div>
+
+       
       </div>
     </div>
   );
 }
 
+// ─── Bottom Sheet ─────────────────────────────────────────────────────────────
 // ─── Bottom Sheet ─────────────────────────────────────────────────────────────
 function BottomSheet({
   item, type, canAct, onClose, onApprove, onReject,
@@ -312,25 +319,10 @@ function BottomSheet({
   const [loading, setLoading]                 = useState(false);
   const st = STATUS_CFG[item.status];
 
-  const name = (item as OTRequest).full_name ?? "ฉัน";
-  const dept = (item as OTRequest).department ?? "";
+  const name     = (item as OTRequest).full_name ?? "ฉัน";
+  const dept     = (item as OTRequest).department ?? "";
   const avatarUrl = (item as OTRequest).avatar_url ?? null;
-
-  const rows = type === "ot"
-    ? [
-        { icon: "📅", label: "วันที่",    value: fmtDate((item as OTRequest).request_date) },
-        { icon: "⏰", label: "ช่วงเวลา",  value: `${fmtTime((item as OTRequest).start_time)} – ${fmtTime((item as OTRequest).end_time)}  (${(item as OTRequest).hours} ชม.)` },
-        { icon: "📁", label: "โปรเจกต์",  value: (item as OTRequest).project_no ? `#${(item as OTRequest).project_no} ${(item as OTRequest).project_name ?? ""}` : "ไม่ระบุ" },
-        { icon: "📝", label: "เหตุผล",    value: item.reason },
-        { icon: "🕐", label: "ยื่นเมื่อ",  value: fmtDateTime(item.created_at) },
-      ]
-    : [
-        { icon: LEAVE_CFG[(item as LeaveRequest).leave_type].icon, label: "ประเภท", value: LEAVE_CFG[(item as LeaveRequest).leave_type].label },
-        { icon: "📅", label: "วันที่ลา", value: (item as LeaveRequest).start_date === (item as LeaveRequest).end_date ? fmtDate((item as LeaveRequest).start_date) : `${fmtDate((item as LeaveRequest).start_date)} – ${fmtDate((item as LeaveRequest).end_date)}` },
-        { icon: "🗓", label: "จำนวนวัน", value: `${(item as LeaveRequest).days} วัน` },
-        { icon: "📝", label: "เหตุผล",   value: item.reason },
-        { icon: "🕐", label: "ยื่นเมื่อ",  value: fmtDateTime(item.created_at) },
-      ];
+  const actionedByName = (item as OTRequest).actioned_by_name ?? null;
 
   const handleApprove = async () => {
     setLoading(true);
@@ -347,10 +339,74 @@ function BottomSheet({
     onClose();
   };
 
+  // ── Row definitions (SVG icons แทน emoji) ──────────────────────────────────
+  type InfoRow = { icon: React.ReactNode; label: string; value: string };
+
+  const CalendarIcon = (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4 h-4">
+      <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/>
+      <line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/>
+    </svg>
+  );
+  const ClockIcon = (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4 h-4">
+      <circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/>
+    </svg>
+  );
+  const FolderIcon = (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4 h-4">
+      <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/>
+    </svg>
+  );
+  const NoteIcon = (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4 h-4">
+      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+      <polyline points="14 2 14 8 20 8"/>
+      <line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="12" y2="17"/>
+    </svg>
+  );
+  const SubmitIcon = (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4 h-4">
+      <circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>
+    </svg>
+  );
+  const TagIcon = (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4 h-4">
+      <path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/>
+      <line x1="7" y1="7" x2="7.01" y2="7"/>
+    </svg>
+  );
+  const DaysIcon = (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4 h-4">
+      <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/>
+      <line x1="8" y1="14" x2="16" y2="14"/>
+    </svg>
+  );
+
+  const otItem    = item as OTRequest;
+  const leaveItem = item as LeaveRequest;
+
+  const rows: InfoRow[] = type === "ot"
+    ? [
+        { icon: CalendarIcon, label: "วันที่",    value: fmtDate(otItem.request_date) },
+        { icon: ClockIcon,    label: "ช่วงเวลา",  value: `${fmtTime(otItem.start_time)} – ${fmtTime(otItem.end_time)}  (${otItem.hours} ชม.)` },
+        { icon: FolderIcon,   label: "โปรเจกต์",  value: otItem.project_no ? `#${otItem.project_no}${otItem.project_name ? ` – ${otItem.project_name}` : ""}` : "ไม่ระบุ" },
+        { icon: NoteIcon,     label: "เหตุผล",    value: item.reason },
+        { icon: SubmitIcon,   label: "ยื่นเมื่อ",  value: fmtDateTime(item.created_at) },
+      ]
+    : [
+        { icon: TagIcon,      label: "ประเภท",    value: LEAVE_CFG[leaveItem.leave_type].label },
+        { icon: CalendarIcon, label: "วันที่ลา",  value: leaveItem.start_date === leaveItem.end_date ? fmtDate(leaveItem.start_date) : `${fmtDate(leaveItem.start_date)} – ${fmtDate(leaveItem.end_date)}` },
+        { icon: DaysIcon,     label: "จำนวนวัน", value: `${leaveItem.days} วัน` },
+        { icon: NoteIcon,     label: "เหตุผล",   value: item.reason },
+        { icon: SubmitIcon,   label: "ยื่นเมื่อ", value: fmtDateTime(item.created_at) },
+      ];
+
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" onClick={onClose} />
       <div className="relative w-full max-w-lg bg-white rounded-t-3xl shadow-2xl flex flex-col max-h-[85vh]">
+
         {/* Drag handle */}
         <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
           <div className="w-10 h-1 rounded-full bg-gray-200" />
@@ -358,95 +414,162 @@ function BottomSheet({
 
         {/* Scrollable body */}
         <div className="overflow-y-auto flex-1 px-5">
+
+          {/* ── Header: Avatar + Status badge ── */}
           <div className="flex items-center justify-between py-4 border-b border-gray-100">
             <div className="flex items-center gap-3">
-              <Avatar 
-  name={name} 
-  userId={item.user_id} 
-  avatarUrl={(item as OTRequest).avatar_url ?? null}
-  size="md" 
-/>
+              <Avatar name={name} userId={item.user_id} avatarUrl={avatarUrl} size="md" />
               <div>
-                <p className="text-base font-black text-gray-900">{name}</p>
+                <p className="text-sm font-black text-gray-900">{name}</p>
                 {dept && <p className="text-xs text-gray-400">{dept}</p>}
               </div>
             </div>
-            <span className={`text-xs font-bold px-3 py-1.5 rounded-full border ${st.bg} ${st.text} ${st.border}`}>
+            <span className={`text-[11px] font-bold px-3 py-1.5 rounded-full ${st.bg} ${st.text}`}>
               {st.label}
             </span>
           </div>
 
-          <div className="py-4 space-y-4">
-            {rows.map((row) => (
-              <div key={row.label} className="flex gap-3">
-                <span className="text-base w-6 flex-shrink-0">{row.icon}</span>
-                <div>
-                  <p className="text-[11px] text-gray-400 font-semibold">{row.label}</p>
-                  <p className="text-sm font-semibold text-gray-800">{row.value}</p>
+          {/* ── Info rows ── */}
+          <div className="py-3 space-y-0 divide-y divide-gray-50">
+            {rows.map((row, i) => (
+              <div key={i} className="flex items-start gap-3 py-3">
+                <span className="flex-shrink-0 w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center text-gray-400 mt-0.5">
+                  {row.icon}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">{row.label}</p>
+                  <p className="text-sm font-semibold text-gray-800 break-words">{row.value}</p>
                 </div>
               </div>
             ))}
-            {item.reject_reason && (
-              <div className="flex gap-3 pt-3 border-t border-gray-100">
-                <span className="text-base w-6">❌</span>
-                <div>
-                  <p className="text-[11px] text-gray-400 font-semibold">เหตุผลที่ไม่อนุมัติ</p>
-                  <p className="text-sm font-semibold text-rose-500">{item.reject_reason}</p>
-                </div>
-              </div>
-            )}
           </div>
 
-          {/* Reject input */}
-          {showRejectInput && (
-            <div className="pb-4">
-              <p className="text-xs font-bold text-gray-500 mb-2">ระบุเหตุผลที่ไม่อนุมัติ</p>
+          {/* ── Actioned by (อนุมัติ/ไม่อนุมัติโดยใคร) ── */}
+          {(item.status === "approved" || item.status === "rejected") && (
+            <div className={`flex items-center gap-3 px-4 py-3 rounded-2xl border mb-4 ${
+              item.status === "approved"
+                ? "bg-emerald-50 border-emerald-100"
+                : "bg-rose-50 border-rose-100"
+            }`}>
+              <span className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center ${
+                item.status === "approved" ? "bg-emerald-100" : "bg-rose-100"
+              }`}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+                  className={`w-4 h-4 ${item.status === "approved" ? "text-emerald-600" : "text-rose-500"}`}>
+                  {item.status === "approved"
+                    ? <polyline points="20 6 9 17 4 12" />
+                    : <><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></>
+                  }
+                </svg>
+              </span>
+              <div className="flex-1 min-w-0">
+                <p className={`text-[11px] font-semibold uppercase tracking-wide mb-0.5 ${
+                  item.status === "approved" ? "text-emerald-500" : "text-rose-400"
+                }`}>
+                  {item.status === "approved" ? "อนุมัติโดย" : "ไม่อนุมัติโดย"}
+                </p>
+                <p className={`text-sm font-black ${
+                  item.status === "approved" ? "text-emerald-700" : "text-rose-600"
+                }`}>
+                  {actionedByName ?? "—"}
+                </p>
+                {item.actioned_at && (
+                  <p className={`text-[11px] mt-0.5 ${
+                    item.status === "approved" ? "text-emerald-400" : "text-rose-300"
+                  }`}>
+                    {fmtDateTime(item.actioned_at)}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ── Reject reason (ถ้ามี) ── */}
+          {item.status === "rejected" && item.reject_reason && (
+            <div className="flex items-start gap-3 px-4 py-3 rounded-2xl bg-gray-50 border border-gray-100 mb-4">
+              <span className="flex-shrink-0 w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4 h-4 text-gray-500">
+                  <circle cx="12" cy="12" r="9"/>
+                  <line x1="12" y1="8" x2="12" y2="12"/>
+                  <line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+              </span>
+              <div>
+                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">เหตุผลที่ไม่อนุมัติ</p>
+                <p className="text-sm font-semibold text-gray-700">{item.reject_reason}</p>
+              </div>
+            </div>
+          )}
+
+          {/* ── Manager: Reject input ── */}
+          {canAct && showRejectInput && (
+            <div className="mb-4 space-y-2">
               <textarea
+                autoFocus
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value)}
-                placeholder="เช่น วันนั้นมีงานสำคัญ, ไม่แจ้งล่วงหน้า..."
+                placeholder="ระบุเหตุผลที่ไม่อนุมัติ..."
                 rows={3}
-                autoFocus
-                className="w-full px-4 py-3 rounded-2xl border-2 border-rose-200 bg-rose-50 text-sm text-gray-800 focus:outline-none focus:border-rose-400 resize-none placeholder-rose-300"
+                className="w-full px-4 py-3 text-sm bg-gray-50 border border-gray-200 rounded-2xl outline-none focus:border-rose-300 focus:ring-2 focus:ring-rose-50 placeholder-gray-300 resize-none transition-all"
               />
-              <div className="flex gap-2 mt-3">
-                <button onClick={() => { setShowRejectInput(false); setRejectReason(""); }}
-                  className="flex-1 py-3 rounded-xl border border-gray-200 text-sm font-semibold text-gray-500">
-                  ยกเลิก
-                </button>
-                <button
-                  onClick={handleReject}
-                  disabled={!rejectReason.trim() || loading}
-                  className={`flex-1 py-3 rounded-xl text-sm font-black transition-all active:scale-95 ${rejectReason.trim() && !loading ? "bg-rose-500 text-white" : "bg-gray-100 text-gray-300"}`}
-                >
-                  {loading ? "กำลังบันทึก..." : "ยืนยัน"}
-                </button>
-              </div>
             </div>
           )}
         </div>
 
-        {/* Footer */}
-        <div className="flex-shrink-0 px-5 pt-3 pb-[env(safe-area-inset-bottom,16px)] border-t border-gray-100">
-          {canAct && item.status === "pending" && !showRejectInput ? (
-            <div className="flex gap-3">
-              <button onClick={() => setShowRejectInput(true)}
-                className="flex-1 py-4 rounded-2xl border-2 border-rose-200 text-rose-500 font-black text-sm flex items-center justify-center gap-2 active:scale-95 transition-all hover:bg-rose-50">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        {/* ── Action buttons ── */}
+        <div className="px-5 pb-8 pt-3 flex-shrink-0 border-t border-gray-50 space-y-2.5">
+          {canAct && !showRejectInput && (
+            <div className="flex gap-2.5">
+              <button
+                onClick={() => setShowRejectInput(true)}
+                className="flex-1 py-3.5 rounded-2xl border-2 border-rose-200 text-rose-500 font-bold text-sm hover:bg-rose-50 transition-all flex items-center justify-center gap-2"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4">
+                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
                 ไม่อนุมัติ
               </button>
-              <button onClick={handleApprove} disabled={loading}
-                className={`flex-1 py-4 rounded-2xl font-black text-sm flex items-center justify-center gap-2 active:scale-95 transition-all ${loading ? "bg-gray-100 text-gray-400" : "bg-emerald-500 text-white shadow-lg shadow-emerald-200 hover:bg-emerald-600"}`}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4"><polyline points="20 6 9 17 4 12"/></svg>
-                {loading ? "กำลังบันทึก..." : "อนุมัติ"}
+              <button
+                onClick={handleApprove}
+                disabled={loading}
+                className="flex-1 py-3.5 rounded-2xl bg-emerald-500 text-white font-bold text-sm hover:bg-emerald-600 disabled:opacity-60 transition-all shadow-lg shadow-emerald-200 flex items-center justify-center gap-2"
+              >
+                {loading ? (
+                  <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4">
+                    <polyline points="20 6 9 17 4 12"/>
+                  </svg>
+                )}
+                อนุมัติ
               </button>
             </div>
-          ) : !showRejectInput && (
-            <button onClick={onClose}
-              className="w-full py-4 rounded-2xl border-2 border-gray-200 text-sm font-bold text-gray-500 active:scale-95 transition-all">
-              ปิด
-            </button>
           )}
+          {canAct && showRejectInput && (
+            <div className="flex gap-2.5">
+              <button
+                onClick={() => { setShowRejectInput(false); setRejectReason(""); }}
+                className="flex-1 py-3.5 rounded-2xl border border-gray-200 text-gray-500 font-bold text-sm hover:bg-gray-50 transition-all"
+              >
+                ยกเลิก
+              </button>
+              <button
+                onClick={handleReject}
+                disabled={!rejectReason.trim() || loading}
+                className="flex-1 py-3.5 rounded-2xl bg-rose-500 text-white font-bold text-sm hover:bg-rose-600 disabled:opacity-40 transition-all flex items-center justify-center gap-2"
+              >
+                ยืนยันไม่อนุมัติ
+              </button>
+            </div>
+          )}
+          <button
+            onClick={onClose}
+            className="w-full py-3.5 rounded-2xl bg-gray-100 text-gray-600 font-bold text-sm hover:bg-gray-200 transition-all"
+          >
+            ปิด
+          </button>
         </div>
       </div>
     </div>

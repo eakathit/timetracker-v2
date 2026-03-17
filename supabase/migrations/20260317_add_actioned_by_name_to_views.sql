@@ -1,3 +1,6 @@
+-- supabase/migrations/20260317_add_actioned_by_name_to_views.sql
+-- เพิ่ม actioned_by_name โดย JOIN profiles ของผู้อนุมัติ/ปฏิเสธ ทั้ง 2 View
+
 CREATE OR REPLACE VIEW public.ot_requests_with_profile AS
 SELECT
   o.id,

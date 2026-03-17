@@ -17,8 +17,15 @@ interface ChangelogEntry {
 // ─── Changelog Data (Dev/Admin) ────────────────────────────────────
 const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.8.5",
+    date: "2026-03-17",
+    items: [
+      { tag: "feature",         text: "เพิ่มชื่อผู้อนุมัติ/ไม่อนุมัติหน้ารายการ Request" },
+    ],
+  },
+  {
     version: "1.8.0",
-    date: "2026-03-16",
+    date: "2026-03-17",
     items: [
       { tag: "fix",         text: "เเก้ไขเพิ่ม End User ใหม่เเล้ว default เป็นสีฟ้า" },
       { tag: "improvement", text: "สร้างห้อง On-site ลบช่องกรอก Project No. ตอนเลือก Other End User" },

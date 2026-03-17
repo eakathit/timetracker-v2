@@ -69,7 +69,7 @@ const LeaveIcons: Record<string, React.ReactNode> = {
 };
 
 const LEAVE_TYPES: { id: LeaveType; label: string; desc: string }[] = [
-  { id: "sick",      label: "ลาป่วย",    desc: "ป่วย ต้องพบแพทย์" },
+  { id: "sick",      label: "ลาป่วย",    desc: "เจ็บป่วยหรือต้องพบแพทย์" },
   { id: "personal",  label: "ลากิจ",    desc: "ธุระส่วนตัว" },
   { id: "vacation",  label: "ลาพักร้อน", desc: "วันหยุดพักผ่อน" },
   { id: "maternity", label: "ลาคลอด",   desc: "ลาคลอดบุตร" },
@@ -504,19 +504,20 @@ function OTForm() {
 }
 
 // ─── Leave Form ───────────────────────────────────────────────────────────────
+// ─── Leave Form ───────────────────────────────────────────────────────────────
 function LeaveForm() {
   const today = getLocalToday();
   const [userId, setUserId] = useState<string | null>(null);
 
   const [form, setForm] = useState({
-  leaveType:   "" as LeaveType | "",
-  startDate:   today,
-  endDate:     today,
-  period:      "full" as LeavePeriod,
-  customStart: "08:30",
-  customEnd:   "17:30",
-  reason:      "",
-});
+    leaveType:   "" as LeaveType | "",
+    startDate:   today,
+    endDate:     today,
+    period:      "full" as LeavePeriod,
+    customStart: "08:30",
+    customEnd:   "17:30",
+    reason:      "",
+  });
   const [submitting, setSubmitting] = useState(false);
   const [submitted,  setSubmitted]  = useState(false);
   const [error,      setError]      = useState<string | null>(null);
@@ -535,21 +536,21 @@ function LeaveForm() {
     if (form.period === "custom") return `${form.customStart} – ${form.customEnd}`;
     return PERIOD_OPTIONS.find(p => p.id === form.period)?.sub ?? null;
   };
-  
+
   const handleSubmit = async () => {
     if (!isValid || !userId) return;
     setSubmitting(true);
     setError(null);
 
     const { error: dbError } = await supabase.from("leave_requests").insert({
-  user_id:      userId,
-  leave_type:   form.leaveType,
-  start_date:   form.startDate,
-  end_date:     form.endDate,
-  period_label: getPeriodLabel(),   // ← เพิ่ม (nullable column)
-  reason:       form.reason.trim(),
-  status:       "pending",
-});
+      user_id:      userId,
+      leave_type:   form.leaveType,
+      start_date:   form.startDate,
+      end_date:     form.endDate,
+      period_label: getPeriodLabel(),
+      reason:       form.reason.trim(),
+      status:       "pending",
+    });
 
     if (dbError) {
       setError(dbError.message);
@@ -561,179 +562,242 @@ function LeaveForm() {
 
   if (submitted) return <SuccessScreen type="leave" />;
 
+  // ── Shared style tokens ──────────────────────────────────────────────────────
+  const inputCls =
+    "w-full px-3.5 py-3 rounded-xl border border-gray-200 bg-white text-[15px] font-normal text-gray-900 " +
+    "focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50 transition-all placeholder-gray-300 appearance-none";
+
+  const labelCls = "text-xs font-semibold text-gray-500 mb-1.5 block";
+
+  const showPeriod = PERIOD_LEAVE_TYPES.includes(form.leaveType as LeaveType);
+
   return (
-    <div className="space-y-5">
-      {/* Leave Type */}
-      <div>
-        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">
-          🗂 ประเภทการลา
-        </label>
-        <div className="grid grid-cols-2 gap-2.5">
-          {LEAVE_TYPES.map((lt) => (
-            <button
-              key={lt.id}
-              onClick={() => setForm({
-  ...form,
-  leaveType: lt.id,
-  period: "full",
-  customStart: "08:30",
-  customEnd: "17:30",
-})}
-              className={`relative flex flex-col items-start p-4 rounded-2xl border-2 transition-all active:scale-95 text-left ${
-                form.leaveType === lt.id
-                  ? "border-slate-900 bg-slate-900 shadow-lg"
-                  : "border-gray-100 bg-white hover:border-gray-300"
-              }`}
-            >
-              <span className={`mb-2 ${form.leaveType === lt.id ? "text-white" : "text-gray-500"}`}>
-  {LeaveIcons[lt.id]}
-</span>
-              <p className={`text-sm font-black ${form.leaveType === lt.id ? "text-white" : "text-gray-800"}`}>
-                {lt.label}
-              </p>
-              <p className={`text-[11px] mt-0.5 ${form.leaveType === lt.id ? "text-gray-300" : "text-gray-400"}`}>
-                {lt.desc}
-              </p>
-              {form.leaveType === lt.id && (
-                <span className="absolute top-3 right-3 w-5 h-5 rounded-full bg-white flex items-center justify-center">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="w-3 h-3 text-slate-900">
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
+    <div className="space-y-3 pb-8">
+
+      {/* ── Card 1: ประเภทการลา ────────────────────────────────────────────── */}
+      <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+        <div className="px-4 pt-3.5 pb-0 flex items-center gap-1.5">
+          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">
+            ประเภทการลา
+          </p>
+          <span className="w-1.5 h-1.5 rounded-full bg-red-400 mb-px" />
+        </div>
+        <div className="px-4 pt-3 pb-4">
+          <div className="grid grid-cols-2 gap-2.5">
+            {LEAVE_TYPES.map((lt) => (
+              <button
+                key={lt.id}
+                onClick={() => setForm({
+                  ...form,
+                  leaveType:   lt.id,
+                  period:      "full",
+                  customStart: "08:30",
+                  customEnd:   "17:30",
+                })}
+                className={`relative flex flex-col items-start p-4 rounded-2xl border-2 transition-all active:scale-95 text-left ${
+                  form.leaveType === lt.id
+                    ? "border-slate-900 bg-slate-900 shadow-lg"
+                    : "border-gray-100 bg-gray-50 hover:border-gray-200 hover:bg-white"
+                }`}
+              >
+                <span className={`mb-2 ${form.leaveType === lt.id ? "text-white" : "text-gray-400"}`}>
+                  {LeaveIcons[lt.id]}
                 </span>
-              )}
-            </button>
-          ))}
+                <p className={`text-sm font-black ${form.leaveType === lt.id ? "text-white" : "text-gray-800"}`}>
+                  {lt.label}
+                </p>
+                <p className={`text-[11px] mt-0.5 ${form.leaveType === lt.id ? "text-gray-400" : "text-gray-400"}`}>
+                  {lt.desc}
+                </p>
+                {form.leaveType === lt.id && (
+                  <span className="absolute top-3 right-3 w-5 h-5 rounded-full bg-white flex items-center justify-center shadow-sm">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="w-3 h-3 text-slate-900">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
-      {/* Date Range */}
-      <div>
-        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
-          📅 วันที่ลา
-        </label>
-        <div className="flex items-center gap-3">
-          <div className="flex-1">
-            <p className="text-[11px] text-gray-400 mb-1 font-medium">วันเริ่มต้น</p>
-            <input
-              type="date"
-              value={form.startDate}
-              onChange={(e) => setForm({ ...form, startDate: e.target.value, endDate: e.target.value })}
-              className="w-full px-3 py-3.5 rounded-2xl border-2 border-gray-100 bg-gray-50 text-sm font-semibold text-gray-800 focus:outline-none focus:border-sky-300 focus:bg-white transition-all"
-            />
-          </div>
-          <span className="text-gray-300 mt-5 font-bold text-lg">–</span>
-          <div className="flex-1">
-            <p className="text-[11px] text-gray-400 mb-1 font-medium">วันสิ้นสุด</p>
-            <input
-              type="date"
-              value={form.endDate}
-              min={form.startDate}
-              onChange={(e) => setForm({ ...form, endDate: e.target.value })}
-              className="w-full px-3 py-3.5 rounded-2xl border-2 border-gray-100 bg-gray-50 text-sm font-semibold text-gray-800 focus:outline-none focus:border-sky-300 focus:bg-white transition-all"
-            />
-          </div>
+      {/* ── Card 2: วันที่ลา ────────────────────────────────────────────────── */}
+      <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+        <div className="px-4 pt-3.5 pb-0 flex items-center gap-1.5">
+          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">
+            วันที่ลา
+          </p>
+          <span className="w-1.5 h-1.5 rounded-full bg-red-400 mb-px" />
         </div>
 
-        {/* Days Preview */}
-        {days > 0 && (
-          <div className="mt-2 flex items-center gap-2 px-4 py-2 bg-sky-50 border border-sky-100 rounded-xl">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 text-sky-500">
-              <rect x="3" y="4" width="18" height="18" rx="2" /><line x1="3" y1="9" x2="21" y2="9" />
-            </svg>
-            <span className="text-sm font-black text-sky-600">ลา {days} วัน</span>
-          </div>
-        )}
-      </div>
+        {/* วันเริ่มต้น */}
+        <div className="px-4 pt-3 pb-1">
+          <label className={labelCls}>วันเริ่มต้น</label>
+          <input
+            type="date"
+            value={form.startDate}
+            onChange={(e) => setForm({ ...form, startDate: e.target.value, endDate: e.target.value })}
+            className={inputCls}
+          />
+        </div>
 
-        {/* ── ช่วงเวลา (เฉพาะลาป่วย/ลากิจ) ── */}
-{PERIOD_LEAVE_TYPES.includes(form.leaveType as LeaveType) && (
-  <div>
-    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
-      ⏱ ช่วงเวลา
-    </label>
-    <div className="grid grid-cols-2 gap-2">
-      {PERIOD_OPTIONS.map((p) => (
-        <button
-          key={p.id}
-          onClick={() => setForm({ ...form, period: p.id })}
-          className={`flex flex-col items-start px-4 py-3 rounded-2xl border-2 transition-all active:scale-95 text-left ${
-            form.period === p.id
-              ? "border-sky-400 bg-sky-50"
-              : "border-gray-100 bg-white hover:border-gray-200"
+        <div className="mx-4 border-t border-gray-50 mt-3" />
+
+        {/* วันสิ้นสุด */}
+        <div className="px-4 pt-3 pb-4">
+          <label className={labelCls}>วันสิ้นสุด</label>
+          <input
+            type="date"
+            value={form.endDate}
+            min={form.startDate}
+            onChange={(e) => setForm({ ...form, endDate: e.target.value })}
+            className={inputCls}
+          />
+        </div>
+
+        {/* Days summary badge */}
+        <div
+          className={`mx-4 mb-4 flex items-center gap-2.5 px-4 py-2.5 rounded-xl border transition-all duration-200 ${
+            days > 0
+              ? "bg-indigo-50 border-indigo-100"
+              : "bg-gray-50 border-gray-100 opacity-50"
           }`}
         >
-          <span className={`text-sm font-bold ${form.period === p.id ? "text-sky-700" : "text-gray-800"}`}>
-            {p.label}
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            className={`w-4 h-4 flex-shrink-0 ${days > 0 ? "text-indigo-400" : "text-gray-300"}`}
+          >
+            <rect x="3" y="4" width="18" height="18" rx="2" />
+            <line x1="3" y1="9" x2="21" y2="9" />
+          </svg>
+          <span className={`text-[13px] font-medium flex-1 ${days > 0 ? "text-indigo-600" : "text-gray-400"}`}>
+            ระยะเวลาการลา
           </span>
-          <span className={`text-[11px] mt-0.5 ${form.period === p.id ? "text-sky-500" : "text-gray-400"}`}>
-            {p.sub}
+          <span className={`text-[18px] font-semibold tabular-nums ${days > 0 ? "text-indigo-700" : "text-gray-300"}`}>
+            {days > 0 ? (
+              <>{days} <span className="text-[12px] font-normal text-indigo-400">วัน</span></>
+            ) : (
+              <span className="text-[13px]">--</span>
+            )}
           </span>
-        </button>
-      ))}
-    </div>
-
-    {/* custom time inputs */}
-    {form.period === "custom" && (
-      <div className="mt-3 flex items-center gap-3">
-        <div className="flex-1">
-          <p className="text-[11px] text-gray-400 mb-1 font-medium">เริ่ม</p>
-          <input
-            type="time"
-            value={form.customStart}
-            onChange={(e) => setForm({ ...form, customStart: e.target.value })}
-            className="w-full px-4 py-3 rounded-2xl border-2 border-gray-200 bg-white text-sm font-semibold text-gray-900 focus:outline-none focus:border-sky-400 transition-all"
-          />
-        </div>
-        <span className="text-gray-300 mt-5 font-bold text-lg">–</span>
-        <div className="flex-1">
-          <p className="text-[11px] text-gray-400 mb-1 font-medium">สิ้นสุด</p>
-          <input
-            type="time"
-            value={form.customEnd}
-            onChange={(e) => setForm({ ...form, customEnd: e.target.value })}
-            className="w-full px-4 py-3 rounded-2xl border-2 border-gray-200 bg-white text-sm font-semibold text-gray-900 focus:outline-none focus:border-sky-400 transition-all"
-          />
         </div>
       </div>
-    )}
-  </div>
-)}
 
-      {/* Reason */}
-      <div>
-        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
-          📝 เหตุผลการลา
-        </label>
-        <textarea
-          value={form.reason}
-          onChange={(e) => setForm({ ...form, reason: e.target.value })}
-          placeholder="ระบุเหตุผลการลา..."
-          rows={3}
-          className="w-full px-4 py-3.5 rounded-2xl border-2 border-gray-100 bg-gray-50 text-sm text-gray-800 focus:outline-none focus:border-sky-300 focus:bg-white transition-all resize-none placeholder-gray-300"
-        />
-      </div>
+      {/* ── Card 3: ช่วงเวลา (เฉพาะ sick / personal) ────────────────────────── */}
+      {showPeriod && (
+        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+          <div className="px-4 pt-3.5 pb-0">
+            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">
+              ช่วงเวลา
+            </p>
+          </div>
+          <div className="px-4 pt-3 pb-4 space-y-2.5">
+            <div className="grid grid-cols-2 gap-2">
+              {PERIOD_OPTIONS.map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => setForm({ ...form, period: p.id })}
+                  className={`flex flex-col items-start px-4 py-3 rounded-xl border-2 transition-all active:scale-95 text-left ${
+                    form.period === p.id
+                      ? "border-indigo-400 bg-indigo-50"
+                      : "border-gray-100 bg-gray-50 hover:border-gray-200 hover:bg-white"
+                  }`}
+                >
+                  <span className={`text-sm font-bold ${form.period === p.id ? "text-indigo-700" : "text-gray-800"}`}>
+                    {p.label}
+                  </span>
+                  <span className={`text-[11px] mt-0.5 ${form.period === p.id ? "text-indigo-400" : "text-gray-400"}`}>
+                    {p.sub}
+                  </span>
+                </button>
+              ))}
+            </div>
 
-      {/* Error */}
-      {error && (
-        <div className="flex items-center gap-2 px-4 py-3 bg-rose-50 border border-rose-200 rounded-2xl">
-          <span className="text-rose-500 text-sm">⚠️ {error}</span>
+            {/* Custom time pickers */}
+            {form.period === "custom" && (
+              <div className="grid grid-cols-2 gap-2.5 pt-1">
+                <div>
+                  <p className="text-[11px] text-gray-400 mb-1.5 font-medium">เริ่มต้น</p>
+                  <input
+                    type="time"
+                    value={form.customStart}
+                    onChange={(e) => setForm({ ...form, customStart: e.target.value })}
+                    className={inputCls}
+                  />
+                </div>
+                <div>
+                  <p className="text-[11px] text-gray-400 mb-1.5 font-medium">สิ้นสุด</p>
+                  <input
+                    type="time"
+                    value={form.customEnd}
+                    onChange={(e) => setForm({ ...form, customEnd: e.target.value })}
+                    className={inputCls}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
-      {/* Submit */}
+      {/* ── Card 4: เหตุผลการลา ──────────────────────────────────────────────── */}
+      <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+        <div className="px-4 pt-3.5 pb-0 flex items-center gap-1.5">
+          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">
+            เหตุผลการลา
+          </p>
+          <span className="w-1.5 h-1.5 rounded-full bg-red-400 mb-px" />
+        </div>
+        <div className="px-4 pt-3 pb-4">
+          <textarea
+            value={form.reason}
+            onChange={(e) => setForm({ ...form, reason: e.target.value })}
+            placeholder="ระบุเหตุผลในการลา เช่น เจ็บป่วย มีธุระจำเป็น"
+            rows={3}
+            className={
+              "w-full px-3.5 py-3 rounded-xl border border-gray-200 bg-white text-[15px] font-normal text-gray-900 " +
+              "focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50 transition-all resize-none placeholder-gray-300 leading-relaxed"
+            }
+          />
+        </div>
+      </div>
+
+      {/* ── Error ─────────────────────────────────────────────────────────────── */}
+      {error && (
+        <div className="flex items-center gap-2.5 px-4 py-3 bg-red-50 border border-red-100 rounded-2xl">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            className="w-4 h-4 text-red-400 flex-shrink-0"
+          >
+            <circle cx="12" cy="12" r="9" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
+          <span className="text-[13px] text-red-500">{error}</span>
+        </div>
+      )}
+
+      {/* ── Submit Button ──────────────────────────────────────────────────────── */}
       <button
         onClick={handleSubmit}
         disabled={!isValid || submitting}
-        className={`w-full py-4 rounded-2xl text-sm font-black transition-all active:scale-[0.98] flex items-center justify-center gap-2 ${
+        className={`w-full py-4 rounded-2xl text-[15px] font-semibold flex items-center justify-center gap-2 transition-all active:scale-[0.98] ${
           isValid && !submitting
-            ? "bg-slate-900 text-white shadow-lg shadow-slate-900/20"
+            ? "bg-slate-900 text-white shadow-md shadow-slate-900/15 hover:bg-slate-800"
             : "bg-gray-100 text-gray-300 cursor-not-allowed"
         }`}
       >
         {submitting ? (
           <>
             <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+              <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
             </svg>
             กำลังส่ง...
           </>

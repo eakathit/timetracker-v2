@@ -209,6 +209,9 @@ function EntryCard({ entry, index, total, dbEndUsers, dbProjects, dbDetails, onC
   const projectOptions = dbProjects.filter((p:any) => p.end_user_id === entry.endUserId).map((p:any) => ({ value: p.id, label: `${p.project_no} · ${p.name || ''}` }));
   const canDelete = total > 1 || entry.isSaved;
 
+  const endUserLabel = dbEndUsers.find((o: any) => o.id === entry.endUserId)?.name;
+  const projectLabel = dbProjects.find((o: any) => o.id === entry.projectId)?.project_no;
+
   return (
     <div className={`relative bg-white rounded-2xl border-2 p-5 transition-all duration-300 ${entry.isSaved ? "border-emerald-200 shadow-sm shadow-emerald-50/50" : isComplete ? "border-sky-200 shadow-sm shadow-sky-100" : "border-gray-100"}`}>
       <div className="flex items-center justify-between mb-4">
@@ -216,7 +219,11 @@ function EntryCard({ entry, index, total, dbEndUsers, dbProjects, dbDetails, onC
           <span className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold ${entry.isSaved ? "bg-emerald-500 text-white" : isComplete ? "bg-sky-500 text-white" : "bg-gray-100 text-gray-400"}`}>
             {entry.isSaved ? <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="w-4 h-4"><polyline points="20 6 9 17 4 12" /></svg> : index + 1}
           </span>
-          <span className="text-sm font-semibold text-gray-600">{isComplete ? detailLabel : "งาน #" + (index + 1)}</span>
+          <span className="text-sm font-semibold text-gray-700">
+  {isComplete
+    ? `#${projectLabel} · ${endUserLabel}`
+    : "งาน #" + (index + 1)}
+</span>
           {isComplete && !entry.isSaved && (<span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{periodLabel?.split(" (")[0]}</span>)}
           {entry.isSaved && (<span className="text-xs text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full font-semibold">บันทึกแล้ว</span>)}
         </div>
