@@ -1082,28 +1082,29 @@ function ReportManagementSection() {
     );
 
   const addEndUser = async () => {
-    const trimmed = newEuName.trim();
-    if (!trimmed) return;
-    const { data, error } = await supabase
-      .from("end_users")
-      .insert({ name: trimmed, color: newEuColor })
-      .select()
-      .single();
-    if (!error && data) {
-      setEndUsers((prev) => [
-        ...prev,
-        {
-          id: data.id,
-          name: data.name,
-          color: data.color,
-          expanded: true,
-          projects: [],
-        },
-      ]);
-      setNewEuName("");
-      setShowEuForm(false);
-    }
-  };
+  const trimmed = newEuName.trim();
+  if (!trimmed) return;
+  const { data, error } = await supabase
+    .from("end_users")
+    .insert({ name: trimmed, color: newEuColor }) // ✅
+    .select()
+    .single();
+  if (!error && data) {
+    setEndUsers((prev) => [
+      ...prev,
+      {
+        id: data.id,           // ✅ เติม fields ให้ครบ
+        name: data.name,
+        color: data.color,
+        expanded: true,
+        projects: [],
+      },
+    ]);
+    setNewEuName("");
+    setNewEuColor(END_USER_COLORS[0]); // ✅ reset กลับ default หลัง save
+    setShowEuForm(false);
+  }
+};
 
   const removeEndUser = async (id: string) => {
   if (!confirm("ลบลูกค้านี้จะลบโปรเจกต์ทั้งหมดที่เกี่ยวข้องด้วย ยืนยันหรือไม่?")) return;
@@ -1401,49 +1402,49 @@ function ReportManagementSection() {
         </div>
 
         {showEuForm && (
-          <div className="bg-sky-50 border-2 border-sky-200 rounded-2xl p-4 mb-3 space-y-3">
-            <p className="text-xs font-bold text-sky-600 uppercase tracking-wider">
-              End User ใหม่
-            </p>
-            <div className="flex gap-2">
-              <input
-                value={newEuName}
-                onChange={(e) => setNewEuName(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && addEndUser()}
-                placeholder="ชื่อลูกค้า เช่น Toyota, Honda..."
-                className="flex-1 px-3 py-2.5 text-sm bg-white border border-sky-200 rounded-xl outline-none focus:border-sky-400 placeholder-gray-300 transition-colors"
-              />
-            </div>
-            <div>
-              <p className="text-xs text-gray-400 mb-2">เลือกสี</p>
-              <div className="flex flex-wrap gap-2 mb-2">
-                {END_USER_COLORS.map((c) => (
-                  <button
-                    key={c}
-                    onClick={() => setEditEuColor(c)} // ✅
-                    style={{ backgroundColor: c }}
-                    className={`w-7 h-7 rounded-lg transition-transform hover:scale-110 ${
-                      editEuColor === c
-                        ? "ring-2 ring-offset-2 ring-gray-400 scale-110"
-                        : "" // ✅
-                    }`}
-                  />
-                ))}
-              </div>
-              <div className="flex items-center gap-2">
-                <input
-                  type="color"
-                  value={editEuColor} // ✅
-                  onChange={(e) => setEditEuColor(e.target.value)} // ✅
-                  className="w-8 h-8 rounded-lg border border-gray-200 cursor-pointer p-0.5 bg-white"
-                />
-                <span className="text-xs text-gray-400">หรือเลือกสีเอง</span>
-                <span className="text-xs font-mono text-gray-500 bg-gray-50 px-2 py-1 rounded-lg border border-gray-100">
-                  {editEuColor} {/* ✅ */}
-                </span>
-              </div>
-            </div>
-            <div className="flex gap-2">
+  <div className="bg-sky-50 border-2 border-sky-200 rounded-2xl p-4 mb-3 space-y-3">
+    <p className="text-xs font-bold text-sky-600 uppercase tracking-wider">
+      End User ใหม่
+    </p>
+    <div className="flex gap-2">
+      <input
+        value={newEuName}
+        onChange={(e) => setNewEuName(e.target.value)}
+        onKeyDown={(e) => e.key === "Enter" && addEndUser()}
+        placeholder="ชื่อลูกค้า เช่น Toyota, Honda..."
+        className="flex-1 px-3 py-2.5 text-sm bg-white border border-sky-200 rounded-xl outline-none focus:border-sky-400 placeholder-gray-300 transition-colors"
+      />
+    </div>
+    <div>
+      <p className="text-xs text-gray-400 mb-2">เลือกสี</p>
+      <div className="flex flex-wrap gap-2 mb-2">
+        {END_USER_COLORS.map((c) => (
+          <button
+            key={c}
+            onClick={() => setNewEuColor(c)} // ✅ แก้จาก setEditEuColor
+            style={{ backgroundColor: c }}
+            className={`w-7 h-7 rounded-lg transition-transform hover:scale-110 ${
+              newEuColor === c // ✅ แก้จาก editEuColor
+                ? "ring-2 ring-offset-2 ring-gray-400 scale-110"
+                : ""
+            }`}
+          />
+        ))}
+      </div>
+      <div className="flex items-center gap-2">
+        <input
+          type="color"
+          value={newEuColor} // ✅ แก้จาก editEuColor
+          onChange={(e) => setNewEuColor(e.target.value)} // ✅ แก้จาก setEditEuColor
+          className="w-8 h-8 rounded-lg border border-gray-200 cursor-pointer p-0.5 bg-white"
+        />
+        <span className="text-xs text-gray-400">หรือเลือกสีเอง</span>
+        <span className="text-xs font-mono text-gray-500 bg-gray-50 px-2 py-1 rounded-lg border border-gray-100">
+          {newEuColor} {/* ✅ แก้จาก editEuColor */}
+        </span>
+      </div>
+    </div>
+    <div className="flex gap-2">
               <button
                 onClick={() => setShowEuForm(false)}
                 className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-500 hover:bg-gray-50 transition-colors"

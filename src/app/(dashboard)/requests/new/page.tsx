@@ -159,208 +159,341 @@ function OTForm() {
   const today = getLocalToday();
   const [endUsers, setEndUsers] = useState<EndUser[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
-  const [userId,   setUserId]   = useState<string | null>(null);
-
+  const [userId, setUserId] = useState<string | null>(null);
+ 
   const [form, setForm] = useState({
-    date:       today,
-    startTime:  "18:00",
-    endTime:    "",
-    endUserId:  "",
-    projectId:  "",
-    reason:     "",
+    date: today,
+    startTime: "18:00",
+    endTime: "",
+    endUserId: "",
+    projectId: "",
+    reason: "",
   });
-
+ 
   const [submitting, setSubmitting] = useState(false);
-  const [submitted,  setSubmitted]  = useState(false);
-  const [error,      setError]      = useState<string | null>(null);
-
-  const hours   = calcHours(form.startTime, form.endTime);
-  const isValid = form.date && form.startTime && form.endTime && form.reason.trim() && hours > 0;
-
+  const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+ 
+  const hours = calcHours(form.startTime, form.endTime);
+  const isValid =
+    form.date && form.startTime && form.endTime && form.reason.trim() && hours > 0;
+ 
   // กรอง Project ตาม EndUser ที่เลือก
   const filteredProjects = form.endUserId
     ? projects.filter((p) => p.end_user_id === form.endUserId)
     : projects;
-
+ 
   useEffect(() => {
     const init = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (user) setUserId(user.id);
-
+ 
       const [euRes, pjRes] = await Promise.all([
         supabase.from("end_users").select("id, name, color").order("name"),
-        supabase.from("projects").select("id, project_no, name, end_user_id").eq("is_active", true).order("project_no"),
+        supabase
+          .from("projects")
+          .select("id, project_no, name, end_user_id")
+          .eq("is_active", true)
+          .order("project_no"),
       ]);
       if (euRes.data) setEndUsers(euRes.data);
       if (pjRes.data) setProjects(pjRes.data);
     };
     init();
   }, []);
-
+ 
   const handleSubmit = async () => {
     if (!isValid || !userId) return;
     setSubmitting(true);
     setError(null);
-
+ 
     const { error: dbError } = await supabase.from("ot_requests").insert({
-  user_id:      userId,
-  request_date: form.date,
-  start_time:   form.startTime,
-  end_time:     form.endTime,
-  hours,
-  project_id:   form.projectId || null,
-  reason:       form.reason.trim(),
-  status:       "pending",
-});
-
+      user_id: userId,
+      request_date: form.date,
+      start_time: form.startTime,
+      end_time: form.endTime,
+      hours,
+      project_id: form.projectId || null,
+      reason: form.reason.trim(),
+      status: "pending",
+    });
+ 
     setSubmitting(false);
-    if (dbError) { setError(dbError.message); return; }
+    if (dbError) {
+      setError(dbError.message);
+      return;
+    }
     setSubmitted(true);
   };
-
+ 
   if (submitted) return <SuccessState type="ot" />;
-
-  // shared input class
-  const inputCls = "w-full px-4 py-3.5 rounded-2xl border-2 border-gray-200 bg-white text-sm font-semibold text-gray-900 focus:outline-none focus:border-sky-400 focus:bg-white transition-all placeholder-gray-300";
-
+ 
+  // ─── Shared class helpers ──────────────────────────────────────────────────
+  // label เล็ก สีเทา น้ำหนัก 500
+  const labelCls = "block text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-1.5";
+ 
+  // input / select หลัก: ไม่มี border หนัก, bg ขาว, text ปกติ
+  const inputCls =
+    "w-full px-3.5 py-3 rounded-xl border border-gray-200 bg-white text-[15px] font-normal text-gray-900 " +
+    "focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50 transition-all placeholder-gray-300 appearance-none";
+ 
+  // select wrapper (เพื่อใส่ chevron icon ข้างขวา)
+  const selectWrapCls = "relative";
+  const selectCls =
+    "w-full pl-3.5 pr-9 py-3 rounded-xl border border-gray-200 bg-white text-[15px] font-normal text-gray-900 " +
+    "focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50 transition-all appearance-none cursor-pointer";
+ 
+  // Chevron icon สำหรับ select
+  const ChevronDown = () => (
+    <svg
+      viewBox="0 0 20 20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"
+    >
+      <polyline points="5 8 10 13 15 8" />
+    </svg>
+  );
+ 
   return (
-    <div className="space-y-4 pb-8">
-
-      {/* ── วันที่ ── */}
-      <div>
-        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
-          📅 วันที่ทำ OT
-        </label>
-        <input
-          type="date"
-          value={form.date}
-          onChange={(e) => setForm({ ...form, date: e.target.value })}
-          className={inputCls}
-        />
-      </div>
-
-      {/* ── เวลา ── */}
-      <div>
-        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
-          ⏰ ช่วงเวลา OT
-        </label>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <p className="text-[11px] text-gray-400 mb-1 font-medium">เริ่มต้น</p>
+    <div className="space-y-3 pb-8">
+ 
+      {/* ── Card 1: วัน & เวลา ─────────────────────────────────────────────── */}
+      <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+ 
+        {/* Section header */}
+        <div className="px-4 pt-3.5 pb-0">
+          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">
+            Date & Time
+          </p>
+        </div>
+ 
+        {/* วันที่ */}
+        <div className="px-4 pt-3 pb-1">
+          <label className={labelCls}>วันที่ทำ OT</label>
+          <div className="relative">
             <input
-              type="time"
-              value={form.startTime}
-              onChange={(e) => setForm({ ...form, startTime: e.target.value })}
-              className={inputCls}
-            />
-          </div>
-          <div>
-            <p className="text-[11px] text-gray-400 mb-1 font-medium">สิ้นสุด</p>
-            <input
-              type="time"
-              value={form.endTime}
-              onChange={(e) => setForm({ ...form, endTime: e.target.value })}
+              type="date"
+              value={form.date}
+              onChange={(e) => setForm({ ...form, date: e.target.value })}
               className={inputCls}
             />
           </div>
         </div>
-
-        {hours > 0 && (
-          <div className="mt-2 flex items-center gap-2 px-4 py-2 bg-sky-50 border border-sky-100 rounded-xl">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 text-sky-500">
-              <circle cx="12" cy="12" r="9" /><polyline points="12 7 12 12 15.5 14" />
-            </svg>
-            <span className="text-sm font-black text-sky-600">{hours} ชั่วโมง OT</span>
+ 
+        {/* Divider */}
+        <div className="mx-4 border-t border-gray-50 mt-3" />
+ 
+        {/* ช่วงเวลา */}
+        <div className="px-4 pt-3 pb-4">
+          <label className={labelCls}>ช่วงเวลา OT</label>
+          <div className="grid grid-cols-2 gap-2.5">
+            <div>
+              <p className="text-[11px] text-gray-400 mb-1.5">เริ่มต้น</p>
+              <input
+                type="time"
+                value={form.startTime}
+                onChange={(e) => setForm({ ...form, startTime: e.target.value })}
+                className={inputCls}
+              />
+            </div>
+            <div>
+              <p className="text-[11px] text-gray-400 mb-1.5">สิ้นสุด</p>
+              <input
+                type="time"
+                value={form.endTime}
+                onChange={(e) => setForm({ ...form, endTime: e.target.value })}
+                className={inputCls}
+              />
+            </div>
           </div>
-        )}
+        </div>
       </div>
-
-      {/* ── End User ── */}
-      <div>
-        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
-          🏢 End User{" "}
-          <span className="text-gray-300 normal-case font-normal">(ไม่บังคับ)</span>
-        </label>
-        <select
-          value={form.endUserId}
-          onChange={(e) =>
-            setForm({ ...form, endUserId: e.target.value, projectId: "" })
-          }
-          className={inputCls + " appearance-none"}
+ 
+      {/* ── OT Duration Badge (แสดงเมื่อกรอกเวลาครบ) ──────────────────────── */}
+      <div
+        className={`flex items-center gap-2.5 px-4 py-3 rounded-2xl border transition-all duration-200 ${
+          hours > 0
+            ? "bg-indigo-50 border-indigo-100 opacity-100"
+            : "bg-gray-50 border-gray-100 opacity-60"
+        }`}
+      >
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          className={`w-4 h-4 flex-shrink-0 ${hours > 0 ? "text-indigo-400" : "text-gray-300"}`}
         >
-          <option value="">-- ไม่ระบุลูกค้า --</option>
-          {endUsers.map((eu) => (
-            <option key={eu.id} value={eu.id}>{eu.name}</option>
-          ))}
-        </select>
-      </div>
-
-      {/* ── Project ── */}
-      <div>
-        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
-          📁 Project No.{" "}
-          <span className="text-gray-300 normal-case font-normal">(ไม่บังคับ)</span>
-        </label>
-        <select
-          value={form.projectId}
-          onChange={(e) => setForm({ ...form, projectId: e.target.value })}
-          className={inputCls + " appearance-none"}
-          disabled={filteredProjects.length === 0 && !form.endUserId}
+          <circle cx="12" cy="12" r="9" />
+          <polyline points="12 7 12 12 15 14" />
+        </svg>
+        <span
+          className={`text-[13px] font-medium flex-1 ${
+            hours > 0 ? "text-indigo-600" : "text-gray-400"
+          }`}
         >
-          <option value="">-- ไม่ระบุโปรเจกต์ --</option>
-          {filteredProjects.map((p) => (
-            <option key={p.id} value={p.id}>
-              #{p.project_no}{p.name ? ` · ${p.name}` : ""}
-            </option>
-          ))}
-        </select>
-        {form.endUserId && filteredProjects.length === 0 && (
-          <p className="text-xs text-gray-400 mt-1.5 px-1">ไม่มีโปรเจกต์ในลูกค้านี้</p>
-        )}
+          ระยะเวลา OT โดยประมาณ
+        </span>
+        <span
+          className={`text-[18px] font-semibold tabular-nums ${
+            hours > 0 ? "text-indigo-700" : "text-gray-300"
+          }`}
+        >
+          {hours > 0 ? (
+            <>
+              {hours}{" "}
+              <span className="text-[12px] font-normal text-indigo-400">ชม.</span>
+            </>
+          ) : (
+            <span className="text-[13px]">--</span>
+          )}
+        </span>
       </div>
-
-      {/* ── เหตุผล ── */}
-      <div>
-        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
-          📝 เหตุผลการทำ OT <span className="text-rose-400">*</span>
-        </label>
-        <textarea
-          value={form.reason}
-          onChange={(e) => setForm({ ...form, reason: e.target.value })}
-          placeholder="เช่น ประกอบตู้คอนโทรล, เเก้ไขโปรเเกรม..."
-          rows={3}
-          className="w-full px-4 py-3.5 rounded-2xl border-2 border-gray-200 bg-white text-sm font-semibold text-gray-900 focus:outline-none focus:border-sky-400 transition-all resize-none placeholder-gray-300"
-        />
+ 
+      {/* ── Card 2: โปรเจกต์ ───────────────────────────────────────────────── */}
+      <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+ 
+        <div className="px-4 pt-3.5 pb-0">
+          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">
+            Project
+          </p>
+        </div>
+ 
+        {/* End User */}
+        <div className="px-4 pt-3 pb-1">
+          <label className={labelCls}>
+            End User{" "}
+            <span className="normal-case text-[10px] text-gray-300 font-normal">(ไม่บังคับ)</span>
+          </label>
+          <div className={selectWrapCls}>
+            <select
+              value={form.endUserId}
+              onChange={(e) => {
+                setForm({ ...form, endUserId: e.target.value, projectId: "" });
+              }}
+              className={`${selectCls} ${!form.endUserId ? "text-gray-400" : "text-gray-900"}`}
+            >
+              <option value="">-- ไม่ระบุลูกค้า --</option>
+              {endUsers.map((eu) => (
+                <option key={eu.id} value={eu.id}>
+                  {eu.name}
+                </option>
+              ))}
+            </select>
+            <ChevronDown />
+          </div>
+        </div>
+ 
+        {/* Divider */}
+        <div className="mx-4 border-t border-gray-50 mt-3" />
+ 
+        {/* Project */}
+        <div className="px-4 pt-3 pb-4">
+          <label className={labelCls}>
+            Project No.{" "}
+            <span className="normal-case text-[10px] text-gray-300 font-normal">(ไม่บังคับ)</span>
+          </label>
+          <div className={selectWrapCls}>
+            <select
+              value={form.projectId}
+              onChange={(e) => setForm({ ...form, projectId: e.target.value })}
+              disabled={filteredProjects.length === 0 && !form.endUserId}
+              className={`${selectCls} ${
+                !form.projectId ? "text-gray-400" : "text-gray-900"
+              } disabled:bg-gray-50 disabled:text-gray-300 disabled:cursor-not-allowed`}
+            >
+              <option value="">-- ไม่ระบุโปรเจกต์ --</option>
+              {filteredProjects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.project_no}{p.name ? ` – ${p.name}` : ""}
+                </option>
+              ))}
+            </select>
+            <ChevronDown />
+          </div>
+        </div>
       </div>
-
-      {/* ── Error ── */}
+ 
+      {/* ── Card 3: เหตุผลการทำ OT ──────────────────────────────────────────── */}
+      <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+        <div className="px-4 pt-3.5 pb-0 flex items-center gap-1.5">
+          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">
+            เหตุผลการทำ OT
+          </p>
+          {/* dot บังคับกรอก */}
+          <span className="w-1.5 h-1.5 rounded-full bg-red-400 mb-px" />
+        </div>
+        <div className="px-4 pt-3 pb-4">
+          <textarea
+            value={form.reason}
+            onChange={(e) => setForm({ ...form, reason: e.target.value })}
+            placeholder="อธิบายเหตุผลหรืองานที่ต้องทำ เช่น ประกอบตู้คอนโทรล, แก้ไขโปรแกรม..."
+            rows={3}
+            className={
+              "w-full px-3.5 py-3 rounded-xl border border-gray-200 bg-white text-[15px] font-normal text-gray-900 " +
+              "focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50 transition-all resize-none placeholder-gray-300 leading-relaxed"
+            }
+          />
+        </div>
+      </div>
+ 
+      {/* ── Error ─────────────────────────────────────────────────────────── */}
       {error && (
-        <div className="flex items-center gap-2 px-4 py-3 bg-rose-50 border border-rose-200 rounded-2xl">
-          <span className="text-rose-500 text-sm">⚠️ {error}</span>
+        <div className="flex items-center gap-2.5 px-4 py-3 bg-red-50 border border-red-100 rounded-2xl">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            className="w-4 h-4 text-red-400 flex-shrink-0"
+          >
+            <circle cx="12" cy="12" r="9" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
+          <span className="text-[13px] text-red-500">{error}</span>
         </div>
       )}
-
-      {/* ── Submit ── */}
+ 
+      {/* ── Submit Button ──────────────────────────────────────────────────── */}
       <button
         onClick={handleSubmit}
         disabled={!isValid || submitting}
-        className={`w-full py-4 rounded-2xl text-sm font-black transition-all active:scale-[0.98] flex items-center justify-center gap-2 ${
+        className={`w-full py-4 rounded-2xl text-[15px] font-semibold flex items-center justify-center gap-2 transition-all active:scale-[0.98] ${
           isValid && !submitting
-            ? "bg-slate-900 text-white shadow-lg shadow-slate-900/20"
+            ? "bg-gray-900 text-white shadow-md shadow-gray-900/15 hover:bg-gray-800"
             : "bg-gray-100 text-gray-300 cursor-not-allowed"
         }`}
       >
         {submitting ? (
           <>
-            <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+            <svg
+              className="w-4 h-4 animate-spin"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
             </svg>
             กำลังส่ง...
           </>
         ) : (
           <>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4">
-              <path d="M22 2L11 13" /><path d="M22 2L15 22l-4-9-9-4 20-7z" />
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              className="w-4 h-4"
+            >
+              <line x1="22" y1="2" x2="11" y2="13" />
+              <polygon points="22 2 15 22 11 13 2 9 22 2" />
             </svg>
             ยื่นคำขอ OT{hours > 0 ? ` (${hours} ชม.)` : ""}
           </>
@@ -654,7 +787,7 @@ export default function NewRequestPage() {
                   : "text-gray-400 hover:text-gray-600"
               }`}
             >
-              {tab === "ot" ? "⏰ OT Request" : "📋 ยื่นใบลา"}
+              {tab === "ot" ? "OT Request" : "Leave Request"}
             </button>
           ))}
         </div>

@@ -22,6 +22,7 @@ import type {
   OnsiteSessionStatus,
   MemberProfile,
 } from "@/types/onsite";
+import SessionDetailLoading from "./loading";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const getFullName = (m: OnsiteSessionMemberWithProfile) =>
@@ -643,12 +644,8 @@ const handleCheckOutClick = () => {
 
   // ─── Render ────────────────────────────────────────────
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-sm text-gray-400 animate-pulse">กำลังโหลด Session...</div>
-      </div>
-    );
-  }
+  return <SessionDetailLoading />;
+}
 
   if (!session) {
     return (

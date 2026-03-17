@@ -20,6 +20,7 @@ const CHANGELOG: ChangelogEntry[] = [
     version: "1.8.0",
     date: "2026-03-16",
     items: [
+      { tag: "fix",         text: "เเก้ไขเพิ่ม End User ใหม่เเล้ว default เป็นสีฟ้า" },
       { tag: "improvement", text: "สร้างห้อง On-site ลบช่องกรอก Project No. ตอนเลือก Other End User" },
       { tag: "fix",         text: "เเก้ไข On-site เพิ่มพนักงานเข้าห้องก่อน 8:30 ขึ้นว่ามาสาย" },
     ],
