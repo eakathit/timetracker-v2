@@ -38,7 +38,7 @@ export async function GET() {
     const userIds = [...new Set(logs.map((l) => l.user_id))];
 
     const { data: profiles, error: profilesError } = await supabase
-      .from("profiles")
+      .from("profiles_with_avatar")
       .select("id, first_name, last_name, avatar_url")
       .in("id", userIds);
 
