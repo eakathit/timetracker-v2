@@ -68,3 +68,8 @@ body {
     box-shadow: 0 0 0 10px rgba(251, 191, 36, 0);
   }
 }
+
+/* ป้องกัน iOS Safari zoom ทุก input/select ในแอป */
+input, select, textarea {
+  font-size: max(16px, 1em);
+}
