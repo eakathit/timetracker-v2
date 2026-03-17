@@ -892,39 +892,6 @@ const fetchMonthLogs = useCallback(async () => {
               </button>
             </div>
 
-            {/* Stat Cards */}
-            <div className="grid grid-cols-2 gap-3">
-              <StatCard
-                icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: 20, height: 20 }}><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>}
-                label="วันที่มาทำงาน"
-                value={logsLoading ? "..." : String(presentDays.length)}
-                sub={logsLoading ? "" : `จาก ${workdays.filter(l => l.status !== "leave").length} วันทำงาน`}
-                accent="bg-emerald-50 text-emerald-500"
-              />
-              <StatCard
-  icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: 20, height: 20 }}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>}
-  label="มาสาย"
-  value={logsLoading ? "..." : `${lateCount} วัน`}
-  sub={lateCount === 0 ? "ยอดเยี่ยม! ไม่สายเลย 🎉" : "เดือนนี้"}
-  accent={lateCount === 0 ? "bg-emerald-50 text-emerald-500" : "bg-amber-50 text-amber-500"}
-/>
-              <StatCard
-                icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: 20, height: 20 }}><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>}
-                label="ชั่วโมง OT"
-                value={logsLoading ? "..." : `${otTotal.toFixed(1)}h`}
-                sub="รวมที่อนุมัติแล้ว"
-                accent="bg-amber-50 text-amber-500"
-              />
-              <StatCard
-  icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: 20, height: 20 }}><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>}
-  label="สิทธิ์ลาคงเหลือ"
-  value="— วัน"
-  sub="ยังไม่เปิดใช้งาน"
-  accent="bg-violet-50 text-violet-300"
-  comingSoon
-/>
-            </div>
-
             {/* Calendar / List */}
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
               <div className="flex border-b border-gray-50">

@@ -21,6 +21,8 @@ const CHANGELOG: ChangelogEntry[] = [
     date: "2026-03-16",
     items: [
       { tag: "feature",     text: "Qr-code Check-in เพิ่มรายชื่อพนักงาน Checkin factory/on-site" },
+      { tag: "improvement", text: "ลบการ์ดเนื้อหาหน้า profile ที่ไม่ได้ใช้งานออก" },
+      { tag: "fix",         text: "เเก้ไขหน้า Report กรอก Daily Report เเล้วหน้าจอซูมเข้า-ออก" },
     ],
   },
   {
