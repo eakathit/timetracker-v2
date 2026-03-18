@@ -1,57 +1,29 @@
-CREATE OR REPLACE VIEW public.ot_requests_with_profile AS
+-- Insert time log ให้ทุกคนใน profiles วันนี้
+INSERT INTO daily_time_logs (
+  user_id, log_date, work_type,
+  first_check_in, last_check_out,
+  status, regular_hours, ot_hours,
+  day_type, pay_multiplier,
+  timeline_events
+)
 SELECT
-  o.id,
-  o.user_id,
-  o.request_date,
-  o.start_time,
-  o.end_time,
-  o.project_id,
-  o.reason,
-  o.status,
-  o.approved_by,
-  o.reject_reason,
-  o.actioned_at,
-  o.created_at,
-  o.hours,
-  p.first_name,
-  p.last_name,
-  p.department,
-  (p.first_name || ' ' || p.last_name) AS full_name,
-  (u.raw_user_meta_data ->> 'avatar_url') AS avatar_url,
-  pr.project_no,
-  pr.name AS project_name,
-  -- ชื่อผู้ที่ approve/reject (JOIN profiles ของ approved_by)
-  (ap.first_name || ' ' || ap.last_name) AS actioned_by_name
-FROM public.ot_requests o
-JOIN public.profiles p  ON p.id = o.user_id
-JOIN auth.users u        ON u.id = o.user_id
-LEFT JOIN public.projects pr ON pr.id = o.project_id
-LEFT JOIN public.profiles ap ON ap.id = o.approved_by;
-
-
-CREATE OR REPLACE VIEW public.leave_requests_with_profile AS
-SELECT
-  l.id,
-  l.user_id,
-  l.leave_type,
-  l.start_date,
-  l.end_date,
-  l.days,
-  l.reason,
-  l.status,
-  l.approved_by,
-  l.reject_reason,
-  l.actioned_at,
-  l.created_at,
-  l.period_label,
-  p.first_name,
-  p.last_name,
-  p.department,
-  (p.first_name || ' ' || p.last_name) AS full_name,
-  (u.raw_user_meta_data ->> 'avatar_url') AS avatar_url,
-  -- ชื่อผู้ที่ approve/reject
-  (ap.first_name || ' ' || ap.last_name) AS actioned_by_name
-FROM public.leave_requests l
-JOIN public.profiles p  ON p.id = l.user_id
-JOIN auth.users u        ON u.id = l.user_id
-LEFT JOIN public.profiles ap ON ap.id = l.approved_by;
+  id,
+  (NOW() AT TIME ZONE 'Asia/Bangkok')::date,
+  CASE (row_number() OVER (ORDER BY created_at) % 2)
+    WHEN 0 THEN 'on_site'
+    ELSE 'in_factory'
+  END,
+  ((NOW() AT TIME ZONE 'Asia/Bangkok')::date || 'T08:00:00+07:00')::timestamptz,
+  ((NOW() AT TIME ZONE 'Asia/Bangkok')::date || 'T17:00:00+07:00')::timestamptz,
+  'on_time',
+  8, 0,
+  'workday', 1.0,
+  '[{"event":"arrive_factory","timestamp":"2026-03-17T08:00:00+07:00","method":"qr_scan"}]'::jsonb
+FROM profiles
+WHERE role != 'admin'
+ON CONFLICT (user_id, log_date) DO UPDATE SET
+  first_check_in  = EXCLUDED.first_check_in,
+  last_check_out  = EXCLUDED.last_check_out,
+  status          = EXCLUDED.status,
+  work_type       = EXCLUDED.work_type,
+  timeline_events = EXCLUDED.timeline_events;
