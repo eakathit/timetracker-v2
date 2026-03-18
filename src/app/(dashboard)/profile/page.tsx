@@ -389,7 +389,7 @@ function LeaveQuotaSection() {
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-amber-500 flex-shrink-0">
           <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
         </svg>
-        <p className="text-[11px] text-amber-600 font-medium">ข้อมูลนี้เป็น Mock Data · ฟีเจอร์อยู่ระหว่างพัฒนา</p>
+        <p className="text-[11px] text-amber-600 font-medium">ข้อมูลนี้เป็นข้อมูลจำลอง · ฟีเจอร์อยู่ระหว่างพัฒนา</p>
       </div>
       <div className="p-5 space-y-4 opacity-50">
         {LEAVE_QUOTA_MOCK.map((item, i) => {
@@ -844,13 +844,13 @@ const fetchMonthLogs = useCallback(async () => {
               <p className="text-lg font-extrabold text-amber-600">
                 {logsLoading ? "..." : otTotal.toFixed(1)}
               </p>
-              <p className="text-[10px] text-gray-400 font-medium">OT เดือนนี้ (h)</p>
+              <p className="text-[10px] text-gray-400 font-medium">OT เดือนนี้ (ชม.)</p>
             </div>
             <div className="text-center px-2">
               <p className="text-lg font-extrabold text-sky-500">
                 {logsLoading ? "..." : `${reportRate}%`}
               </p>
-              <p className="text-[10px] text-gray-400 font-medium">ส่ง Report</p>
+              <p className="text-[10px] text-gray-400 font-medium">ส่งรายงาน</p>
             </div>
           </div>
         </div>
@@ -905,7 +905,7 @@ const fetchMonthLogs = useCallback(async () => {
                         : "text-gray-400 border-transparent hover:bg-gray-50"
                     }`}
                   >
-                    {tab === "calendar" ? "📅 ปฏิทินการมา" : "📋 รายการ"}
+                    {tab === "calendar" ? "📅 ปฏิทินเข้างาน" : "📋 ประวัติเข้างาน"}
                   </button>
                 ))}
               </div>
@@ -926,11 +926,11 @@ const fetchMonthLogs = useCallback(async () => {
             {/* Report Calendar */}
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
               <div className="px-5 py-4 border-b border-gray-50">
-                <h3 className="text-sm font-bold text-gray-700">📝 ปฏิทินส่ง Report</h3>
+                <h3 className="text-sm font-bold text-gray-700">📝 ปฏิทินส่งรายงาน</h3>
                 <p className="text-xs text-gray-400 mt-0.5">
                   {logsLoading
                     ? "กำลังโหลด..."
-                    : `ส่งแล้ว ${reportSent.length} / ${reportTotal.length} วัน`}
+                    : `ส่งแล้ว ${reportSent.length} / ${reportTotal.length} วัน (เดือนนี้)`}
                 </p>
               </div>
               <div className="p-5">
