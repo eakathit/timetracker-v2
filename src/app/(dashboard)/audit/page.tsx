@@ -73,7 +73,7 @@ export default async function AuditPage({
   // ── Fetch all data in parallel ──────────────────────────────────────────
   const [profilesRes, timeLogsRes, reportsRes, otReqRes] = await Promise.all([
     supabase
-      .from("profiles")
+      .from("profiles_with_avatar")
       .select("id, first_name, last_name, department, role, avatar_url")
       .order("first_name"),
 
