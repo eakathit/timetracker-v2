@@ -161,14 +161,18 @@ function CheckinColumn({
 function CheckinToast({ entry, onDone }: { entry: CheckinEntry; onDone: () => void }) {
   const [visible, setVisible] = useState(false);
 
+  // ✅ เก็บ onDone ไว้ใน ref เพื่อไม่ให้ useEffect re-run ทุกครั้งที่ parent render
+  const onDoneRef = useRef(onDone);
+  useEffect(() => { onDoneRef.current = onDone; }, [onDone]);
+
   useEffect(() => {
     const t1 = setTimeout(() => setVisible(true), 50);
     const t2 = setTimeout(() => {
       setVisible(false);
-      setTimeout(onDone, 400);
+      setTimeout(() => onDoneRef.current(), 400);
     }, 3500);
     return () => { clearTimeout(t1); clearTimeout(t2); };
-  }, [onDone]);
+  }, []);
 
   const isFactory = entry.work_type === "in_factory";
 
