@@ -261,6 +261,7 @@ export default function QRDisplayPage() {
 
   const [toastQueue, setToastQueue]   = useState<CheckinEntry[]>([]);
   const [activeToast, setActiveToast] = useState<CheckinEntry | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   // ── QR Refresh ───────────────────────────────────────────────────────────────
   const refreshQR = useCallback(async () => {
@@ -363,6 +364,22 @@ export default function QRDisplayPage() {
     return () => clearInterval(id);
   }, [fetchEntries]);
 
+  const toggleFullscreen = useCallback(() => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen();
+      setIsFullscreen(true);
+    } else {
+      document.exitFullscreen();
+      setIsFullscreen(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const handler = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", handler);
+    return () => document.removeEventListener("fullscreenchange", handler);
+  }, []);
+
   const factoryEntries = allEntries.filter((e) => e.work_type === "in_factory");
   const onsiteEntries  = allEntries.filter((e) => e.work_type !== "in_factory");
   const isExpiringSoon = timeLeft <= 10;
@@ -409,6 +426,33 @@ export default function QRDisplayPage() {
             </p>
           </div>
         </div>
+        
+        <button
+          onClick={toggleFullscreen}
+          title={isFullscreen ? "ออกจาก Fullscreen" : "เปิด Fullscreen"}
+          className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 
+                     text-white/70 hover:text-white text-xs font-medium transition-all duration-200
+                     border border-white/10 hover:border-white/20"
+        >
+          {isFullscreen ? (
+            <>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" />
+              </svg>
+              <span>ย่อหน้าจอ</span>
+            </>
+          ) : (
+            <>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
+              </svg>
+              <span>เต็มหน้าจอ</span>
+            </>
+          )}
+        </button>
+
       </header>
 
       {/* ══════════════════════════════════════════════════════════════════════
@@ -438,86 +482,79 @@ export default function QRDisplayPage() {
         </div>
 
         {/* ── CENTER: QR ────────────────────────────────────────────────────── */}
-        {/* ✅ ขยาย center column ให้รับ QR ที่ใหญ่ขึ้น */}
-        <div className="flex-1 flex flex-col items-center justify-between py-4 px-6 border-r border-slate-200 bg-slate-50 overflow-hidden">
+<div className="flex-1 flex flex-col items-center justify-between py-4 px-6 border-r border-slate-200 bg-slate-50 overflow-hidden">
 
-          {/* Clock ✅ ขยาย text-6xl xl:text-7xl */}
-          <div className="text-center flex-shrink-0">
-            <p className="text-slate-800 font-mono font-bold text-6xl xl:text-7xl leading-none tracking-tight">
-              {currentTime}
-            </p>
-            <p className="text-slate-500 text-sm mt-1.5">{currentDate}</p>
-          </div>
+  {/* Clock */}
+  <div className="text-center flex-shrink-0">
+    <p className="text-slate-800 font-mono font-bold text-6xl xl:text-7xl leading-none tracking-tight">
+      {currentTime}
+    </p>
+    <p className="text-slate-500 text-sm mt-1.5">{currentDate}</p>
+  </div>
 
-          <div className="w-full h-px bg-slate-200 flex-shrink-0" />
+  {/* QR Card — ขยายเต็มพื้นที่ที่เหลือ */}
+  <div className="flex-1 flex items-center justify-center w-full min-h-0 py-3">
+    <div
+      className="relative bg-white rounded-3xl p-5 w-full max-w-[540px]"
+      style={{
+        boxShadow:
+          "0 0 0 1px rgba(12,26,61,0.07), 0 4px 8px rgba(12,26,61,0.07), 0 20px 40px rgba(12,26,61,0.1)",
+      }}
+    >
+      {/* Accent top */}
+      <div
+        className="absolute top-0 left-8 right-8 h-0.5 rounded-full"
+        style={{ background: "linear-gradient(90deg, #1d4ed8 0%, #16a34a 100%)" }}
+      />
 
-          {/* QR Card ✅ flex-1 + min-h-0 ให้ยืดหยุ่นตาม space ที่เหลือ */}
-          <div className="flex-1 flex items-center justify-center w-full min-h-0 py-3">
-            <div
-              className="relative bg-white rounded-3xl p-5 w-full max-w-[500px]"
-              style={{
-                boxShadow:
-                  "0 0 0 1px rgba(12,26,61,0.07), 0 4px 8px rgba(12,26,61,0.07), 0 20px 40px rgba(12,26,61,0.1)",
-              }}
-            >
-              {/* Accent top */}
-              <div
-                className="absolute top-0 left-8 right-8 h-0.5 rounded-full"
-                style={{ background: "linear-gradient(90deg, #1d4ed8 0%, #16a34a 100%)" }}
-              />
-
-              {/* Loading overlay */}
-              {isLoading && (
-                <div className="absolute inset-0 flex items-center justify-center bg-white rounded-3xl z-10">
-                  <div className="w-10 h-10 border-4 border-slate-200 border-t-blue-600 rounded-full animate-spin" />
-                </div>
-              )}
-
-              {/* ✅ canvas ใช้ w-full h-auto แทน fixed px — scale ตาม container */}
-              <canvas
-                ref={canvasRef}
-                className="block rounded-xl w-full h-auto"
-              />
-            </div>
-          </div>
-
-          {/* Progress + Stats ✅ กระทัดรัด ไม่กิน space ของ QR */}
-          <div className="w-full flex-shrink-0 max-w-[500px]">
-
-            <div className="flex justify-between text-sm mb-1">
-              <span className={`font-medium text-xs ${isExpiringSoon ? "text-rose-600" : "text-slate-500"}`}>
-                {isExpiringSoon ? "⚠ กำลังหมดอายุ!" : "QR อัปเดตอัตโนมัติ"}
-              </span>
-              <span className={`font-mono font-bold text-sm ${isExpiringSoon ? "text-rose-600" : "text-slate-700"}`}>
-                {timeLeft}s
-              </span>
-            </div>
-            <div className="h-2.5 bg-slate-200 rounded-full overflow-hidden">
-              <div
-                className={`h-full rounded-full transition-all duration-1000 ${
-                  isExpiringSoon ? "bg-rose-500" : "bg-gradient-to-r from-blue-700 to-blue-500"
-                }`}
-                style={{ width: `${progressPct}%` }}
-              />
-            </div>
-
-            {/* Stats */}
-            <div className="mt-3 grid grid-cols-2 gap-2.5">
-              <div className="bg-white border border-slate-200 rounded-2xl py-2.5 text-center shadow-sm">
-                <p className="text-blue-700 text-2xl font-bold">{factoryEntries.length}</p>
-                <p className="text-slate-400 text-xs mt-0.5 font-medium">Factory</p>
-              </div>
-              <div className="bg-white border border-slate-200 rounded-2xl py-2.5 text-center shadow-sm">
-                <p className="text-emerald-600 text-2xl font-bold">{onsiteEntries.length}</p>
-                <p className="text-slate-400 text-xs mt-0.5 font-medium">On-site</p>
-              </div>
-            </div>
-
-            <p className="mt-2 text-slate-400 text-xs text-center">
-              QR Code จะเปลี่ยนทุก 1 นาที
-            </p>
-          </div>
+      {/* Loading overlay */}
+      {isLoading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-white rounded-3xl z-10">
+          <div className="w-10 h-10 border-4 border-slate-200 border-t-blue-600 rounded-full animate-spin" />
         </div>
+      )}
+
+      {/* QR Canvas */}
+      <canvas
+        ref={canvasRef}
+        className="block rounded-xl w-full h-auto"
+      />
+
+      {/* Progress bar overlay — วางอยู่ในการ์ด ไม่กิน space นอก */}
+      <div className="mt-3">
+        <div className="flex justify-between items-center mb-1.5">
+          <span className={`text-xs font-medium ${isExpiringSoon ? "text-rose-500" : "text-slate-400"}`}>
+            {isExpiringSoon ? "⚠ กำลังหมดอายุ!" : "QR Code จะเปลี่ยนทุก 1 นาที"}
+          </span>
+          <span className={`font-mono font-bold text-xs ${isExpiringSoon ? "text-rose-500" : "text-slate-400"}`}>
+            {timeLeft}s
+          </span>
+        </div>
+        <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+          <div
+            className={`h-full rounded-full transition-all duration-1000 ${
+              isExpiringSoon ? "bg-rose-500" : "bg-gradient-to-r from-blue-700 to-blue-500"
+            }`}
+            style={{ width: `${progressPct}%` }}
+          />
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {/* Factory / On-site tabs label */}
+  <div className="flex gap-3 flex-shrink-0">
+    <span className="flex items-center gap-1.5 text-xs text-blue-700 font-semibold bg-blue-50 border border-blue-200 rounded-full px-3 py-1">
+      <span className="w-2 h-2 rounded-full bg-blue-600 inline-block" />
+      Factory
+    </span>
+    <span className="flex items-center gap-1.5 text-xs text-emerald-700 font-semibold bg-emerald-50 border border-emerald-200 rounded-full px-3 py-1">
+      <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
+      On-site
+    </span>
+  </div>
+
+</div>
 
         {/* ── RIGHT: Onsite ──────────────────────────────────────────────────── */}
         {/* ✅ เปลี่ยนจาก flex-1 → w-[260px] xl:w-[300px] fixed width */}
