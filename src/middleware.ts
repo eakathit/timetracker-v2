@@ -3,7 +3,9 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 export async function middleware(request: NextRequest) {
-  let supabaseResponse = NextResponse.next({ request: { headers: request.headers } });
+  let supabaseResponse = NextResponse.next({
+    request: { headers: request.headers },
+  });
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -14,27 +16,36 @@ export async function middleware(request: NextRequest) {
           return request.cookies.getAll();
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+          cookiesToSet.forEach(({ name, value }) =>
+            request.cookies.set(name, value),
+          );
           supabaseResponse = NextResponse.next({ request });
           cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
+            supabaseResponse.cookies.set(name, value, options),
           );
         },
       },
-    }
+    },
   );
 
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   const url = request.nextUrl.clone();
-  const isLoginPage    = url.pathname === "/login";
+  const isLoginPage = url.pathname === "/login";
   const isAuthCallback = url.pathname.startsWith("/auth/callback");
-  const isCronRoute    = url.pathname.startsWith("/api/cron/");
-  const isQRDisplay     = url.pathname === "/qr-display";
-  const isQRTokenAPI    = url.pathname === "/api/qr-token";
+  const isCronRoute = url.pathname.startsWith("/api/cron/");
+  const isQRDisplay = url.pathname === "/qr-display";
+  const isQRTokenAPI = url.pathname === "/api/qr-token";
   const isRecentCheckinsAPI = url.pathname === "/api/recent-checkins";
   // แล้วเพิ่มเข้า isPublicPage:
-  const isPublicPage = isLoginPage || isAuthCallback || isCronRoute || isQRDisplay || isQRTokenAPI || isRecentCheckinsAPI;
+  const isPublicPage =
+    isLoginPage ||
+    isAuthCallback ||
+    isCronRoute ||
+    isQRTokenAPI ||
+    isRecentCheckinsAPI;
 
   if (!user && !isPublicPage) {
     url.pathname = "/login";
@@ -47,6 +58,20 @@ export async function middleware(request: NextRequest) {
   }
 
   if (user && url.pathname.startsWith("/settings")) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (!profile || profile.role !== "admin") {
+      url.pathname = "/";
+      return NextResponse.redirect(url);
+    }
+  }
+
+  // ✅ เพิ่มใหม่ — qr-display เฉพาะ admin เท่านั้น
+  if (user && isQRDisplay) {
     const { data: profile } = await supabase
       .from("profiles")
       .select("role")
