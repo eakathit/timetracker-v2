@@ -513,10 +513,10 @@ export default function QRDisplayPage() {
         </div>
 
         {/* ── CENTER: QR ────────────────────────────────────────────────────── */}
-        <div className="flex-1 flex flex-col items-center justify-center gap-3 py-4 px-4 border-r border-slate-200 bg-slate-50 overflow-hidden min-h-0">
+        <div className="flex-1 flex flex-col items-center justify-center gap-3 py-4 border-r border-slate-200 bg-slate-50 overflow-hidden min-h-0">
 
           {/* Clock — ขนาดคำนวณจาก JS mainH */}
-          <div className="text-center flex-shrink-0">
+          <div className="text-center flex-shrink-0 mx-auto">
             <p
               className="text-slate-800 font-mono font-bold leading-none tracking-tight"
               style={{ fontSize: clockFontSize }}
@@ -582,7 +582,7 @@ export default function QRDisplayPage() {
           </div>
 
           {/* Factory / On-site legend pills */}
-          <div className="flex gap-3 flex-shrink-0">
+          <div className="flex gap-3 flex-shrink-0 mx-auto">
             <span className="flex items-center gap-1.5 text-xs text-blue-700 font-semibold bg-blue-50 border border-blue-200 rounded-full px-3 py-1">
               <span className="w-2 h-2 rounded-full bg-blue-600 inline-block" />
               Factory
