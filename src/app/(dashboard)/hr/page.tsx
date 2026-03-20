@@ -973,39 +973,32 @@ export default function HRAttendancePage() {
           if (log.status === "on_time") status = "present";
           else if (log.status === "late") status = "late";
 
-          const periods: { start: string; end: string }[] = [];
+          // ── Timeline OT (จาก ot_start / ot_end) ──
+const timelineOT = (() => {
+  const events = log.timeline_events as { event: string; timestamp: string }[] | null;
+  if (!events) return null;
+  const otStart = events.find(e => e.event === "ot_start");
+  const otEnd   = events.find(e => e.event === "ot_end");
+  if (!otStart || !otEnd) return null;
+  return { start: fmtTime(otStart.timestamp), end: fmtTime(otEnd.timestamp) };
+})();
 
-const checkoutFormatted = fmtTime(log.last_check_out);
-if (
-  checkoutFormatted &&
-  checkoutFormatted !== "–" &&
-  checkoutFormatted >= "18:00"
-) {
-  periods.push({ start: "18:00", end: checkoutFormatted });
-}
-
+// ── OT Request (approved) ──
 const otReq = otByUserDate[emp.id]?.[dateStr];
-if (otReq) {
-  periods.push({
-    start: otReq.start_time.slice(0, 5),
-    end: otReq.end_time.slice(0, 5),
-  });
-}
+const reqOT = otReq
+  ? { start: otReq.start_time.slice(0, 5), end: otReq.end_time.slice(0, 5) }
+  : null;
 
-// ── เพิ่มตรงนี้: อ่านจาก timeline_events ถ้ายังไม่มี period ──
-if (periods.length === 0 && log.timeline_events) {
-  const events = log.timeline_events as { event: string; timestamp: string }[];
-  const otStartEvent = events.find(e => e.event === "ot_start");
-  const otEndEvent   = events.find(e => e.event === "ot_end");
-  if (otStartEvent && otEndEvent) {
-    periods.push({
-      start: fmtTime(otStartEvent.timestamp),
-      end:   fmtTime(otEndEvent.timestamp),
-    });
-  }
-}
+// periods[0] = timeline OT เสมอ | periods[1] = req OT เสมอ
+const periods: ({ start: string; end: string } | undefined)[] = [
+  timelineOT ?? undefined,
+  reqOT ?? undefined,
+];
 
-const otTotal = calcTotalOT(periods);
+const otTotal = log.ot_hours
+  ? Number(log.ot_hours)
+  : calcTotalOT(periods.filter((p): p is { start: string; end: string } => !!p));
+
 
           days.push({
             day: d,
@@ -1020,7 +1013,7 @@ const otTotal = calcTotalOT(periods);
             fmtTime(log.first_check_in),
             fmtTime(log.last_check_out)
           ),  
-            otPeriods: periods,
+            otPeriods: periods.filter((p): p is { start: string; end: string } => p !== undefined),
             otTotal,
           });
         } else {
