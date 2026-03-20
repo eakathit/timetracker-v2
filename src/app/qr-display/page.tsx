@@ -20,6 +20,31 @@ interface CheckinEntry {
   } | null;
 }
 
+// ─── Viewport Hook ────────────────────────────────────────────────────────────
+// ✅ KEY FIX: อ่าน viewport จริงจาก JS แทน CSS units
+// ทำงานถูกต้องทุกสถานการณ์: fullscreen, non-fullscreen, TV zoom, browser zoom
+function useViewport() {
+  const [size, setSize] = useState({ w: 1920, h: 1080 });
+
+  useEffect(() => {
+    const update = () => {
+      setSize({ w: window.innerWidth, h: window.innerHeight });
+    };
+    update();
+    window.addEventListener("resize", update);
+    // fullscreenchange → viewport เปลี่ยน → อ่านใหม่
+    document.addEventListener("fullscreenchange", () => {
+      // delay เล็กน้อยให้ browser จบ transition ก่อน
+      setTimeout(update, 100);
+    });
+    return () => {
+      window.removeEventListener("resize", update);
+    };
+  }, []);
+
+  return size;
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const AVATAR_COLORS = [
   "bg-blue-600", "bg-emerald-600", "bg-sky-500", "bg-amber-500",
@@ -231,6 +256,9 @@ function CheckinToast({ entry, onDone }: { entry: CheckinEntry; onDone: () => vo
 export default function QRDisplayPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
+  // ✅ KEY FIX: อ่าน viewport จริงจาก JS — ไม่ใช้ CSS units ที่ TV browser อาจคำนวณผิด
+  const { w: vpW, h: vpH } = useViewport();
+
   const [timeLeft, setTimeLeft]       = useState(60);
   const [isLoading, setIsLoading]     = useState(true);
   const [currentTime, setCurrentTime] = useState("");
@@ -242,6 +270,30 @@ export default function QRDisplayPage() {
   const [toastQueue, setToastQueue]   = useState<CheckinEntry[]>([]);
   const [activeToast, setActiveToast] = useState<CheckinEntry | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // ── Layout calculations (JS-based, ไม่ใช้ CSS units) ─────────────────────────
+  // คำนวณจาก viewport จริง ทำงานถูกต้องทั้ง fullscreen / non-fullscreen / TV zoom
+  const HEADER_H   = 60;   // header approx height px
+  const FOOTER_H   = 36;   // footer approx height px
+  const mainH      = vpH - HEADER_H - FOOTER_H;
+
+  // Side column: 22% ของ viewport width, min 220, max 340
+  const colW       = Math.min(Math.max(Math.round(vpW * 0.22), 220), 340);
+
+  // QR card: ขนาดไม่เกิน 62% ของ mainH และไม่เกิน centerW * 0.85
+  const centerW    = vpW - colW * 2;
+  const qrSize     = Math.min(
+    Math.round(mainH * 0.62),   // ไม่เกิน 62% ของความสูง main
+    Math.round(centerW * 0.85), // ไม่เกิน 85% ของความกว้าง center
+    560,                         // max absolute size
+  );
+
+  // Clock font: สัดส่วนกับ mainH
+  const clockFontSize = Math.min(Math.round(mainH * 0.09), 72);  // max 72px
+  const dateFontSize  = Math.min(Math.round(mainH * 0.02), 16);  // max 16px
+
+  // QR card padding
+  const qrPadding = Math.round(qrSize * 0.045);
 
   // ── QR Refresh ────────────────────────────────────────────────────────────────
   const refreshQR = useCallback(async () => {
@@ -365,7 +417,8 @@ export default function QRDisplayPage() {
   const progressPct   = (timeLeft / 60) * 100;
 
   return (
-    // ✅ h-dvh: dynamic viewport height — sync กับ fullscreen จริง
+    // ✅ h-dvh: dynamic viewport height
+    // ร่วมกับ useViewport() Hook ที่ track ขนาดจริงใน JS
     <div className="h-dvh flex flex-col overflow-hidden bg-slate-50 select-none">
 
       {activeToast && (
@@ -432,18 +485,14 @@ export default function QRDisplayPage() {
 
       {/* ══════════════════════════════════════════════════════════════════════
           MAIN — 3 columns
+          ✅ ทุก width/height ใช้ค่าจาก JS calculations ไม่ใช้ CSS units
       ═════════════════════════════════════════════════════════════════════ */}
       <main className="flex-1 flex overflow-hidden min-h-0">
 
         {/* ── LEFT: Factory ─────────────────────────────────────────────────── */}
-        {/*
-         * ✅ ใช้ vw แทน fixed px: 22vw ทำให้ column scale ตามจอ
-         * TV 1920px: 22vw = 422px | Laptop 1366px: 22vw = 300px
-         * clamp() ป้องกัน column แคบ/กว้างเกินไป
-         */}
         <div
           className="flex-shrink-0 flex flex-col bg-white border-r border-slate-200 overflow-hidden"
-          style={{ width: "clamp(220px, 22vw, 360px)" }}
+          style={{ width: colW }}
         >
           <div className="h-1 bg-gradient-to-r from-blue-800 to-blue-500 flex-shrink-0" />
           <div className="flex-1 flex flex-col p-4 min-h-0 overflow-hidden">
@@ -464,47 +513,30 @@ export default function QRDisplayPage() {
         </div>
 
         {/* ── CENTER: QR ────────────────────────────────────────────────────── */}
-        {/*
-         * ✅ justify-center + gap แทน justify-between
-         * → elements อยู่กลางเสมอ ไม่กระจายเมื่อ height เปลี่ยนตอน fullscreen
-         */}
         <div className="flex-1 flex flex-col items-center justify-center gap-3 py-4 px-4 border-r border-slate-200 bg-slate-50 overflow-hidden min-h-0">
 
-          {/* Clock
-           * ✅ ใช้ vmin: min(vw, vh) = ไม่เปลี่ยนแปลงเมื่อ fullscreen toggle
-           * TV 1920×1080: 1vmin = 10.8px → 6vmin = 64.8px ✓
-           * Laptop 1366×768: 1vmin = 7.68px → 6vmin = 46px ✓
-           */}
+          {/* Clock — ขนาดคำนวณจาก JS mainH */}
           <div className="text-center flex-shrink-0">
             <p
               className="text-slate-800 font-mono font-bold leading-none tracking-tight"
-              style={{ fontSize: "clamp(2rem, 6vmin, 4.5rem)" }}
+              style={{ fontSize: clockFontSize }}
             >
               {currentTime}
             </p>
             <p
               className="text-slate-500 mt-1.5"
-              style={{ fontSize: "clamp(0.65rem, 1.2vmin, 0.875rem)" }}
+              style={{ fontSize: dateFontSize }}
             >
               {currentDate}
             </p>
           </div>
 
-          {/* QR Card
-           * ✅ ROOT FIX: width ใช้ vmin เป็นหลัก
-           *
-           * vmin = min(viewport-width, viewport-height)
-           * บน TV 1920×1080: ไม่ว่าจะ fullscreen หรือไม่ vmin คงที่ = 10.8px
-           * → 48vmin = 518px เสมอ ไม่เพี้ยน
-           *
-           * เปรียบเทียบกับ dvh/vw ที่เปลี่ยนค่าเมื่อ browser bar ซ่อน/แสดง:
-           * vmin คงที่กว่า เพราะใช้ dimension ที่เล็กกว่าเสมอ (= vh บน landscape)
-           */}
+          {/* QR Card — ขนาดคำนวณจาก JS qrSize */}
           <div
             className="flex-shrink-0 relative bg-white rounded-3xl"
             style={{
-              width: "clamp(240px, 48vmin, 560px)",
-              padding: "clamp(12px, 1.5vmin, 22px)",
+              width: qrSize,
+              padding: qrPadding,
               boxShadow:
                 "0 0 0 1px rgba(12,26,61,0.07), 0 4px 8px rgba(12,26,61,0.07), 0 20px 40px rgba(12,26,61,0.1)",
             }}
@@ -522,7 +554,7 @@ export default function QRDisplayPage() {
               </div>
             )}
 
-            {/* QR Canvas — w-full h-auto: scale ตาม container vmin ที่กำหนดไว้แล้ว */}
+            {/* QR Canvas */}
             <canvas
               ref={canvasRef}
               className="block rounded-xl w-full h-auto"
@@ -566,7 +598,7 @@ export default function QRDisplayPage() {
         {/* ── RIGHT: Onsite ──────────────────────────────────────────────────── */}
         <div
           className="flex-shrink-0 flex flex-col bg-white overflow-hidden"
-          style={{ width: "clamp(220px, 22vw, 360px)" }}
+          style={{ width: colW }}
         >
           <div className="h-1 bg-gradient-to-r from-emerald-600 to-teal-500 flex-shrink-0" />
           <div className="flex-1 flex flex-col p-4 min-h-0 overflow-hidden">
