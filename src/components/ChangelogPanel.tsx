@@ -18,8 +18,10 @@ interface ChangelogEntry {
 const CHANGELOG: ChangelogEntry[] = [
   {
     version: "2.0.0",
-    date: "2026-03-18",
+    date: "2026-03-20",
     items: [
+      { tag: "improvement",         text: "เเก้ไขกดปุ่ม Start/End OT เเล้วเด้งไปเด้งมา" },
+      { tag: "fix",                 text: "ปุ่ม Start/End OT ตรวจสอบรัศมีโรงงาน" },
       { tag: "improvement",         text: "เเก้ไข layout หน้า Qr code เเละเพิ่มปุ่มกด Fullscreen" },
     ],
   },
