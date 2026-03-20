@@ -162,7 +162,7 @@ function calcOTHours(startTime: string, endTime: string): number {
     return p[0] * 60 + (p[1] ?? 0);
   };
   const diff = parseMin(endTime) - parseMin(startTime);
-  return diff > 0 ? Math.round((diff / 60) * 10) / 10 : 0;
+  return diff > 0 ? Math.round((diff / 60) * 100) / 100 : 0;
 }
 
 /** รวม OT หลายช่วง โดย merge overlap แล้วนับ hours จริง */
@@ -188,7 +188,7 @@ function calcTotalOT(periods: { start: string; end: string }[]): number {
     }
   }
   total += curEnd - curStart;
-  return Math.round((total / 60) * 10) / 10;
+  return Math.round((total / 60) * 100) / 100;
 }
 
 /** คำนวณชม.ทำงานจริง (หักพัก cap ที่ 8) */

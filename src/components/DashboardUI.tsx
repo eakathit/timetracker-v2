@@ -142,9 +142,8 @@ const calculateWorkTime = (inTime: string | null, outTime: string | null) => {
 // คำนวณ OT (หน่วย 30 นาที ปัดลง)
 const calcOtHours = (otStart: string | null, otEnd: string | null): number => {
   if (!otStart || !otEnd) return 0;
-  const mins =
-    (new Date(otEnd).getTime() - new Date(otStart).getTime()) / 60_000;
-  return Math.floor(mins / 30) * 0.5;
+  const mins = (new Date(otEnd).getTime() - new Date(otStart).getTime()) / 60_000;
+  return Math.round((mins / 60) * 100) / 100;
 };
 
 // นับเวลาผ่านไปแบบ live

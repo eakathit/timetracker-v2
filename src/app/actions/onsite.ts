@@ -232,16 +232,13 @@ function calcDailyAllowance(checkInIso: string): boolean {
 }
 
 // Helper: คำนวณ OT On-site นับจาก 17:30 (ต่างจาก Factory ที่นับ 18:00)
-// ปัดลงทีละ 0.5 ชม. เช่น Checkout 18:00 → 0.5, 18:45 → 1.0
 function calcOnsiteOTHours(checkoutIso: string): number {
   const checkout = new Date(checkoutIso);
   const otStart  = new Date(checkout);
   otStart.setHours(17, 30, 0, 0);
-
   if (checkout <= otStart) return 0;
-
   const diffHours = (checkout.getTime() - otStart.getTime()) / (1000 * 60 * 60);
-  return Math.floor(diffHours * 2) / 2; // ปัดลง nearest 0.5
+  return Math.round(diffHours * 100) / 100; // ← ตามจริง
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -390,9 +387,9 @@ const existingMap = new Map(
   (existingLogs ?? []).map((l) => [l.user_id, l])
 );
 
-const rawOT   = calcOnsiteOTHours(now);
+  const rawOT   = calcOnsiteOTHours(now);
   const adjHours = Math.max(0, rawOT - breakMinutes / 60);
-  const otHours  = Math.floor(adjHours * 2) / 2;
+  const otHours  = Math.round(adjHours * 100) / 100;
 
       await supabase
     .from("daily_time_logs")

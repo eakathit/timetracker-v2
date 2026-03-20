@@ -105,12 +105,12 @@ function classifyStatus(
 
 /** คำนวณ OT hours จาก time string "HH:mm:ss" หรือ "HH:mm" */
 function calcOTHours(startTime: string, endTime: string): number {
-  const parseMinutes = (t: string) => {
-    const parts = t.split(":").map(Number);
-    return parts[0] * 60 + (parts[1] ?? 0);
+  const parseMin = (t: string) => {
+    const p = t.split(":").map(Number);
+    return p[0] * 60 + (p[1] ?? 0);
   };
-  const diff = parseMinutes(endTime) - parseMinutes(startTime);
-  return diff > 0 ? Math.round((diff / 60) * 10) / 10 : 0;
+  const diff = parseMin(endTime) - parseMin(startTime);
+  return diff > 0 ? Math.round((diff / 60) * 100) / 100 : 0;
 }
 
 function pct(used: number, quota: number) {

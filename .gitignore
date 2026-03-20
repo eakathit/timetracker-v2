@@ -45,3 +45,5 @@ public/sw*
 public/swe-worker*
 
 .vercel
+
+supabase/snippets/
