@@ -460,7 +460,7 @@ function PermissionsSection() {
           {[
             { role: "admin", desc: "เข้าถึงได้ทุกส่วน และจัดการระบบได้" },
             { role: "manager", desc: "ดูรายงานภาพรวมและอนุมัติ OT/ลา" },
-            { role: "user", desc: "ตอกบัตรและรายงานตัวของตัวเอง" },
+            { role: "user", desc: "ผู้ใช้งานระบบทั่วไป" },
           ].map((r) => (
             <div
               key={r.role}

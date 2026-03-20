@@ -676,7 +676,7 @@ export default function TeamPage() {
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
 
             {/* Desktop table */}
-            <div className="hidden md:block overflow-x-auto">
+            <div className="hidden md:block overflow-x-auto max-h-[520px] overflow-y-auto">
               <table className="w-full text-sm border-collapse">
                 <thead>
                   <tr className="bg-gray-50 border-b border-gray-100">
@@ -758,7 +758,7 @@ export default function TeamPage() {
             </div>
 
             {/* Mobile card list */}
-            <div className="md:hidden divide-y divide-gray-50">
+            <div className="md:hidden divide-y divide-gray-50 max-h-[560px] overflow-y-auto">
               {filtered.map((row) => {
                 const proj    = projectMap[row.project_id];
                 const eu      = euMap[row.end_user_id];
@@ -930,7 +930,7 @@ export default function TeamPage() {
               </div>
             </div>
 
-            <div className="divide-y divide-gray-50">
+            <div className="divide-y divide-gray-50 max-h-[400px] overflow-y-auto">
               {stats.projBreakSorted.map(([projId, data]) => {
                 const proj = projectMap[projId];
                 const eu   = euMap[proj?.end_user_id ?? ""];
