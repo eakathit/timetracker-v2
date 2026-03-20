@@ -29,7 +29,7 @@ if (!user) {
 // ดึง first_name + last_name จาก profiles
 const { data: profile } = await supabase
   .from("profiles")
-  .select("first_name, last_name")
+  .select("first_name, last_name, role")
   .eq("id", user.id)
   .maybeSingle();
 
@@ -37,4 +37,4 @@ const userName = [profile?.first_name, profile?.last_name]
   .filter(Boolean)
   .join(" ") || undefined;
 
-return <DashboardUI userEmail={user.email} userId={user.id} userName={userName} />;}
+return <DashboardUI userEmail={user.email} userId={user.id} userName={userName} userRole={profile?.role} />;}
