@@ -57,7 +57,9 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (user && url.pathname.startsWith("/settings")) {
+  const ADMIN_ONLY_PATHS = ["/settings", "/audit", "/team", "/hr"];
+
+  if (user && ADMIN_ONLY_PATHS.some(p => url.pathname.startsWith(p))) {
     const { data: profile } = await supabase
       .from("profiles")
       .select("role")

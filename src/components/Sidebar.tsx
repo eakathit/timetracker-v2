@@ -14,6 +14,7 @@ interface NavItem {
   href: string;
   icon: React.ReactNode;
   badge?: number;
+  newTab?: boolean;
 }
 
 interface NavGroup {
@@ -98,6 +99,17 @@ const Icons = {
       <path d="M13.73 21a2 2 0 01-3.46 0" />
     </svg>
   ),
+  qrCode: (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="3" width="7" height="7" rx="1" />
+    <rect x="14" y="3" width="7" height="7" rx="1" />
+    <rect x="3" y="14" width="7" height="7" rx="1" />
+    <rect x="6" y="6" width="1" height="1" fill="currentColor" />
+    <rect x="17" y="6" width="1" height="1" fill="currentColor" />
+    <rect x="6" y="17" width="1" height="1" fill="currentColor" />
+    <path d="M14 14h1v1h-1z M17 14h3 M14 17h1 M17 17h1v1 M20 17v3 M17 20h3" />
+  </svg>
+),
   location: (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/>
@@ -163,7 +175,8 @@ const NAV_GROUPS: NavGroup[] = [
   {
     groupLabel: "System",
     items: [
-      { label: "Settings", labelTh: "ตั้งค่า", href: "/settings", icon: Icons.settings },
+      { label: "QR Display", labelTh: "จอสแกน", href: "/qr-display", icon: Icons.qrCode, newTab: true },
+      { label: "Settings",    labelTh: "ตั้งค่า",  href: "/settings",   icon: Icons.settings },
     ],
   },
 ];
@@ -177,6 +190,8 @@ function NavLink({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
     <Link
       href={item.href}
       title={collapsed ? `${item.label} · ${item.labelTh}` : undefined}
+      target={item.newTab ? "_blank" : undefined}
+      rel={item.newTab ? "noopener noreferrer" : undefined}
       className={`
         group relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium
         transition-all duration-200 ease-out
@@ -264,11 +279,13 @@ export default function Sidebar() {
   }, []);
 
   // 3. กรองเมนู: ถ้าไม่ใช่ Admin ให้ตัดเมนู /settings ออก
-  const filteredNavGroups = NAV_GROUPS.map(group => ({
+  const ADMIN_ONLY_ROUTES = ["/settings", "/audit", "/team", "/hr", "/qr-display"];
+
+const filteredNavGroups = NAV_GROUPS.map(group => ({
   ...group,
   items: group.items
     .filter(item => {
-      if (item.href === "/settings" || item.href === "/audit") {
+      if (ADMIN_ONLY_ROUTES.includes(item.href)) {
         return userRole === "admin";
       }
       return true;
