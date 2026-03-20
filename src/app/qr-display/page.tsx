@@ -386,7 +386,7 @@ export default function QRDisplayPage() {
   const progressPct   = (timeLeft / 60) * 100;
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden bg-slate-50 select-none">
+    <div className="h-dvh flex flex-col overflow-hidden bg-slate-50 select-none">
 
       {/* ── Toast Notification ────────────────────────────────────────────────── */}
       {activeToast && (
@@ -482,27 +482,35 @@ export default function QRDisplayPage() {
         </div>
 
         {/* ── CENTER: QR ────────────────────────────────────────────────────── */}
-<div className="flex-1 flex flex-col items-center justify-center gap-4 xl:gap-5 2xl:gap-6 py-4 px-4 border-r border-slate-200 bg-slate-50 overflow-hidden">
-  {/* Clock */}
+<div className="flex-1 flex flex-col items-center justify-center gap-3 py-3 px-4 border-r border-slate-200 bg-slate-50 overflow-hidden min-h-0">
+
+  {/* Clock — ใช้ clamp() แทน breakpoint class กันไม่ให้ overflow */}
   <div className="text-center flex-shrink-0">
-    <p className="text-slate-800 font-mono font-bold text-5xl xl:text-6xl 2xl:text-7xl leading-none tracking-tight">
+    <p
+      className="text-slate-800 font-mono font-bold leading-none tracking-tight"
+      style={{ fontSize: "clamp(2rem, 5vw, 4.5rem)" }}
+    >
       {currentTime}
     </p>
-    <p className="text-slate-500 text-sm mt-1.5">{currentDate}</p>
+    <p className="text-slate-500 mt-1" style={{ fontSize: "clamp(0.75rem, 1.2vw, 1rem)" }}>
+      {currentDate}
+    </p>
   </div>
 
-  {/* QR Card — ขยายเต็มพื้นที่ที่เหลือ */}
-  <div className="flex items-center justify-center w-full flex-shrink-0">
+  {/* QR Card — flex-1 + min-h-0 ให้ขยายเต็มพื้นที่ที่เหลือ */}
+  <div className="flex-1 flex items-center justify-center w-full min-h-0">
     <div
-      className="relative bg-white rounded-3xl p-4 xl:p-5 w-full max-w-[420px] xl:max-w-[500px] 2xl:max-w-[560px]"
+      className="relative bg-white rounded-3xl p-4 w-full flex flex-col"
       style={{
-        boxShadow:
-          "0 0 0 1px rgba(12,26,61,0.07), 0 4px 8px rgba(12,26,61,0.07), 0 20px 40px rgba(12,26,61,0.1)",
+        /* สี่เหลี่ยมจัตุรัส — กว้างไม่เกิน 90% ของ center และสูงไม่เกิน space ที่เหลือ */
+        maxWidth:  "min(90%, calc(100dvh - 180px))",
+        maxHeight: "calc(100dvh - 180px)",
+        boxShadow: "0 0 0 1px rgba(12,26,61,0.07), 0 4px 8px rgba(12,26,61,0.07), 0 20px 40px rgba(12,26,61,0.1)",
       }}
     >
       {/* Accent top */}
       <div
-        className="absolute top-0 left-8 right-8 h-0.5 rounded-full"
+        className="absolute top-0 left-8 right-8 h-0.5 rounded-full flex-shrink-0"
         style={{ background: "linear-gradient(90deg, #1d4ed8 0%, #16a34a 100%)" }}
       />
 
@@ -513,11 +521,15 @@ export default function QRDisplayPage() {
         </div>
       )}
 
-      {/* QR Canvas */}
-      <canvas ref={canvasRef} className="block rounded-xl w-full h-auto max-h-[55vh]" style={{ objectFit: 'contain' }} />
+      {/* QR Canvas — เต็ม card, aspect-ratio 1:1 */}
+      <canvas
+        ref={canvasRef}
+        className="block rounded-xl w-full flex-1 min-h-0"
+        style={{ aspectRatio: "1 / 1", objectFit: "contain" }}
+      />
 
-      {/* Progress bar overlay — วางอยู่ในการ์ด ไม่กิน space นอก */}
-      <div className="mt-3">
+      {/* Progress bar */}
+      <div className="mt-3 flex-shrink-0">
         <div className="flex justify-between items-center mb-1.5">
           <span className={`text-xs font-medium ${isExpiringSoon ? "text-rose-500" : "text-slate-400"}`}>
             {isExpiringSoon ? "⚠ กำลังหมดอายุ!" : "QR Code จะเปลี่ยนทุก 1 นาที"}
@@ -538,7 +550,7 @@ export default function QRDisplayPage() {
     </div>
   </div>
 
-  {/* Factory / On-site tabs label */}
+  {/* Factory / On-site pills */}
   <div className="flex gap-3 flex-shrink-0">
     <span className="flex items-center gap-1.5 text-xs text-blue-700 font-semibold bg-blue-50 border border-blue-200 rounded-full px-3 py-1">
       <span className="w-2 h-2 rounded-full bg-blue-600 inline-block" />
