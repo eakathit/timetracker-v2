@@ -1175,7 +1175,7 @@ const handleEndOT = async () => {
       )}
 
       {/* 👇 วางตรงนี้ — ก่อนปิด </main> */}
-      {process.env.NODE_ENV === "development" && (
+      {process.env.NEXT_PUBLIC_ENABLE_DEV_TOOLS === "true" && (
         <div className="fixed bottom-28 right-3 z-50 flex flex-col gap-2 items-end">
           <button
             onClick={() => setOtTimeReady(true)}
