@@ -45,6 +45,8 @@ interface DayLog {
   otPeriods: { start: string; end: string }[];
   otTotal: number;
   regHours: number | null;
+  otTimeline: { start: string; end: string } | null;
+  otReq:      { start: string; end: string } | null;
 }
 
 interface TimeLogRow {
@@ -331,8 +333,8 @@ function DrillDownPanel({
     };
 
     const data = dailyLogs.map(log => {
-      const workOT = log.otPeriods[0];
-      const reqOT  = log.otPeriods[1];
+      const workOT = log.otTimeline;
+      const reqOT  = log.otReq;
       return [
         log.date,
         DAYS_SHORT[log.dow],
@@ -930,6 +932,8 @@ export default function HRAttendancePage() {
             regHours: null,
             otPeriods: [],
             otTotal: 0,
+            otTimeline: null,
+            otReq: null,
           });
           continue;
         }
@@ -947,6 +951,8 @@ export default function HRAttendancePage() {
             regHours: null,
             otPeriods: [],
             otTotal: 0,
+            otTimeline: null,
+            otReq: null,
           });
           continue;
         }
@@ -963,6 +969,8 @@ export default function HRAttendancePage() {
             regHours: null,
             otPeriods: [],
             otTotal: 0,
+            otTimeline: null,
+            otReq: null,
           });
           continue;
         }
@@ -1015,6 +1023,8 @@ const otTotal = log.ot_hours
           ),  
             otPeriods: periods.filter((p): p is { start: string; end: string } => p !== undefined),
             otTotal,
+            otTimeline: timelineOT,
+            otReq: reqOT,
           });
         } else {
           days.push({
@@ -1028,6 +1038,8 @@ const otTotal = log.ot_hours
             regHours: null,
             otPeriods: [],
             otTotal: 0,
+            otTimeline: null,
+            otReq: null,
           });
         }
       }
