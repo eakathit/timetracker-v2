@@ -409,7 +409,7 @@ function DrillDownPanel({
   );
 
   return (
-    <div className="bg-white rounded-2xl border border-sky-100 shadow-md overflow-hidden">
+    <div className="bg-white rounded-2xl border border-sky-100 shadow-md overflow-hidden flex flex-col max-h-[calc(100vh-320px)]">
       {/* Header */}
       <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-50 bg-sky-50/50">
         {emp.avatar_url ? (
@@ -491,7 +491,7 @@ function DrillDownPanel({
       </div>
 
       {/* Daily log list */}
-      <div className="overflow-y-auto max-h-80">
+      <div className="overflow-y-auto flex-1 scrollbar-thin">
         {dailyLogs.length === 0 ? (
           <div className="text-center py-10 text-gray-300">
             <p className="text-sm">ไม่มีข้อมูลการมาทำงาน</p>
@@ -553,7 +553,7 @@ function DrillDownPanel({
       </div>
 
       {/* Footer export */}
-      <div className="px-5 py-3 border-t border-gray-50 bg-gray-50/50 flex justify-end">
+      <div className="px-5 py-3 border-t border-gray-50 bg-gray-50/50 flex justify-end flex-shrink-0">
         <button
           onClick={handleExportIndividual}
           disabled={exporting}
@@ -1347,7 +1347,7 @@ export default function HRAttendancePage() {
                 <p className="text-sm font-medium">ไม่พบพนักงาน</p>
               </div>
             ) : (
-              <div className="divide-y divide-gray-50">
+              <div className="divide-y divide-gray-50 overflow-y-auto max-h-[calc(100vh-320px)] scrollbar-thin">
                 {filtered.map((emp, idx) => {
                   const att = attendances[emp.id] ?? {
                     workdays: 0,
@@ -1491,7 +1491,7 @@ export default function HRAttendancePage() {
 
           {/* Drill-down panel */}
           {selectedEmp && (
-            <div className="lg:col-span-2">
+            <div className="lg:col-span-2 lg:sticky lg:top-[132px]">
               <DrillDownPanel
                 emp={selectedEmp}
                 empIdx={selectedIdx}
