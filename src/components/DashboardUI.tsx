@@ -386,23 +386,37 @@ export default function DashboardUI({ userName, userEmail, userId }: DashboardUI
           filter: `user_id=eq.${userId}`,
         },
         (payload) => {
-          const row = payload.new as any;
+  const row = payload.new as any;
+  if (row.log_date !== today) return;
 
-          // กรองเฉพาะวันนี้เท่านั้น
-          if (row.log_date !== today) return;
+  // ── ตรวจ timeline_events ล่าสุดก่อนเสมอ ────────────────────────────
+  const events: any[] = row.timeline_events ?? [];
+  if (events.length === 0) return;
+  const lastEvent = events[events.length - 1];
 
-          // Cron auto-checkout เข้ามา → อัปเดต UI ทันที
-          if (row.auto_checked_out && row.last_check_out) {
-            setRawCheckOut(row.last_check_out);
-            setCheckOutTime(
-              new Date(row.last_check_out).toLocaleTimeString("th-TH", {
-                hour: "2-digit",
-                minute: "2-digit",
-              }),
-            );
-            setWorkStatus("completed");
-          }
-        },
+  // ถ้า user เพิ่ง Start OT หรือ End OT → ไม่ต้อง override
+  // (handleStartOT / handleEndOT จัดการ state ไปแล้วใน optimistic update)
+  if (
+    lastEvent.event === "ot_start" ||
+    lastEvent.event === "ot_end"
+  ) return;
+
+  // เฉพาะ auto_checkout จาก Cron เท่านั้นที่ให้ override UI
+  if (
+    lastEvent.event === "auto_checkout" &&
+    row.auto_checked_out &&
+    row.last_check_out
+  ) {
+    setRawCheckOut(row.last_check_out);
+    setCheckOutTime(
+      new Date(row.last_check_out).toLocaleTimeString("th-TH", {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+    );
+    setWorkStatus("completed");
+  }
+},
       )
       .subscribe();
 
@@ -440,6 +454,44 @@ export default function DashboardUI({ userName, userEmail, userId }: DashboardUI
     }
     return true;
   }, [workType, locationStatus]);
+
+  // ── OT Location guard (one-time GPS check) ── เพิ่มใหม่ ──────────────────
+const validateLocationForOT = useCallback((): Promise<boolean> => {
+  return new Promise((resolve) => {
+    // on_site ไม่ต้องตรวจรัศมีโรงงาน
+    if (workType !== "in_factory") {
+      resolve(true);
+      return;
+    }
+    if (!navigator.geolocation) {
+      resolve(true); // fallback: อนุญาตถ้าไม่มี GPS
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      ({ coords: { latitude, longitude } }) => {
+        const dist = calculateDistance(
+          FACTORY_LAT,
+          FACTORY_LNG,
+          latitude,
+          longitude,
+        );
+        if (dist <= ALLOWED_RADIUS_METERS) {
+          resolve(true);
+        } else {
+          alert(
+            `ไม่สามารถบันทึก OT ได้\nคุณอยู่นอกพื้นที่โรงงาน (${Math.round(dist)} ม.)\nกรุณาเข้ามาในพื้นที่ก่อน`,
+          );
+          resolve(false);
+        }
+      },
+      () => {
+        // GPS error → อนุญาต (graceful degradation)
+        resolve(true);
+      },
+      { timeout: 10_000, maximumAge: 30_000 },
+    );
+  });
+}, [workType]);
 
   // ── Push event helper ─────────────────────────────────────────────────────
   const pushEvent = async (
@@ -546,33 +598,37 @@ export default function DashboardUI({ userName, userEmail, userId }: DashboardUI
   };
 
   const handleStartOT = async () => {
-    if (!userId) return;
-    setIsSubmitting(true);
-    const now = new Date().toISOString();
-    const { error } = await pushEvent({ event: "ot_start", timestamp: now });
-    if (!error) {
-      setRawOtStart(now);
-      setOtElapsed("00:00:00");
-      setWorkStatus("ot_working");
-    }
-    setIsSubmitting(false);
-  };
+  if (!userId || isSubmitting) return;
+  const locationOk = await validateLocationForOT();
+  if (!locationOk) return;
+  setIsSubmitting(true);
+  const now = new Date().toISOString();
+  const { error } = await pushEvent({ event: "ot_start", timestamp: now });
+  if (!error) {
+    setRawOtStart(now);
+    setOtElapsed("00:00:00");
+    setWorkStatus("ot_working");
+  }
+  setIsSubmitting(false);
+};
 
-  const handleEndOT = async () => {
-    if (!userId) return;
-    setIsSubmitting(true);
-    const now = new Date().toISOString();
-    const hrs = calcOtHours(rawOtStart, now);
-    const { error } = await pushEvent(
-      { event: "ot_end", timestamp: now },
-      { ot_hours: hrs },
-    );
-    if (!error) {
-      setRawOtEnd(now);
-      setWorkStatus("ot_completed");
-    }
-    setIsSubmitting(false);
-  };
+const handleEndOT = async () => {
+  if (!userId || isSubmitting) return;
+  const locationOk = await validateLocationForOT();
+  if (!locationOk) return;
+  setIsSubmitting(true);
+  const now = new Date().toISOString();
+  const hrs = calcOtHours(rawOtStart, now);
+  const { error } = await pushEvent(
+    { event: "ot_end", timestamp: now },
+    { ot_hours: hrs },
+  );
+  if (!error) {
+    setRawOtEnd(now);
+    setWorkStatus("ot_completed");
+  }
+  setIsSubmitting(false);
+};
 
   // ── Shared spinner ────────────────────────────────────────────────────────
   const Spinner = () => (
@@ -1109,6 +1165,37 @@ export default function DashboardUI({ userName, userEmail, userId }: DashboardUI
           onSuccess={handleQRCheckInSuccess}
           onClose={() => setShowQRScanner(false)}
         />
+      )}
+
+       {showQRScanner && (
+        <QRScannerModal
+          onSuccess={handleQRCheckInSuccess}
+          onClose={() => setShowQRScanner(false)}
+        />
+      )}
+
+      {/* 👇 วางตรงนี้ — ก่อนปิด </main> */}
+      {process.env.NODE_ENV === "development" && (
+        <div className="fixed bottom-28 right-3 z-50 flex flex-col gap-2 items-end">
+          <button
+            onClick={() => setOtTimeReady(true)}
+            className="flex items-center gap-1.5 bg-purple-500 text-white text-xs font-bold px-3 py-2 rounded-xl shadow-lg opacity-80 active:scale-95"
+          >
+            🧪 Force OT Ready
+          </button>
+          <button
+            onClick={() => setWorkStatus("completed")}
+            className="flex items-center gap-1.5 bg-emerald-500 text-white text-xs font-bold px-3 py-2 rounded-xl shadow-lg opacity-80 active:scale-95"
+          >
+            ✅ Force Completed
+          </button>
+          <button
+            onClick={() => { setWorkStatus("idle"); setOtTimeReady(false); }}
+            className="flex items-center gap-1.5 bg-gray-500 text-white text-xs font-bold px-3 py-2 rounded-xl shadow-lg opacity-80 active:scale-95"
+          >
+            🔄 Reset
+          </button>
+        </div>
       )}
 
     </main>
