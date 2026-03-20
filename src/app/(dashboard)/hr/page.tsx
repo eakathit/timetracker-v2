@@ -847,9 +847,29 @@ export default function HRAttendancePage() {
       // absent = วันทำงานที่ควรมา - วันที่มีข้อมูลจริง
       const absent = Math.max(0, expectedWorkdays - present - late - leave);
 
-      const otFromLogs = logs.reduce((s, l) => s + (l.ot_hours ?? 0), 0);
-      const otFromReq = otReqMap[emp.id] ?? 0;
-      const totalOT = Math.round(Math.max(otFromLogs, otFromReq) * 10) / 10;
+      const logMap: Record<string, number> = {};
+    logs.forEach(l => { logMap[l.log_date] = l.ot_hours ?? 0; });
+
+    const otByDate = otRequests
+      .filter(r => r.user_id === emp.id)
+      .reduce<Record<string, number>>((acc, r) => {
+        const h = r.hours != null && r.hours > 0
+          ? r.hours
+          : calcOTHours(r.start_time, r.end_time);
+        acc[r.request_date] = (acc[r.request_date] ?? 0) + h;
+        return acc;
+      }, {});
+
+    // ต่อวัน: ถ้ามี ot_hours ใน log → ใช้เลย, ไม่มี → ใช้จาก request
+    const allDates = new Set([...Object.keys(logMap), ...Object.keys(otByDate)]);
+    let otSum = 0;
+    allDates.forEach(date => {
+      const fromLog = logMap[date] ?? 0;
+      const fromReq = otByDate[date] ?? 0;
+      otSum += fromLog > 0 ? fromLog : fromReq;
+    });
+
+    const totalOT = Math.round(otSum * 100) / 100;
 
       const inTimes = logs
         .map((l) => l.first_check_in)
