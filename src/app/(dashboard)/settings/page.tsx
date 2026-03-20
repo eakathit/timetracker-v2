@@ -187,16 +187,14 @@ function TextInput({
 
 // ─── Role Badge ───────────────────────────────────────────────────────────────
 const ROLE_STYLES: Record<string, string> = {
-  admin: "bg-rose-50 text-rose-500 border-rose-200",
+  admin:   "bg-rose-50 text-rose-500 border-rose-200",
   manager: "bg-amber-50 text-amber-600 border-amber-200",
-  user: "bg-sky-50 text-sky-500 border-sky-200",
-  viewer: "bg-gray-50 text-gray-500 border-gray-200",
+  user:    "bg-sky-50 text-sky-500 border-sky-200",
 };
 const ROLE_LABELS: Record<string, string> = {
-  admin: "Admin",
+  admin:   "Admin",
   manager: "Manager",
-  user: "User",
-  viewer: "Viewer",
+  user:    "User",
 };
 
 // ─── Tab Sections ─────────────────────────────────────────────────────────────
@@ -359,8 +357,8 @@ function PermissionsSection() {
 
   // 2. ฟังก์ชันเปลี่ยนสิทธิ์และบันทึกลง Database ทันที
   const cycleRole = async (id: string, currentRole: string) => {
-    const roles = ["viewer", "user", "manager", "admin"];
-    const normalizedRole = currentRole || "user"; // กันเหนียวกรณี role เป็น null
+  const roles = ["user", "manager", "admin"];
+  const normalizedRole = (currentRole && currentRole !== "viewer") ? currentRole : "user";
     const currentIndex = roles.indexOf(normalizedRole);
     const nextRole =
       roles[(currentIndex !== -1 ? currentIndex + 1 : 1) % roles.length];
@@ -397,7 +395,8 @@ function PermissionsSection() {
   return (
     <div className="space-y-4">
       <SettingGroup title={`ผู้ใช้งานทั้งหมดในระบบ (${users.length} คน)`}>
-        {users.map((u) => {
+  <div className="max-h-[420px] overflow-y-auto divide-y divide-gray-50 scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent">
+    {users.map((u) => {
           // จัดการแสดงผลชื่อและแผนก
           const fullName =
             u.first_name || u.last_name
@@ -449,6 +448,7 @@ function PermissionsSection() {
             </div>
           );
         })}
+        </div>
       </SettingGroup>
 
       {/* Role legend */}
@@ -461,7 +461,6 @@ function PermissionsSection() {
             { role: "admin", desc: "เข้าถึงได้ทุกส่วน และจัดการระบบได้" },
             { role: "manager", desc: "ดูรายงานภาพรวมและอนุมัติ OT/ลา" },
             { role: "user", desc: "ตอกบัตรและรายงานตัวของตัวเอง" },
-            { role: "viewer", desc: "ดูข้อมูลได้อย่างเดียว แก้ไขไม่ได้" },
           ].map((r) => (
             <div
               key={r.role}

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ─── Types ──────────────────
 type ChangelogTag = "feature" | "fix" | "improvement" | "breaking";
 
 interface ChangelogEntry {
@@ -14,7 +14,7 @@ interface ChangelogEntry {
   }[];
 }
 
-// ─── Changelog Data (Dev/Admin) ────────────────────────────────────
+// ─── Changelog Data (Dev/Admin) ────────────
 const CHANGELOG: ChangelogEntry[] = [
   {
     version: "2.0.0",
