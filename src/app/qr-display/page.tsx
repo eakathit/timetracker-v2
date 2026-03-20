@@ -462,7 +462,7 @@ export default function QRDisplayPage() {
 
         {/* ── LEFT: Factory ─────────────────────────────────────────────────── */}
         {/* ✅ เปลี่ยนจาก flex-1 → w-[260px] xl:w-[300px] fixed width */}
-        <div className="w-[360px] xl:w-[400px] flex-shrink-0 flex flex-col bg-white border-r border-slate-200 overflow-hidden">
+        <div className="w-[280px] xl:w-[340px] 2xl:w-[380px] flex-shrink-0 flex flex-col bg-white border-r border-slate-200 overflow-hidden">
           <div className="h-1 bg-gradient-to-r from-blue-800 to-blue-500 flex-shrink-0" />
           <div className="flex-1 flex flex-col p-4 min-h-0 overflow-hidden">
             <CheckinColumn
@@ -482,20 +482,19 @@ export default function QRDisplayPage() {
         </div>
 
         {/* ── CENTER: QR ────────────────────────────────────────────────────── */}
-<div className="flex-1 flex flex-col items-center justify-between py-4 px-6 border-r border-slate-200 bg-slate-50 overflow-hidden">
-
+<div className="flex-1 flex flex-col items-center justify-center gap-4 xl:gap-5 2xl:gap-6 py-4 px-4 border-r border-slate-200 bg-slate-50 overflow-hidden">
   {/* Clock */}
   <div className="text-center flex-shrink-0">
-    <p className="text-slate-800 font-mono font-bold text-6xl xl:text-7xl leading-none tracking-tight">
+    <p className="text-slate-800 font-mono font-bold text-5xl xl:text-6xl 2xl:text-7xl leading-none tracking-tight">
       {currentTime}
     </p>
     <p className="text-slate-500 text-sm mt-1.5">{currentDate}</p>
   </div>
 
   {/* QR Card — ขยายเต็มพื้นที่ที่เหลือ */}
-  <div className="flex-1 flex items-center justify-center w-full min-h-0 py-3">
+  <div className="flex items-center justify-center w-full flex-shrink-0">
     <div
-      className="relative bg-white rounded-3xl p-5 w-full max-w-[540px]"
+      className="relative bg-white rounded-3xl p-4 xl:p-5 w-full max-w-[420px] xl:max-w-[500px] 2xl:max-w-[560px]"
       style={{
         boxShadow:
           "0 0 0 1px rgba(12,26,61,0.07), 0 4px 8px rgba(12,26,61,0.07), 0 20px 40px rgba(12,26,61,0.1)",
@@ -515,10 +514,7 @@ export default function QRDisplayPage() {
       )}
 
       {/* QR Canvas */}
-      <canvas
-        ref={canvasRef}
-        className="block rounded-xl w-full h-auto"
-      />
+      <canvas ref={canvasRef} className="block rounded-xl w-full h-auto max-h-[55vh]" style={{ objectFit: 'contain' }} />
 
       {/* Progress bar overlay — วางอยู่ในการ์ด ไม่กิน space นอก */}
       <div className="mt-3">
@@ -558,7 +554,7 @@ export default function QRDisplayPage() {
 
         {/* ── RIGHT: Onsite ──────────────────────────────────────────────────── */}
         {/* ✅ เปลี่ยนจาก flex-1 → w-[260px] xl:w-[300px] fixed width */}
-        <div className="w-[360px] xl:w-[400px] flex-shrink-0 flex flex-col bg-white overflow-hidden">
+        <div className="w-[280px] xl:w-[340px] 2xl:w-[380px] flex-shrink-0 flex flex-col bg-white overflow-hidden">
           <div className="h-1 bg-gradient-to-r from-emerald-600 to-teal-500 flex-shrink-0" />
           <div className="flex-1 flex flex-col p-4 min-h-0 overflow-hidden">
             <CheckinColumn
