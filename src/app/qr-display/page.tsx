@@ -41,24 +41,20 @@ const fmtTime = (iso: string) =>
   });
 
 // ─── AvatarBubble ─────────────────────────────────────────────────────────────
-function AvatarBubble({ entry, size = "md" }: { entry: CheckinEntry; size?: "md" | "lg" }) {
-  const sizeClass = size === "lg"
-    ? "w-14 h-14 rounded-2xl text-base"
-    : "w-9 h-9 rounded-xl text-xs"; // ✅ เล็กลงจาก w-11 h-11
-
+function AvatarBubble({ entry }: { entry: CheckinEntry }) {
   if (entry.profiles?.avatar_url) {
     return (
       <img
         src={entry.profiles.avatar_url}
         referrerPolicy="no-referrer"
         alt={getFullName(entry.profiles)}
-        className={`${sizeClass} object-cover flex-shrink-0 ring-2 ring-slate-200`}
+        className="w-9 h-9 rounded-xl object-cover flex-shrink-0 ring-2 ring-slate-200"
       />
     );
   }
   return (
     <span
-      className={`${sizeClass} ${avatarColor(entry.user_id)} text-white font-bold
+      className={`w-9 h-9 rounded-xl ${avatarColor(entry.user_id)} text-white text-xs font-bold
         flex items-center justify-center flex-shrink-0 ring-2 ring-white shadow-sm`}
     >
       {getInitials(entry.profiles)}
@@ -78,7 +74,6 @@ function CheckinRow({ entry, isNew }: { entry: CheckinEntry; isNew: boolean }) {
     >
       <AvatarBubble entry={entry} />
       <div className="flex-1 min-w-0">
-        {/* ✅ ลด font size จาก text-base → text-sm */}
         <p className="text-slate-800 text-sm font-semibold truncate leading-tight">
           {getFullName(entry.profiles)}
         </p>
@@ -108,11 +103,8 @@ function CheckinColumn({
 }) {
   return (
     <div className="flex flex-col h-full min-h-0">
-
-      {/* ✅ Header กระทัดรัดขึ้น */}
       <div className="flex items-center justify-between mb-3 pb-2.5 border-b border-slate-100 flex-shrink-0">
         <div className="flex items-center gap-2">
-          {/* ✅ Icon เล็กลง w-7 h-7 */}
           <div className={`w-7 h-7 rounded-lg ${accentBg} flex items-center justify-center shadow-sm flex-shrink-0`}>
             {icon}
           </div>
@@ -121,7 +113,6 @@ function CheckinColumn({
             <p className="text-slate-400 text-xs">{entries.length} คน</p>
           </div>
         </div>
-        {/* ✅ LIVE badge เล็กลง */}
         <span className={`flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full border ${
           entries.length > 0
             ? "bg-emerald-50 text-emerald-700 border-emerald-200"
@@ -134,7 +125,6 @@ function CheckinColumn({
         </span>
       </div>
 
-      {/* Entry List */}
       <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 scrollbar-hide">
         {entries.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-10 text-center">
@@ -160,8 +150,6 @@ function CheckinColumn({
 // ─── CheckinToast ─────────────────────────────────────────────────────────────
 function CheckinToast({ entry, onDone }: { entry: CheckinEntry; onDone: () => void }) {
   const [visible, setVisible] = useState(false);
-
-  // ✅ เก็บ onDone ไว้ใน ref เพื่อไม่ให้ useEffect re-run ทุกครั้งที่ parent render
   const onDoneRef = useRef(onDone);
   useEffect(() => { onDoneRef.current = onDone; }, [onDone]);
 
@@ -185,13 +173,9 @@ function CheckinToast({ entry, onDone }: { entry: CheckinEntry; onDone: () => vo
         className={`flex items-center gap-4 px-6 py-4 rounded-2xl shadow-2xl border
           transition-all duration-400
           ${visible ? "translate-y-0 scale-100" : "translate-y-6 scale-95"}
-          ${isFactory
-            ? "bg-blue-700 border-blue-500"
-            : "bg-emerald-700 border-emerald-500"
-          }`}
+          ${isFactory ? "bg-blue-700 border-blue-500" : "bg-emerald-700 border-emerald-500"}`}
         style={{ minWidth: 340 }}
       >
-        {/* Avatar */}
         {entry.profiles?.avatar_url ? (
           <img
             src={entry.profiles.avatar_url}
@@ -208,7 +192,6 @@ function CheckinToast({ entry, onDone }: { entry: CheckinEntry; onDone: () => vo
           </span>
         )}
 
-        {/* Text */}
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-1">
             <div className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0">
@@ -226,7 +209,6 @@ function CheckinToast({ entry, onDone }: { entry: CheckinEntry; onDone: () => vo
           </p>
         </div>
 
-        {/* Icon right */}
         <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center flex-shrink-0">
           {isFactory ? (
             <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -263,7 +245,7 @@ export default function QRDisplayPage() {
   const [activeToast, setActiveToast] = useState<CheckinEntry | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  // ── QR Refresh ───────────────────────────────────────────────────────────────
+  // ── QR Refresh ────────────────────────────────────────────────────────────────
   const refreshQR = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -271,7 +253,7 @@ export default function QRDisplayPage() {
       const payload: QRPayload = await res.json();
       if (canvasRef.current) {
         await QRCode.toCanvas(canvasRef.current, JSON.stringify(payload), {
-          width: 480, // ✅ render resolution สูง แต่ CSS จะ scale ให้พอดี
+          width: 480,
           margin: 2,
           errorCorrectionLevel: "M",
           color: { dark: "#0c1a3d", light: "#ffffff" },
@@ -290,34 +272,33 @@ export default function QRDisplayPage() {
 
   // ── Fetch entries ─────────────────────────────────────────────────────────────
   const fetchEntries = useCallback(async () => {
-  try {
-    const res = await fetch("/api/recent-checkins", { cache: "no-store" });
-    if (!res.ok) return;
-    const data: CheckinEntry[] = await res.json();
+    try {
+      const res = await fetch("/api/recent-checkins", { cache: "no-store" });
+      if (!res.ok) return;
+      const data: CheckinEntry[] = await res.json();
 
-    setAllEntries(data);
+      setAllEntries(data);
 
-    const currentIds = new Set(data.map((e) => e.id));
-    const newlyAdded = data.filter((e) => !prevIdsRef.current.has(e.id));
+      const currentIds = new Set(data.map((e) => e.id));
+      const newlyAdded = data.filter((e) => !prevIdsRef.current.has(e.id));
 
-    // ✅ ถ้าเป็น fetch แรก ให้แค่ set ref ไม่ต้อง trigger toast
-    if (isFirstFetchRef.current) {
-      isFirstFetchRef.current = false;
+      if (isFirstFetchRef.current) {
+        isFirstFetchRef.current = false;
+        prevIdsRef.current = currentIds;
+        return;
+      }
+
+      if (newlyAdded.length > 0) {
+        setNewIds(currentIds);
+        setToastQueue((prev) => [...prev, ...newlyAdded]);
+        setTimeout(() => setNewIds(new Set()), 5000);
+      }
+
       prevIdsRef.current = currentIds;
-      return;
+    } catch (e) {
+      console.error("fetchEntries error:", e);
     }
-
-    if (newlyAdded.length > 0) {
-      setNewIds(currentIds);
-      setToastQueue((prev) => [...prev, ...newlyAdded]);
-      setTimeout(() => setNewIds(new Set()), 5000);
-    }
-
-    prevIdsRef.current = currentIds;
-  } catch (e) {
-    console.error("fetchEntries error:", e);
-  }
-}, []);
+  }, []);
 
   // ── Process toast queue ───────────────────────────────────────────────────────
   useEffect(() => {
@@ -364,6 +345,7 @@ export default function QRDisplayPage() {
     return () => clearInterval(id);
   }, [fetchEntries]);
 
+  // ── Fullscreen ────────────────────────────────────────────────────────────────
   const toggleFullscreen = useCallback(() => {
     if (!document.fullscreenElement) {
       document.documentElement.requestFullscreen();
@@ -386,6 +368,7 @@ export default function QRDisplayPage() {
   const progressPct   = (timeLeft / 60) * 100;
 
   return (
+    // ✅ FIX 1: h-screen → h-dvh (sync กับ fullscreen จริงบน TV)
     <div className="h-dvh flex flex-col overflow-hidden bg-slate-50 select-none">
 
       {/* ── Toast Notification ────────────────────────────────────────────────── */}
@@ -418,7 +401,7 @@ export default function QRDisplayPage() {
             />
           </div>
           <div>
-            <p className="text-white font-bold text-sm tracking-wide leading-tight">
+            <p className="text-white font-bold text-xs xl:text-sm tracking-wide leading-tight">
               HARU SYSTEM DEVELOPMENT (THAILAND) CO., LTD.
             </p>
             <p className="text-blue-300/70 text-[10px] tracking-widest uppercase mt-0.5">
@@ -426,11 +409,11 @@ export default function QRDisplayPage() {
             </p>
           </div>
         </div>
-        
+
         <button
           onClick={toggleFullscreen}
           title={isFullscreen ? "ออกจาก Fullscreen" : "เปิด Fullscreen"}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 
+          className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20
                      text-white/70 hover:text-white text-xs font-medium transition-all duration-200
                      border border-white/10 hover:border-white/20"
         >
@@ -452,7 +435,6 @@ export default function QRDisplayPage() {
             </>
           )}
         </button>
-
       </header>
 
       {/* ══════════════════════════════════════════════════════════════════════
@@ -461,8 +443,8 @@ export default function QRDisplayPage() {
       <main className="flex-1 flex overflow-hidden min-h-0">
 
         {/* ── LEFT: Factory ─────────────────────────────────────────────────── */}
-        {/* ✅ เปลี่ยนจาก flex-1 → w-[260px] xl:w-[300px] fixed width */}
-        <div className="w-[280px] xl:w-[340px] 2xl:w-[380px] flex-shrink-0 flex flex-col bg-white border-r border-slate-200 overflow-hidden">
+        {/* ✅ FIX 2: ลด width + เพิ่ม 2xl: breakpoint สำหรับ TV 1920px+ */}
+        <div className="w-[260px] xl:w-[300px] 2xl:w-[340px] flex-shrink-0 flex flex-col bg-white border-r border-slate-200 overflow-hidden">
           <div className="h-1 bg-gradient-to-r from-blue-800 to-blue-500 flex-shrink-0" />
           <div className="flex-1 flex flex-col p-4 min-h-0 overflow-hidden">
             <CheckinColumn
@@ -482,91 +464,93 @@ export default function QRDisplayPage() {
         </div>
 
         {/* ── CENTER: QR ────────────────────────────────────────────────────── */}
-<div className="flex-1 flex flex-col items-center justify-center gap-3 py-3 px-4 border-r border-slate-200 bg-slate-50 overflow-hidden min-h-0">
+        {/* ✅ FIX 3 (KEY FIX): justify-between → justify-center + gap
+            ป้องกัน elements กระจายตอน fullscreen เปลี่ยน height */}
+        <div className="flex-1 flex flex-col items-center justify-center gap-3 xl:gap-4 py-4 px-4 border-r border-slate-200 bg-slate-50 overflow-hidden min-h-0">
 
-  {/* Clock — ใช้ clamp() แทน breakpoint class กันไม่ให้ overflow */}
-  <div className="text-center flex-shrink-0">
-    <p
-      className="text-slate-800 font-mono font-bold leading-none tracking-tight"
-      style={{ fontSize: "clamp(2rem, 5vw, 4.5rem)" }}
-    >
-      {currentTime}
-    </p>
-    <p className="text-slate-500 mt-1" style={{ fontSize: "clamp(0.75rem, 1.2vw, 1rem)" }}>
-      {currentDate}
-    </p>
-  </div>
+          {/* Clock — ใช้ clamp() scale ตามจอโดยอัตโนมัติ ไม่ต้อง breakpoint */}
+          <div className="text-center flex-shrink-0">
+            <p
+              className="text-slate-800 font-mono font-bold leading-none tracking-tight"
+              style={{ fontSize: "clamp(2rem, 5vw, 4.5rem)" }}
+            >
+              {currentTime}
+            </p>
+            <p className="text-slate-500 mt-1.5" style={{ fontSize: "clamp(0.7rem, 1.1vw, 0.9rem)" }}>
+              {currentDate}
+            </p>
+          </div>
 
-  {/* QR Card — flex-1 + min-h-0 ให้ขยายเต็มพื้นที่ที่เหลือ */}
-  <div className="flex-1 flex items-center justify-center w-full min-h-0">
-    <div
-      className="relative bg-white rounded-3xl p-4 w-full flex flex-col"
-      style={{
-        /* สี่เหลี่ยมจัตุรัส — กว้างไม่เกิน 90% ของ center และสูงไม่เกิน space ที่เหลือ */
-        maxWidth:  "min(90%, calc(100dvh - 180px))",
-        maxHeight: "calc(100dvh - 180px)",
-        boxShadow: "0 0 0 1px rgba(12,26,61,0.07), 0 4px 8px rgba(12,26,61,0.07), 0 20px 40px rgba(12,26,61,0.1)",
-      }}
-    >
-      {/* Accent top */}
-      <div
-        className="absolute top-0 left-8 right-8 h-0.5 rounded-full flex-shrink-0"
-        style={{ background: "linear-gradient(90deg, #1d4ed8 0%, #16a34a 100%)" }}
-      />
+          {/* QR Card — ✅ FIX 4: flex-shrink-0 แทน flex-1 กัน QR ยืดเกิน */}
+          <div className="flex-shrink-0 flex items-center justify-center w-full">
+            <div
+              className="relative bg-white rounded-3xl p-4 xl:p-5 w-full"
+              style={{
+                // ✅ FIX 5: จำกัดทั้ง max-width และ max-height ด้วย dvh
+                // ป้องกัน QR ล้นออกนอกจอบน TV fullscreen
+                maxWidth:  "min(90%, calc(100dvh - 160px))",
+                maxHeight: "calc(100dvh - 200px)",
+                boxShadow: "0 0 0 1px rgba(12,26,61,0.07), 0 4px 8px rgba(12,26,61,0.07), 0 20px 40px rgba(12,26,61,0.1)",
+              }}
+            >
+              {/* Accent top */}
+              <div
+                className="absolute top-0 left-8 right-8 h-0.5 rounded-full"
+                style={{ background: "linear-gradient(90deg, #1d4ed8 0%, #16a34a 100%)" }}
+              />
 
-      {/* Loading overlay */}
-      {isLoading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-white rounded-3xl z-10">
-          <div className="w-10 h-10 border-4 border-slate-200 border-t-blue-600 rounded-full animate-spin" />
+              {/* Loading overlay */}
+              {isLoading && (
+                <div className="absolute inset-0 flex items-center justify-center bg-white rounded-3xl z-10">
+                  <div className="w-10 h-10 border-4 border-slate-200 border-t-blue-600 rounded-full animate-spin" />
+                </div>
+              )}
+
+              {/* QR Canvas */}
+              <canvas
+                ref={canvasRef}
+                className="block rounded-xl w-full h-auto"
+              />
+
+              {/* Progress bar */}
+              <div className="mt-3">
+                <div className="flex justify-between items-center mb-1.5">
+                  <span className={`text-xs font-medium ${isExpiringSoon ? "text-rose-500" : "text-slate-400"}`}>
+                    {isExpiringSoon ? "⚠ กำลังหมดอายุ!" : "QR Code จะเปลี่ยนทุก 1 นาที"}
+                  </span>
+                  <span className={`font-mono font-bold text-xs ${isExpiringSoon ? "text-rose-500" : "text-slate-400"}`}>
+                    {timeLeft}s
+                  </span>
+                </div>
+                <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-1000 ${
+                      isExpiringSoon ? "bg-rose-500" : "bg-gradient-to-r from-blue-700 to-blue-500"
+                    }`}
+                    style={{ width: `${progressPct}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Factory / On-site legend pills */}
+          <div className="flex gap-3 flex-shrink-0">
+            <span className="flex items-center gap-1.5 text-xs text-blue-700 font-semibold bg-blue-50 border border-blue-200 rounded-full px-3 py-1">
+              <span className="w-2 h-2 rounded-full bg-blue-600 inline-block" />
+              Factory
+            </span>
+            <span className="flex items-center gap-1.5 text-xs text-emerald-700 font-semibold bg-emerald-50 border border-emerald-200 rounded-full px-3 py-1">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
+              On-site
+            </span>
+          </div>
+
         </div>
-      )}
-
-      {/* QR Canvas — เต็ม card, aspect-ratio 1:1 */}
-      <canvas
-        ref={canvasRef}
-        className="block rounded-xl w-full flex-1 min-h-0"
-        style={{ aspectRatio: "1 / 1", objectFit: "contain" }}
-      />
-
-      {/* Progress bar */}
-      <div className="mt-3 flex-shrink-0">
-        <div className="flex justify-between items-center mb-1.5">
-          <span className={`text-xs font-medium ${isExpiringSoon ? "text-rose-500" : "text-slate-400"}`}>
-            {isExpiringSoon ? "⚠ กำลังหมดอายุ!" : "QR Code จะเปลี่ยนทุก 1 นาที"}
-          </span>
-          <span className={`font-mono font-bold text-xs ${isExpiringSoon ? "text-rose-500" : "text-slate-400"}`}>
-            {timeLeft}s
-          </span>
-        </div>
-        <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-          <div
-            className={`h-full rounded-full transition-all duration-1000 ${
-              isExpiringSoon ? "bg-rose-500" : "bg-gradient-to-r from-blue-700 to-blue-500"
-            }`}
-            style={{ width: `${progressPct}%` }}
-          />
-        </div>
-      </div>
-    </div>
-  </div>
-
-  {/* Factory / On-site pills */}
-  <div className="flex gap-3 flex-shrink-0">
-    <span className="flex items-center gap-1.5 text-xs text-blue-700 font-semibold bg-blue-50 border border-blue-200 rounded-full px-3 py-1">
-      <span className="w-2 h-2 rounded-full bg-blue-600 inline-block" />
-      Factory
-    </span>
-    <span className="flex items-center gap-1.5 text-xs text-emerald-700 font-semibold bg-emerald-50 border border-emerald-200 rounded-full px-3 py-1">
-      <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
-      On-site
-    </span>
-  </div>
-
-</div>
 
         {/* ── RIGHT: Onsite ──────────────────────────────────────────────────── */}
-        {/* ✅ เปลี่ยนจาก flex-1 → w-[260px] xl:w-[300px] fixed width */}
-        <div className="w-[280px] xl:w-[340px] 2xl:w-[380px] flex-shrink-0 flex flex-col bg-white overflow-hidden">
+        {/* ✅ FIX 2 (same as LEFT): ลด width + เพิ่ม 2xl: breakpoint */}
+        <div className="w-[260px] xl:w-[300px] 2xl:w-[340px] flex-shrink-0 flex flex-col bg-white overflow-hidden">
           <div className="h-1 bg-gradient-to-r from-emerald-600 to-teal-500 flex-shrink-0" />
           <div className="flex-1 flex flex-col p-4 min-h-0 overflow-hidden">
             <CheckinColumn

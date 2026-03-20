@@ -467,7 +467,7 @@ function EmployeeCard({ emp }: { emp: AuditEmployee }) {
 
         {/* Leave / Absent note */}
         {emp.attendanceStatus === "leave" && (
-          <p className="mt-2 text-xs text-violet-500 bg-violet-50 px-3 py-1.5 rounded-lg">💜 พนักงานลาวันนี้</p>
+          <p className="mt-2 text-xs text-violet-500 bg-violet-50 px-3 py-1.5 rounded-lg">พนักงานลาวันนี้</p>
         )}
         {isAbsent && (
           <p className="mt-2 text-xs text-red-400 bg-red-50 px-3 py-1.5 rounded-lg">❌ ไม่มีข้อมูลการเข้างาน</p>
