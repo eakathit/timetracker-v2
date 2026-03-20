@@ -409,7 +409,7 @@ function DrillDownPanel({
   );
 
   return (
-    <div className="bg-white rounded-2xl border border-sky-100 shadow-md overflow-hidden flex flex-col max-h-[calc(100vh-320px)]">
+    <div className="bg-white rounded-2xl border border-sky-100 shadow-md overflow-hidden flex flex-col h-full">
       {/* Header */}
       <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-50 bg-sky-50/50">
         {emp.avatar_url ? (
@@ -1289,13 +1289,9 @@ export default function HRAttendancePage() {
         {/* ╔═══════════════════════════════════╗
             ║  EMPLOYEE TABLE + DRILL-DOWN      ║
             ╚═══════════════════════════════════╝ */}
-        <div
-          className={`grid gap-4 ${selectedEmp ? "grid-cols-1 lg:grid-cols-5" : "grid-cols-1"}`}
-        >
+        <div className={`grid gap-4 items-start ${selectedEmp ? "grid-cols-1 lg:grid-cols-5" : "grid-cols-1"} ${selectedEmp ? "lg:h-[calc(100vh-280px)]" : ""}`}>
           {/* Employee list */}
-          <div
-            className={`bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden ${selectedEmp ? "lg:col-span-3" : ""}`}
-          >
+          <div className={`bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col ${selectedEmp ? "lg:col-span-3 lg:h-full" : ""}`}>
             {/* Table header */}
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-50">
               <div className="flex items-center gap-2.5">
@@ -1347,7 +1343,7 @@ export default function HRAttendancePage() {
                 <p className="text-sm font-medium">ไม่พบพนักงาน</p>
               </div>
             ) : (
-              <div className="divide-y divide-gray-50 overflow-y-auto max-h-[calc(100vh-320px)] scrollbar-thin">
+                <div className="divide-y divide-gray-50 flex-1 overflow-y-auto scrollbar-thin">
                 {filtered.map((emp, idx) => {
                   const att = attendances[emp.id] ?? {
                     workdays: 0,
@@ -1471,7 +1467,7 @@ export default function HRAttendancePage() {
             )}
 
             {/* Legend */}
-            <div className="flex items-center gap-4 px-5 py-3 border-t border-gray-50 bg-gray-50/50">
+            <div className="flex items-center gap-4 px-5 py-3 border-t border-gray-50 bg-gray-50/50 flex-shrink-0">
               {[
                 { c: "bg-emerald-400", l: "ปกติ" },
                 { c: "bg-amber-400", l: "สาย" },
@@ -1491,7 +1487,7 @@ export default function HRAttendancePage() {
 
           {/* Drill-down panel */}
           {selectedEmp && (
-            <div className="lg:col-span-2 lg:sticky lg:top-[132px]">
+            <div className="lg:col-span-2 lg:h-full">
               <DrillDownPanel
                 emp={selectedEmp}
                 empIdx={selectedIdx}
