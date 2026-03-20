@@ -1,25 +1,25 @@
 INSERT INTO daily_time_logs (
-  user_id, log_date, work_type, first_check_in, status, timeline_events
+  user_id, log_date, work_type,
+  first_check_in, last_check_out,
+  auto_checked_out, ot_hours,
+  timeline_events
 )
-SELECT
-  id,
-  (NOW() AT TIME ZONE 'Asia/Bangkok')::date,
+VALUES (
+  '1dae80f2-9d7c-4182-b010-2a3fc140ff73',         -- แทนด้วย user id ของคุณ
+  CURRENT_DATE,
   'in_factory',
-  ((NOW() AT TIME ZONE 'Asia/Bangkok')::date || 'T08:15:00+07:00')::timestamptz,
-  'on_time',
-  jsonb_build_array(
-    jsonb_build_object(
-      'event', 'arrive_factory',
-      'timestamp', ((NOW() AT TIME ZONE 'Asia/Bangkok')::date || 'T08:15:00+07:00'),
-      'method', 'qr_scan',
-      'location', 'factory-main'
-    )
-  )
-FROM profiles
-WHERE role != 'admin'
-LIMIT 1
+  NOW() - interval '8 hours',   -- check-in 8 ชม.ที่แล้ว
+  NOW() - interval '30 minutes', -- auto-checkout 30 นาทีที่แล้ว
+  true,                          -- ← Cron set แล้ว
+  null,                          -- ← ยังไม่มี OT
+  '[
+    {"event": "arrive_factory", "timestamp": "..."},
+    {"event": "checkout",       "timestamp": "..."},
+    {"event": "auto_checkout",  "timestamp": "..."}
+  ]'::jsonb
+)
 ON CONFLICT (user_id, log_date) DO UPDATE SET
-  first_check_in  = EXCLUDED.first_check_in,
-  work_type       = EXCLUDED.work_type,
-  status          = EXCLUDED.status,
-  timeline_events = EXCLUDED.timeline_events;
+  auto_checked_out = true,
+  last_check_out   = NOW() - interval '30 minutes',
+  ot_hours         = null,
+  timeline_events  = EXCLUDED.timeline_events;

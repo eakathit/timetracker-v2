@@ -298,12 +298,20 @@ export default function DashboardUI({ userName, userEmail, userId, userRole }: D
       if (data) {
         // ✅ เช็ค auto_checked_out ก่อนเลย (ต้องอยู่ในนี้)
         if (data.auto_checked_out && !data.ot_hours) {
-          setWorkStatus("completed"); // ← กลับไป completed ปกติ
-          setRawCheckIn(data.first_check_in);
-          setRawCheckOut(data.last_check_out);
-          setIsInitializing(false);
-          return;
-        }
+  const events: { event: string; timestamp: string }[] =
+    data.timeline_events ?? [];
+  const hasOtStart = events.some((e) => e.event === "ot_start");
+
+  if (!hasOtStart) {
+    // ยังไม่ได้กด Start OT เลย → Completed ปกติ
+    setWorkStatus("completed");
+    setRawCheckIn(data.first_check_in);
+    setRawCheckOut(data.last_check_out);
+    setIsInitializing(false);
+    return;
+  }
+  // มี ot_start อยู่ใน timeline → ไหลต่อให้ lastEvent logic จัดการ ✅
+}
 
         if (data.first_check_in) {
           setRawCheckIn(data.first_check_in);
@@ -408,6 +416,10 @@ export default function DashboardUI({ userName, userEmail, userId, userRole }: D
     row.auto_checked_out &&
     row.last_check_out
   ) {
+    // ✅ เพิ่ม: ถ้ากำลัง OT อยู่ → ไม่ override
+    const hasOtStart = events.some((e: any) => e.event === "ot_start");
+    if (hasOtStart) return;
+
     setRawCheckOut(row.last_check_out);
     setCheckOutTime(
       new Date(row.last_check_out).toLocaleTimeString("th-TH", {
