@@ -54,6 +54,7 @@ interface TimeLogRow {
   first_check_in: string | null;
   last_check_out: string | null;
   ot_hours: number | null;
+  timeline_events: { event: string; timestamp: string }[] | null;
 }
 
 interface OTRequestRow {
@@ -712,8 +713,8 @@ export default function HRAttendancePage() {
         supabase
           .from("daily_time_logs")
           .select(
-            "user_id, log_date, status, first_check_in, last_check_out, ot_hours",
-          )
+    "user_id, log_date, status, first_check_in, last_check_out, ot_hours, timeline_events",
+  )
           .in("user_id", userIds)
           .gte("log_date", start)
           .lte("log_date", end),
@@ -974,24 +975,37 @@ export default function HRAttendancePage() {
 
           const periods: { start: string; end: string }[] = [];
 
-          const checkoutFormatted = fmtTime(log.last_check_out);
-          if (
-            checkoutFormatted &&
-            checkoutFormatted !== "–" &&
-            checkoutFormatted >= "18:00"
-          ) {
-            periods.push({ start: "18:00", end: checkoutFormatted });
-          }
+const checkoutFormatted = fmtTime(log.last_check_out);
+if (
+  checkoutFormatted &&
+  checkoutFormatted !== "–" &&
+  checkoutFormatted >= "18:00"
+) {
+  periods.push({ start: "18:00", end: checkoutFormatted });
+}
 
-          const otReq = otByUserDate[emp.id]?.[dateStr];
-          if (otReq) {
-            periods.push({
-              start: otReq.start_time.slice(0, 5),
-              end: otReq.end_time.slice(0, 5),
-            });
-          }
+const otReq = otByUserDate[emp.id]?.[dateStr];
+if (otReq) {
+  periods.push({
+    start: otReq.start_time.slice(0, 5),
+    end: otReq.end_time.slice(0, 5),
+  });
+}
 
-          const otTotal = calcTotalOT(periods);
+// ── เพิ่มตรงนี้: อ่านจาก timeline_events ถ้ายังไม่มี period ──
+if (periods.length === 0 && log.timeline_events) {
+  const events = log.timeline_events as { event: string; timestamp: string }[];
+  const otStartEvent = events.find(e => e.event === "ot_start");
+  const otEndEvent   = events.find(e => e.event === "ot_end");
+  if (otStartEvent && otEndEvent) {
+    periods.push({
+      start: fmtTime(otStartEvent.timestamp),
+      end:   fmtTime(otEndEvent.timestamp),
+    });
+  }
+}
+
+const otTotal = calcTotalOT(periods);
 
           days.push({
             day: d,

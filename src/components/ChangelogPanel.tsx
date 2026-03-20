@@ -17,6 +17,13 @@ interface ChangelogEntry {
 // ─── Changelog Data (Dev/Admin) ────────────
 const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "2.0.1",
+    date: "2026-03-20",
+    items: [
+      { tag: "fix",                 text: "เเก้ไข HR Attendance Export Excel ไม่ขึ้นเวลา OT" },
+    ],
+  },
+  {
     version: "2.0.0",
     date: "2026-03-20",
     items: [
