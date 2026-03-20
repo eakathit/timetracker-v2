@@ -856,11 +856,32 @@ export default function HRAttendancePage() {
       return true;
     }).length;
 
-    const absent = Math.max(0, expectedWorkdays - present - late - leave);
+   const absent = Math.max(0, expectedWorkdays - present - late - leave);
 
-    // ✅ คำนวณ totalOT แบบ sum ต่อวัน
+    // ✅ คำนวณ totalOT แบบ sum ต่อวัน + fallback จาก timeline_events
     const logMap: Record<string, number> = {};
-    logs.forEach((l) => { logMap[l.log_date] = l.ot_hours ?? 0; });
+    logs.forEach((l) => {
+      if (l.ot_hours != null && l.ot_hours > 0) {
+        // มี ot_hours ใน DB → ใช้เลย
+        logMap[l.log_date] = l.ot_hours;
+      } else if (l.timeline_events) {
+        // ไม่มี ot_hours → คำนวณจาก ot_start / ot_end ใน timeline
+        const events = l.timeline_events as { event: string; timestamp: string }[];
+        const otStart = events.find((e) => e.event === "ot_start");
+        const otEnd   = events.find((e) => e.event === "ot_end");
+        if (otStart && otEnd) {
+          const mins = (
+            new Date(otEnd.timestamp).getTime() -
+            new Date(otStart.timestamp).getTime()
+          ) / 60_000;
+          logMap[l.log_date] = Math.round((mins / 60) * 100) / 100;
+        } else {
+          logMap[l.log_date] = 0;
+        }
+      } else {
+        logMap[l.log_date] = 0;
+      }
+    });
 
     const reqMap = otByUserDate[emp.id] ?? {};
 
@@ -898,7 +919,7 @@ export default function HRAttendancePage() {
 }, [
   employees,
   timeLogs,
-  otRequests,  // ✅ เปลี่ยนจาก otReqMap เป็น otRequests โดยตรง
+  otRequests,
   viewYear,
   viewMonth,
   holidays,
