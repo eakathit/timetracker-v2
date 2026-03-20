@@ -813,93 +813,97 @@ export default function HRAttendancePage() {
 
   // ── สร้าง AttendanceStat ต่อ user ───────────────────
   const attendances = useMemo(() => {
-    const result: Record<string, AttendanceStat> = {};
-    const todayStr = new Date().toISOString().split("T")[0];
+  const result: Record<string, AttendanceStat> = {};
+  const todayStr = new Date().toISOString().split("T")[0];
 
-    // ── คำนวณ expectedWorkdays จากปฏิทิน (ไม่รวมอนาคต) ──
-    const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
-    let expectedWorkdays = 0;
-    for (let d = 1; d <= daysInMonth; d++) {
-      const dateStr = `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-      if (dateStr > todayStr) break;
-      const dow = new Date(viewYear, viewMonth, d).getDay();
-      if (dow === 0) continue; // อาทิตย์ → ข้าม
-      if (dow === 6 && !workingSats.has(dateStr)) continue; // เสาร์ปกติ → ข้าม
-      if (holidays.has(dateStr)) continue; // วันหยุดจริง → ข้าม
-      expectedWorkdays++;
-    }
+  // ── คำนวณ expectedWorkdays จากปฏิทิน (ไม่รวมอนาคต) ──
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+  let expectedWorkdays = 0;
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    if (dateStr > todayStr) break;
+    const dow = new Date(viewYear, viewMonth, d).getDay();
+    if (dow === 0) continue;
+    if (dow === 6 && !workingSats.has(dateStr)) continue;
+    if (holidays.has(dateStr)) continue;
+    expectedWorkdays++;
+  }
 
-    employees.forEach((emp) => {
-      const logs = timeLogs.filter((l) => l.user_id === emp.id);
+  // ✅ สร้าง map: user_id → date → OT hours (จาก ot_requests)
+  const otByUserDate: Record<string, Record<string, number>> = {};
+  otRequests.forEach((r) => {
+    const h = r.hours != null && r.hours > 0
+      ? r.hours
+      : calcOTHours(r.start_time, r.end_time);
+    if (!otByUserDate[r.user_id]) otByUserDate[r.user_id] = {};
+    otByUserDate[r.user_id][r.request_date] =
+      (otByUserDate[r.user_id][r.request_date] ?? 0) + h;
+  });
 
-      const present = logs.filter((l) => l.status === "on_time").length;
-      const late = logs.filter((l) => l.status === "late").length;
-      const leave = logs.filter((l) => {
-  if (l.status !== "leave") return false;
-  const dow = new Date(l.log_date).getDay();
-  const isWsat = workingSats.has(l.log_date);
-  const isHol  = holidays.has(l.log_date);
-  if (dow === 0) return false;               // อาทิตย์
-  if (dow === 6 && !isWsat) return false;    // เสาร์ปกติ
-  if (isHol) return false;                   // วันหยุด
-  return true;
-}).length;
-      // absent = วันทำงานที่ควรมา - วันที่มีข้อมูลจริง
-      const absent = Math.max(0, expectedWorkdays - present - late - leave);
+  employees.forEach((emp) => {
+    const logs = timeLogs.filter((l) => l.user_id === emp.id);
 
-      const logMap: Record<string, number> = {};
-    logs.forEach(l => { logMap[l.log_date] = l.ot_hours ?? 0; });
+    const present = logs.filter((l) => l.status === "on_time").length;
+    const late    = logs.filter((l) => l.status === "late").length;
+    const leave   = logs.filter((l) => {
+      if (l.status !== "leave") return false;
+      const dow    = new Date(l.log_date).getDay();
+      const isWsat = workingSats.has(l.log_date);
+      const isHol  = holidays.has(l.log_date);
+      if (dow === 0) return false;
+      if (dow === 6 && !isWsat) return false;
+      if (isHol) return false;
+      return true;
+    }).length;
 
-    const otByDate = otRequests
-      .filter(r => r.user_id === emp.id)
-      .reduce<Record<string, number>>((acc, r) => {
-        const h = r.hours != null && r.hours > 0
-          ? r.hours
-          : calcOTHours(r.start_time, r.end_time);
-        acc[r.request_date] = (acc[r.request_date] ?? 0) + h;
-        return acc;
-      }, {});
+    const absent = Math.max(0, expectedWorkdays - present - late - leave);
 
-    // ต่อวัน: ถ้ามี ot_hours ใน log → ใช้เลย, ไม่มี → ใช้จาก request
-    const allDates = new Set([...Object.keys(logMap), ...Object.keys(otByDate)]);
+    // ✅ คำนวณ totalOT แบบ sum ต่อวัน
+    const logMap: Record<string, number> = {};
+    logs.forEach((l) => { logMap[l.log_date] = l.ot_hours ?? 0; });
+
+    const reqMap = otByUserDate[emp.id] ?? {};
+
+    const allDates = new Set([
+      ...Object.keys(logMap),
+      ...Object.keys(reqMap),
+    ]);
+
     let otSum = 0;
-    allDates.forEach(date => {
+    allDates.forEach((date) => {
       const fromLog = logMap[date] ?? 0;
-      const fromReq = otByDate[date] ?? 0;
+      const fromReq = reqMap[date] ?? 0;
       otSum += fromLog > 0 ? fromLog : fromReq;
     });
 
     const totalOT = Math.round(otSum * 100) / 100;
 
-      const inTimes = logs
-        .map((l) => l.first_check_in)
-        .filter(Boolean) as string[];
-      const outTimes = logs
-        .map((l) => l.last_check_out)
-        .filter(Boolean) as string[];
+    const inTimes  = logs.map((l) => l.first_check_in).filter(Boolean) as string[];
+    const outTimes = logs.map((l) => l.last_check_out).filter(Boolean) as string[];
 
-      result[emp.id] = {
-        workdays: expectedWorkdays, // ✅ วันทำงานจริงตามปฏิทิน
-        present: present + late,
-        late,
-        absent, // ✅ คำนวณจาก gap
-        leave,
-        totalRegHours: (present + late) * 8,
-        totalOT,
-        avgIn: calcAvgTime(inTimes),
-        avgOut: calcAvgTime(outTimes),
-      };
-    });
-    return result;
-  }, [
-    employees,
-    timeLogs,
-    otReqMap,
-    viewYear,
-    viewMonth,
-    holidays,
-    workingSats,
-  ]); // ✅ เพิ่ม holidays dep
+    result[emp.id] = {
+      workdays:      expectedWorkdays,
+      present:       present + late,
+      late,
+      absent,
+      leave,
+      totalRegHours: (present + late) * 8,
+      totalOT,
+      avgIn:         calcAvgTime(inTimes),
+      avgOut:        calcAvgTime(outTimes),
+    };
+  });
+
+  return result;
+}, [
+  employees,
+  timeLogs,
+  otRequests,  // ✅ เปลี่ยนจาก otReqMap เป็น otRequests โดยตรง
+  viewYear,
+  viewMonth,
+  holidays,
+  workingSats,
+]);
 
   // ── สร้าง DayLog รายวัน ต่อ user (สำหรับ DrillDownPanel) ──
   const dailyLogsPerUser = useMemo(() => {
