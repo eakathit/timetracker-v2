@@ -52,7 +52,7 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
     const video = videoRef.current!;
     video.play().catch(() => {});
 
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    await new Promise((resolve) => setTimeout(resolve, 300));
     if (stoppedRef.current) return;
 
     let stream: MediaStream;
@@ -77,20 +77,35 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
 
     streamRef.current = stream;
     video.srcObject = stream;
+    try { await video.play(); } catch { /* ignore */ }
 
-    try {
-      await video.play();
-    } catch { /* ignore */ }
-
-    // ── iOS PWA: ตรวจว่า video มีภาพจริงหรือเปล่าหลัง 1.5 วิ ──────────
-    // ถ้า videoWidth === 0 = จอดำ = WKWebView ยัง hold camera ไว้
-    // วิธีเดียวที่แก้ได้คือ reload page ให้ WKWebView เริ่มใหม่
+    // ── รอให้ video render ก่อน แล้วตรวจ pixel จริง ───────────────────
     await new Promise((resolve) => setTimeout(resolve, 1500));
-
     if (stoppedRef.current) return;
 
-    if (video.videoWidth === 0) {
-      // จอดำ — reload เพื่อ reset WKWebView camera state
+    // sample pixel จาก video frame จริงๆ ด้วย canvas
+    const isBlackFrame = (): boolean => {
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = 16;
+        canvas.height = 16;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return false;
+        ctx.drawImage(video, 0, 0, 16, 16);
+        const pixels = ctx.getImageData(0, 0, 16, 16).data;
+        let total = 0;
+        for (let i = 0; i < pixels.length; i += 4) {
+          total += pixels[i] + pixels[i + 1] + pixels[i + 2];
+        }
+        // ถ้า brightness เฉลี่ยต่ำมาก = จอดำ
+        return total < 512;
+      } catch {
+        return false;
+      }
+    };
+
+    if (isBlackFrame()) {
+      // iOS WKWebView ยัง hold camera — reload เพื่อ reset
       stream.getTracks().forEach((t) => t.stop());
       video.pause();
       video.srcObject = null;
@@ -106,7 +121,6 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
       stoppedRef.current = true;
       controls.stop();
       streamRef.current?.getTracks().forEach((t) => t.stop());
-
       const v = videoRef.current;
       if (v) { v.pause(); v.srcObject = null; }
 
