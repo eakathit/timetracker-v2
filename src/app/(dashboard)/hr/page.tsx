@@ -858,7 +858,7 @@ export default function HRAttendancePage() {
 
    const absent = Math.max(0, expectedWorkdays - present - late - leave);
 
-    // ✅ คำนวณ totalOT แบบ sum ต่อวัน + fallback จาก timeline_events
+    // คำนวณ totalOT แบบ sum ต่อวัน + fallback จาก timeline_events
     const logMap: Record<string, number> = {};
     logs.forEach((l) => {
       if (l.ot_hours != null && l.ot_hours > 0) {

@@ -474,7 +474,7 @@ function EmployeeCard({ emp }: { emp: AuditEmployee }) {
         )}
       </button>
 
-      {/* ── Expanded Section ─────────────────────────────────────────────── */}
+      {/* ── Expanded Section ── */}
       {expanded && !isAbsent && (
         <div className="border-t border-slate-100">
 

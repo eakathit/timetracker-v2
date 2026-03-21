@@ -12,41 +12,50 @@ interface Props {
 type ScanState = "scanning" | "loading" | "success" | "error";
 
 export default function QRScannerModal({ onSuccess, onClose }: Props) {
-  const videoRef     = useRef<HTMLVideoElement>(null);
-  const controlsRef  = useRef<IScannerControls | null>(null);
-  const [state, setState]   = useState<ScanState>("scanning");
+  const videoRef    = useRef<HTMLVideoElement>(null);
+  const controlsRef = useRef<IScannerControls | null>(null);
+  const [state, setState]     = useState<ScanState>("scanning");
   const [message, setMessage] = useState("");
 
   useEffect(() => {
     const reader = new BrowserQRCodeReader();
     let stopped = false;
 
+    // ── กำหนด Camera Constraints ──────────────────────────────────────────────
+    // สำคัญมาก: resolution สูง + กล้องหลัง + continuous autofocus
+    const constraints: MediaStreamConstraints = {
+      video: {
+        facingMode: { ideal: "environment" }, // บังคับกล้องหลัง
+        width:  { ideal: 1920 },              // ขอ resolution สูงสุดที่กล้องรองรับ
+        height: { ideal: 1080 },
+        // Continuous autofocus — รองรับใน Chrome/Android, iOS Safari จะ ignore ถ้าไม่รองรับ
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        advanced: [{ focusMode: "continuous" } as any],
+      },
+    };
+
     reader
-      .decodeFromVideoDevice(undefined, videoRef.current!, async (result, err, controls) => {
+      .decodeFromConstraints(constraints, videoRef.current!, async (result, err, controls) => {
         controlsRef.current = controls;
         if (!result || stopped) return;
 
-        // หยุด scan ทันทีที่ decode ได้
         stopped = true;
         controls.stop();
         setState("loading");
 
         try {
-          // ── Parse QR payload ──────────────────────────────────────────
           const payload = JSON.parse(result.getText()) as {
             t: string;
             loc: string;
             exp: number;
           };
 
-          // ── ตรวจ expired ฝั่ง client ก่อน (เพื่อ UX เร็วขึ้น) ────────
           if (payload.exp < Date.now()) {
             setState("error");
             setMessage("QR Code หมดอายุแล้ว กรุณาสแกนใหม่");
             return;
           }
 
-          // ── ส่งไป Server ──────────────────────────────────────────────
           const res = await fetch("/api/factory-checkin", {
             method:  "POST",
             headers: { "Content-Type": "application/json" },
