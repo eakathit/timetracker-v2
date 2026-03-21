@@ -171,6 +171,7 @@ export default function DashboardUI({ userName, userEmail, userId, userRole }: D
   const [isInitializing, setIsInitializing] = useState(true);
   const [showReportPopup, setShowReportPopup] = useState(false);
   const [showQRScanner, setShowQRScanner] = useState(false);
+  const [scanKey, setScanKey] = useState(0);
 
   const [popupEndUsers, setPopupEndUsers] = useState<any[]>([]);
   const [popupProjects, setPopupProjects] = useState<any[]>([]);
@@ -582,17 +583,18 @@ const validateLocationForOT = useCallback((): Promise<boolean> => {
   }; 
 
   const handleQRCheckInSuccess = async (checkInIsoTime: string) => {
-    setShowQRScanner(false);
-    setRawCheckIn(checkInIsoTime);
-    setCheckInTime(
-      new Date(checkInIsoTime).toLocaleTimeString("th-TH", {
-        hour: "2-digit",
-        minute: "2-digit",
-      })
-    );
-    setWorkStatus("working");
-    setShowReportPopup(true);
-  };
+  setShowQRScanner(false);
+  setScanKey(k => k + 1); // ← force remount ครั้งถัดไป
+  setRawCheckIn(checkInIsoTime);
+  setCheckInTime(
+    new Date(checkInIsoTime).toLocaleTimeString("th-TH", {
+      hour: "2-digit",
+      minute: "2-digit",
+    })
+  );
+  setWorkStatus("working");
+  setShowReportPopup(true);
+};
   
   const handleCheckOut = async () => {
     if (!userId || !validateLocation()) return;
@@ -674,7 +676,7 @@ const handleEndOT = async () => {
       {/* ── 1. HEADER ──────────────────────────────────────────────────────── */}
 <div className="flex justify-between items-center relative gap-4">
   <div className="overflow-hidden">
-    <p className="text-gray-500">TimeTracker System v2</p>
+    <p className="text-gray-500">TimeTracker System v3</p>
     <h2 className="text-xl md:text-2xl font-bold truncate text-sky-700">
       {userName || userEmail || "ผู้ใช้งาน"}
     </h2>
@@ -1173,11 +1175,15 @@ const handleEndOT = async () => {
       )}
 
       {showQRScanner && (
-        <QRScannerModal
-          onSuccess={handleQRCheckInSuccess}
-          onClose={() => setShowQRScanner(false)}
-        />
-      )}
+  <QRScannerModal
+    key={scanKey}        // ← ทุกครั้งที่ key เปลี่ยน = component ใหม่ทั้งหมด
+    onSuccess={handleQRCheckInSuccess}
+    onClose={() => {
+      setShowQRScanner(false);
+      setScanKey(k => k + 1); // ← force remount ตอนปิดด้วย
+    }}
+  />
+)}
 
       {process.env.NEXT_PUBLIC_ENABLE_DEV_TOOLS === "true" && userRole === "admin" && (
         <div className="fixed bottom-28 right-3 z-50 flex flex-col gap-2 items-end">
