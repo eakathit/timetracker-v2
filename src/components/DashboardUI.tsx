@@ -908,11 +908,11 @@ const handleEndOT = async () => {
                 <span>{otTimeReady ? "Start OT" : "Start OT (18:00 น.)"}</span>
               </button>
 
-              <p className="text-xs text-gray-400 text-center">
-                {otTimeReady
-                  ? "OT จะถูกนับเป็นหน่วย 30 นาที"
-                  : "ปุ่มจะเปิดใช้งานเวลา 18:00 น."}
-              </p>
+              {!otTimeReady && (
+  <p className="text-xs text-gray-400 text-center">
+    ปุ่มจะเปิดใช้งานเวลา 18:00 น.
+  </p>
+)}
             </div>
           </div>
         )}
@@ -926,7 +926,7 @@ const handleEndOT = async () => {
                 {otElapsed}
               </span>
               <span className="text-xs text-amber-500 font-medium">
-                OT Elapsed
+                OT Time
               </span>
             </div>
 
