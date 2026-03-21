@@ -322,32 +322,33 @@ export default function QRDisplayPage() {
 
   // ── Fetch entries ─────────────────────────────────────────────────────────────
   const fetchEntries = useCallback(async () => {
-    try {
-      const res = await fetch("/api/recent-checkins", { cache: "no-store" });
-      if (!res.ok) return;
-      const data: CheckinEntry[] = await res.json();
-      setAllEntries(data);
+  try {
+    const res = await fetch("/api/recent-checkins", { cache: "no-store" });
+    if (!res.ok) return;
+    const data: CheckinEntry[] = await res.json();
+    setAllEntries(data);
 
-      const currentIds = new Set(data.map((e) => e.id));
-      const newlyAdded = data.filter((e) => !prevIdsRef.current.has(e.id));
+    const currentIds = new Set(data.map((e) => e.id));
+    const newlyAdded = data.filter((e) => !prevIdsRef.current.has(e.id));
 
-      if (isFirstFetchRef.current) {
-        isFirstFetchRef.current = false;
-        prevIdsRef.current = currentIds;
-        return;
-      }
-
-      if (newlyAdded.length > 0) {
-        setNewIds(currentIds);
-        setToastQueue((prev) => [...prev, ...newlyAdded]);
-        setTimeout(() => setNewIds(new Set()), 5000);
-      }
-
+    if (isFirstFetchRef.current) {
+      isFirstFetchRef.current = false;
       prevIdsRef.current = currentIds;
-    } catch (e) {
-      console.error("fetchEntries error:", e);
+      return;
     }
-  }, []);
+
+    if (newlyAdded.length > 0) {
+      // ✅ Fix: ใช้ Set ของเฉพาะ ID คนที่เพิ่งสแกนเข้ามาใหม่
+      setNewIds(new Set(newlyAdded.map((e) => e.id)));
+      setToastQueue((prev) => [...prev, ...newlyAdded]);
+      setTimeout(() => setNewIds(new Set()), 5000);
+    }
+
+    prevIdsRef.current = currentIds;
+  } catch (e) {
+    console.error("fetchEntries error:", e);
+  }
+}, []);
 
   // ── Process toast queue ───────────────────────────────────────────────────────
   useEffect(() => {
