@@ -1,6 +1,7 @@
 // src/app/layout.tsx
 import "./globals.css";
 import { Prompt } from "next/font/google";
+import IOSPWACameraFix from "@/components/IOSPWACameraFix"; // ← เพิ่ม
 
 const prompt = Prompt({ subsets: ["thai", "latin"], weight: ["300", "400", "500", "700"] });
 
@@ -13,7 +14,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="th">
       <body className={prompt.className}>
-        {/* ไม่มี Sidebar ตรงนี้แล้ว! หน้า Login จะได้โล่งๆ */}
+        <IOSPWACameraFix /> {/* ← เพิ่ม */}
         {children}
       </body>
     </html>
