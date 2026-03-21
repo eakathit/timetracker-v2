@@ -25,71 +25,69 @@ export async function POST(req: NextRequest) {
     };
 
     // ── 1. Basic validation ────────────────────────────────────────────────
-    if (!token || !loc || !nonce) {
-      return NextResponse.json(
-        { error: "token, loc และ nonce จำเป็น" },
-        { status: 400 }
-      );
-    }
+if (!token || !loc || !nonce) {
+  return NextResponse.json(
+    { error: "token, loc และ nonce จำเป็น" },
+    { status: 400 }
+  );
+}
 
-    // ── 2. ตรวจ HMAC token (time window) ──────────────────────────────────
-    if (!validateQRToken(token, loc)) {
-      return NextResponse.json(
-        { error: "QR Code หมดอายุแล้ว กรุณาสแกนใหม่" },
-        { status: 401 }
-      );
-    }
+// ── 2. ตรวจ HMAC token (time window) ──────────────────────────────────
+if (!validateQRToken(token, loc)) {
+  return NextResponse.json(
+    { error: "QR Code หมดอายุแล้ว กรุณาสแกนใหม่" },
+    { status: 401 }
+  );
+}
 
-    // ── 3. ตรวจและ consume nonce (one-time use) ───────────────────────────
-    // ดึง nonce row — ต้องมีอยู่ใน DB และยังไม่ถูกใช้
-    const { data: nonceRow, error: nonceErr } = await supabaseAdmin
-      .from("qr_nonces")
-      .select("nonce, used_at")
-      .eq("nonce", nonce)
-      .eq("location_id", loc)
-      .maybeSingle();
+// ── 3. ตรวจสอบ Auth ────────────────────────────────────────────────────
+const cookieStore = await cookies();
+const supabase = createServerClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  {
+    cookies: {
+      getAll: () => cookieStore.getAll(),
+      setAll: (cookiesToSet) => {
+        try {
+          cookiesToSet.forEach(({ name, value, options }) =>
+            cookieStore.set(name, value, options)
+          );
+        } catch {}
+      },
+    },
+  }
+);
 
-    if (nonceErr || !nonceRow) {
-      return NextResponse.json(
-        { error: "QR Code ไม่ถูกต้อง" },
-        { status: 401 }
-      );
-    }
+const { data: { user }, error: authError } = await supabase.auth.getUser();
+if (authError || !user) {
+  return NextResponse.json(
+    { error: "กรุณาเข้าสู่ระบบก่อน" },
+    { status: 401 }
+  );
+}
 
-    if (nonceRow.used_at) {
-      // nonce ถูก scan ไปแล้ว — แจ้งให้ scan QR ใหม่บนหน้าจอ
-      return NextResponse.json(
-        { error: "QR Code นี้ถูกใช้งานไปแล้ว กรุณาสแกน QR ใหม่บนหน้าจอ" },
-        { status: 409 }
-      );
-    }
+// ── 4. ตรวจและ consume nonce (per user) ───────────────────────────────
+// ต้องอยู่หลัง auth เพราะต้องใช้ user.id
+const { error: nonceError } = await supabaseAdmin
+  .from("qr_nonces")
+  .insert({
+    nonce:       nonce,
+    user_id:     user.id,
+    location_id: loc,
+    used_at:     new Date().toISOString(),
+  });
 
-    // ── 4. ตรวจสอบ Auth ────────────────────────────────────────────────────
-    const cookieStore = await cookies();
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll: () => cookieStore.getAll(),
-          setAll: (cookiesToSet) => {
-            try {
-              cookiesToSet.forEach(({ name, value, options }) =>
-                cookieStore.set(name, value, options)
-              );
-            } catch {}
-          },
-        },
-      }
+if (nonceError) {
+  if (nonceError.code === "23505") {
+    return NextResponse.json(
+      { error: "QR Code นี้ถูกใช้งานไปแล้ว กรุณาสแกน QR ใหม่บนหน้าจอ" },
+      { status: 409 }
     );
-
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: "กรุณาเข้าสู่ระบบก่อน" },
-        { status: 401 }
-      );
-    }
+  }
+  console.error("[factory-checkin] nonce insert error:", nonceError);
+  return NextResponse.json({ error: "เกิดข้อผิดพลาด" }, { status: 500 });
+}
 
     // ── 5. Mark nonce as used (atomic — WHERE used_at IS NULL) ────────────
     // ใช้ .is("used_at", null) ป้องกัน race condition กรณี 2 คน scan พร้อมกัน
