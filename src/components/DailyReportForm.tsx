@@ -19,12 +19,16 @@ const PERIOD_OPTIONS = [
   { value: "some_time", label: "SOME TIME" },
 ];
 
+const OTHER_VALUE = "__other__";
+
 interface ReportEntry {
   id: string;
   dbId?: string;
   detailId: string;
   endUserId: string;
   projectId: string;
+  customEndUserText?: string;
+  customProjectNoText?: string;
   period: string;
   startTime?: string;
   endTime?: string;
@@ -202,47 +206,212 @@ function SelectField({ label, icon, value, options, placeholder, onChange, disab
 }
 
 function EntryCard({ entry, index, total, dbEndUsers, dbProjects, dbDetails, onChange, onRemove }: any) {
-  const detailLabel = dbDetails.find((o:any) => o.id === entry.detailId)?.title;
-  let periodLabel = PERIOD_OPTIONS.find((o) => o.value === entry.period)?.label;
-  if (entry.period === "some_time" && entry.startTime && entry.endTime) { periodLabel = `${entry.startTime} - ${entry.endTime} น.`; }
-  const isComplete = entry.detailId && entry.endUserId && entry.projectId && entry.period && (entry.period !== "some_time" || (entry.startTime && entry.endTime));
-  const projectOptions = dbProjects.filter((p:any) => p.end_user_id === entry.endUserId).map((p:any) => ({ value: p.id, label: `${p.project_no} · ${p.name || ''}` }));
-  const canDelete = total > 1 || entry.isSaved;
+  const detailLabel = dbDetails.find((o: any) => o.id === entry.detailId)?.title;
 
-  const endUserLabel = dbEndUsers.find((o: any) => o.id === entry.endUserId)?.name;
-  const projectLabel = dbProjects.find((o: any) => o.id === entry.projectId)?.project_no;
+  let periodLabel = PERIOD_OPTIONS.find((o) => o.value === entry.period)?.label;
+  if (entry.period === "some_time" && entry.startTime && entry.endTime) {
+    periodLabel = `${entry.startTime} - ${entry.endTime} น.`;
+  }
+
+  const isOtherEU   = entry.endUserId === OTHER_VALUE;
+  const isOtherProj = entry.projectId === OTHER_VALUE;
+
+  // ── Labels สำหรับ Card header ─────────────────────────────────────────────
+  const endUserLabel = isOtherEU
+    ? (entry.customEndUserText || "Other")
+    : dbEndUsers.find((o: any) => o.id === entry.endUserId)?.name;
+
+  const projectLabel = isOtherEU
+    ? (entry.customProjectNoText || "—")
+    : dbProjects.find((o: any) => o.id === entry.projectId)?.project_no;
+
+  // ── isComplete ────────────────────────────────────────────────────────────
+  const hasEU      = isOtherEU ? !!entry.customEndUserText?.trim() : !!entry.endUserId;
+  const hasProject = isOtherEU ? true : !!entry.projectId; // Other EU = project optional
+  const hasPeriod  = !!entry.period &&
+    (entry.period !== "some_time" || (entry.startTime && entry.endTime));
+
+  const isComplete = !!entry.detailId && hasEU && hasProject && hasPeriod;
+  const canDelete  = total > 1 || entry.isSaved;
+
+  const projectOptions = dbProjects
+    .filter((p: any) => p.end_user_id === entry.endUserId)
+    .map((p: any) => ({ value: p.id, label: `${p.project_no}${p.name ? " · " + p.name : ""}` }));
 
   return (
-    <div className={`relative bg-white rounded-2xl border-2 p-5 transition-all duration-300 ${entry.isSaved ? "border-emerald-200 shadow-sm shadow-emerald-50/50" : isComplete ? "border-sky-200 shadow-sm shadow-sky-100" : "border-gray-100"}`}>
+    <div className={`relative bg-white rounded-2xl border-2 p-5 transition-all duration-300
+      ${entry.isSaved
+        ? "border-emerald-200 shadow-sm shadow-emerald-50/50"
+        : isComplete
+          ? "border-sky-200 shadow-sm shadow-sky-100"
+          : "border-gray-100"}`}>
+
+      {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <span className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold ${entry.isSaved ? "bg-emerald-500 text-white" : isComplete ? "bg-sky-500 text-white" : "bg-gray-100 text-gray-400"}`}>
-            {entry.isSaved ? <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="w-4 h-4"><polyline points="20 6 9 17 4 12" /></svg> : index + 1}
+          <span className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold
+            ${entry.isSaved ? "bg-emerald-500 text-white"
+              : isComplete ? "bg-sky-500 text-white"
+              : "bg-gray-100 text-gray-400"}`}>
+            {entry.isSaved
+              ? <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="w-4 h-4"><polyline points="20 6 9 17 4 12" /></svg>
+              : index + 1}
           </span>
           <span className="text-sm font-semibold text-gray-700">
-  {isComplete
-    ? `#${projectLabel} · ${endUserLabel}`
-    : "งาน #" + (index + 1)}
-</span>
-          {isComplete && !entry.isSaved && (<span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{periodLabel?.split(" (")[0]}</span>)}
-          {entry.isSaved && (<span className="text-xs text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full font-semibold">บันทึกแล้ว</span>)}
+            {isComplete
+              ? `${projectLabel || "—"} · ${endUserLabel}`
+              : "งาน #" + (index + 1)}
+          </span>
+          {isComplete && !entry.isSaved && (
+            <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
+              {periodLabel?.split(" (")[0]}
+            </span>
+          )}
+          {entry.isSaved && (
+            <span className="text-xs text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full font-semibold">
+              บันทึกแล้ว
+            </span>
+          )}
         </div>
         {canDelete && (
-          <button onClick={() => onRemove(entry.id)} className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${entry.isSaved ? "text-gray-300 hover:bg-red-50 hover:text-red-500" : "hover:bg-red-50 text-gray-300 hover:text-red-400"}`}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+          <button onClick={() => onRemove(entry.id)}
+            className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors
+              ${entry.isSaved
+                ? "text-gray-300 hover:bg-red-50 hover:text-red-500"
+                : "hover:bg-red-50 text-gray-300 hover:text-red-400"}`}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
           </button>
         )}
       </div>
+
+      {/* ── Fields ─────────────────────────────────────────────────────────── */}
       <div className="space-y-3">
-        <SelectField label="Detail" icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></svg>} value={entry.detailId} options={dbDetails.map((d:any) => ({ value: d.id, label: d.title }))} placeholder="เลือกประเภทงาน..." onChange={(v) => onChange(entry.id, "detailId", v)} disabled={entry.isSaved} />
-        <SelectField label="End User" icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5"><path d="M3 21h18"/><path d="M9 8h1"/><path d="M9 12h1"/><path d="M9 16h1"/><path d="M14 8h1"/><path d="M14 12h1"/><path d="M14 16h1"/><path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16"/></svg>} value={entry.endUserId} options={dbEndUsers.map((u:any) => ({ value: u.id, label: u.name }))} placeholder="เลือกลูกค้า..." onChange={(v) => { onChange(entry.id, "endUserId", v); onChange(entry.id, "projectId", ""); }} disabled={entry.isSaved} />
-        <SelectField label="Project No." icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M9 21V9" /></svg>} value={entry.projectId} options={projectOptions} placeholder="เลือกโปรเจค..." disabled={entry.isSaved || (!entry.endUserId && !entry.isSaved)} onChange={(v) => onChange(entry.id, "projectId", v)} />
-        <SelectField label="Working Period" icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5"><circle cx="12" cy="12" r="9" /><polyline points="12 7 12 12 15 14" /></svg>} value={entry.period} options={PERIOD_OPTIONS} placeholder="เลือกช่วงเวลา..." onChange={(v) => onChange(entry.id, "period", v)} disabled={entry.isSaved} />
+
+        {/* Detail */}
+        <SelectField
+          label="Detail"
+          icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></svg>}
+          value={entry.detailId}
+          options={dbDetails.map((d: any) => ({ value: d.id, label: d.title }))}
+          placeholder="เลือกประเภทงาน..."
+          onChange={(v: string) => onChange(entry.id, "detailId", v)}
+          disabled={entry.isSaved}
+        />
+
+        {/* ── End User ─────────────────────────────────────────────────────── */}
+        <SelectField
+          label="End User"
+          icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5"><path d="M3 21h18"/><path d="M9 8h1"/><path d="M9 12h1"/><path d="M9 16h1"/><path d="M14 8h1"/><path d="M14 12h1"/><path d="M14 16h1"/><path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16"/></svg>}
+          value={entry.endUserId}
+          options={[
+            ...dbEndUsers.map((u: any) => ({ value: u.id, label: u.name })),
+            { value: OTHER_VALUE, label: "Other" },
+          ]}
+          placeholder="เลือกลูกค้า..."
+          onChange={(v: string) => {
+            onChange(entry.id, "endUserId", v);
+            onChange(entry.id, "projectId", "");
+            onChange(entry.id, "customEndUserText", "");
+            onChange(entry.id, "customProjectNoText", "");
+          }}
+          disabled={entry.isSaved}
+        />
+
+        {/* ── Custom End User text input (โผล่เมื่อเลือก Other) ─────────────── */}
+        {isOtherEU && !entry.isSaved && (
+          <div className="flex items-center gap-2.5 animate-in slide-in-from-top-1 fade-in duration-200">
+            <div className="w-3.5 h-3.5 flex-shrink-0" /> {/* spacer */}
+            <div className="flex-1 relative">
+              <input
+                type="text"
+                value={entry.customEndUserText || ""}
+                onChange={(e) => onChange(entry.id, "customEndUserText", e.target.value)}
+                placeholder="End User..."
+                className="w-full px-4 py-2.5 rounded-xl border border-amber-200 bg-amber-50/40 text-sm text-gray-700
+                  placeholder-gray-300 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-50
+                  transition-all"
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-amber-400 font-semibold">
+                Other
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* ── Project No. ───────────────────────────────────────────────────── */}
+        {isOtherEU ? (
+          /* Other EU → text input สำหรับ Project No. */
+          <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-1.5 flex-shrink-0 w-[72px]">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-gray-400 flex-shrink-0">
+                <rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M9 21V9" />
+              </svg>
+              <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Project</span>
+            </div>
+            <div className="flex-1 relative">
+              <input
+                type="text"
+                value={entry.customProjectNoText || ""}
+                onChange={(e) => onChange(entry.id, "customProjectNoText", e.target.value)}
+                placeholder="Project No..."
+                disabled={entry.isSaved}
+                className={`w-full px-4 py-2.5 rounded-xl border text-sm font-medium outline-none transition-all
+                  ${entry.isSaved
+                    ? "bg-gray-50/50 border-gray-100 text-gray-500 cursor-not-allowed opacity-80"
+                    : "border-amber-200 bg-amber-50/40 text-gray-700 placeholder-gray-300 focus:border-amber-400 focus:ring-2 focus:ring-amber-50"}`}
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-amber-400 font-semibold">
+                Other
+              </span>
+            </div>
+          </div>
+        ) : (
+          /* Normal → dropdown เดิม */
+          <SelectField
+            label="Project No."
+            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M9 21V9" /></svg>}
+            value={entry.projectId}
+            options={projectOptions}
+            placeholder="เลือกโปรเจค..."
+            disabled={entry.isSaved || (!entry.endUserId && !entry.isSaved)}
+            onChange={(v: string) => onChange(entry.id, "projectId", v)}
+          />
+        )}
+
+        {/* Working Period */}
+        <SelectField
+          label="Working Period"
+          icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5"><circle cx="12" cy="12" r="9" /><polyline points="12 7 12 12 15 14" /></svg>}
+          value={entry.period}
+          options={PERIOD_OPTIONS}
+          placeholder="เลือกช่วงเวลา..."
+          onChange={(v: string) => onChange(entry.id, "period", v)}
+          disabled={entry.isSaved}
+        />
+
         {entry.period === "some_time" && (
           <div className="flex items-center gap-3 pt-1 animate-in slide-in-from-top-1 fade-in duration-200">
-            <div className="flex-1 relative"><input type="time" value={entry.startTime || ""} onChange={(e) => onChange(entry.id, "startTime", e.target.value)} disabled={entry.isSaved} className={`w-full appearance-none px-4 py-2.5 rounded-xl border text-sm font-medium outline-none transition-all ${entry.isSaved ? "bg-gray-50/50 border-gray-100 text-gray-600 cursor-not-allowed opacity-80" : "border-sky-200 bg-sky-50/30 text-gray-700 hover:border-sky-300 focus:border-sky-400"}`} /></div>
+            <div className="flex-1 relative">
+              <input type="time" value={entry.startTime || ""}
+                onChange={(e) => onChange(entry.id, "startTime", e.target.value)}
+                disabled={entry.isSaved}
+                className={`w-full appearance-none px-4 py-2.5 rounded-xl border text-sm font-medium outline-none transition-all
+                  ${entry.isSaved
+                    ? "bg-gray-50/50 border-gray-100 text-gray-600 cursor-not-allowed opacity-80"
+                    : "border-sky-200 bg-sky-50/30 text-gray-700 hover:border-sky-300 focus:border-sky-400"}`} />
+            </div>
             <span className="text-gray-300 font-bold">-</span>
-            <div className="flex-1 relative"><input type="time" value={entry.endTime || ""} onChange={(e) => onChange(entry.id, "endTime", e.target.value)} disabled={entry.isSaved} className={`w-full appearance-none px-4 py-2.5 rounded-xl border text-sm font-medium outline-none transition-all ${entry.isSaved ? "bg-gray-50/50 border-gray-100 text-gray-600 cursor-not-allowed opacity-80" : "border-sky-200 bg-sky-50/30 text-gray-700 hover:border-sky-300 focus:border-sky-400"}`} /></div>
+            <div className="flex-1 relative">
+              <input type="time" value={entry.endTime || ""}
+                onChange={(e) => onChange(entry.id, "endTime", e.target.value)}
+                disabled={entry.isSaved}
+                className={`w-full appearance-none px-4 py-2.5 rounded-xl border text-sm font-medium outline-none transition-all
+                  ${entry.isSaved
+                    ? "bg-gray-50/50 border-gray-100 text-gray-600 cursor-not-allowed opacity-80"
+                    : "border-sky-200 bg-sky-50/30 text-gray-700 hover:border-sky-300 focus:border-sky-400"}`} />
+            </div>
           </div>
         )}
       </div>
@@ -293,15 +462,30 @@ export default function DailyReportForm({
         const { data: items, error: itemsErr } = await supabase.from('daily_report_items').select('*').eq('report_id', report.id).order('id', { ascending: true });
         if (itemsErr) throw itemsErr;
         if (items && items.length > 0) {
-          const mappedEntries: ReportEntry[] = items.map(item => {
-             let periodValue = '';
-             if (item.period_type === 'some_time') periodValue = 'some_time';
-             else {
-               const opt = PERIOD_OPTIONS.find(p => p.label === item.period_label);
-               periodValue = opt ? opt.value : '';
-             }
-             return { id: item.id.toString(), dbId: item.id.toString(), detailId: item.detail_id, endUserId: item.end_user_id, projectId: item.project_id, period: periodValue, startTime: item.period_start || '', endTime: item.period_end || '', isSaved: true };
-          });
+          const mappedEntries: ReportEntry[] = items.map((item) => {
+  let periodValue = "";
+  if (item.period_type === "some_time") periodValue = "some_time";
+  else {
+    const opt = PERIOD_OPTIONS.find((p) => p.label === item.period_label);
+    periodValue = opt ? opt.value : "";
+  }
+
+  const hasOtherEU = !item.end_user_id && !!item.custom_end_user_text; // ✅
+
+  return {
+    id:                   item.id.toString(),
+    dbId:                 item.id.toString(),
+    detailId:             item.detail_id,
+    endUserId:            hasOtherEU ? OTHER_VALUE : (item.end_user_id ?? ""),  // ✅
+    projectId:            hasOtherEU ? OTHER_VALUE : (item.project_id ?? ""),   // ✅
+    customEndUserText:    item.custom_end_user_text  ?? "",                     // ✅
+    customProjectNoText:  item.custom_project_no_text ?? "",                    // ✅
+    period:               periodValue,
+    startTime:            item.period_start || "",
+    endTime:              item.period_end   || "",
+    isSaved:              true,
+  };
+});
           setEntries(mappedEntries);
           setIsFetchingReports(false);
           return;
@@ -356,7 +540,20 @@ export default function DailyReportForm({
   const updateEntry = (id: string, field: keyof ReportEntry, value: string) => setEntries((prev) => prev.map((e) => (e.id === id ? { ...e, [field]: value } : e)));
 
   const unsavedEntries = entries.filter((e) => !e.isSaved);
-  const completedUnsaved = unsavedEntries.filter((e) => e.detailId && e.endUserId && e.projectId && e.period && (e.period !== "some_time" || (e.startTime && e.endTime)));
+
+  const completedUnsaved = unsavedEntries.filter((e) => {
+  const hasEU      = e.endUserId === OTHER_VALUE
+    ? !!e.customEndUserText?.trim()
+    : !!e.endUserId;
+  const hasProject = e.endUserId === OTHER_VALUE
+    ? true   // Other EU → project optional
+    : !!e.projectId;
+  const hasPeriod  = !!e.period &&
+    (e.period !== "some_time" || (e.startTime && e.endTime));
+
+  return !!e.detailId && hasEU && hasProject && hasPeriod;
+});
+
   const allUnsavedComplete = unsavedEntries.length > 0 && completedUnsaved.length === unsavedEntries.length;
 
   const formatDateShort = (d: Date) => `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
@@ -390,18 +587,23 @@ export default function DailyReportForm({
       reportId = newReport.id;
     }
 
-    const itemsToInsert = completedUnsaved.map(e => ({
-      report_id: reportId,
-      end_user_id: e.endUserId,
-      project_id: e.projectId,
-      detail_id: e.detailId,
-      period_type: e.period === 'some_time' ? 'some_time' : 'fixed',
-      period_label: e.period === 'some_time'
-        ? `${e.startTime} - ${e.endTime} น.`
-        : PERIOD_OPTIONS.find(p => p.value === e.period)?.label,
-      period_start: e.period === 'some_time' ? e.startTime : null,
-      period_end: e.period === 'some_time' ? e.endTime : null,
-    }));
+    const itemsToInsert = completedUnsaved.map((e) => {
+    const isOtherEU = e.endUserId === OTHER_VALUE;
+    return {
+      report_id:              reportId,
+      end_user_id:            isOtherEU ? null : e.endUserId,
+      project_id:             isOtherEU ? null : e.projectId,
+      custom_end_user_text:   isOtherEU ? (e.customEndUserText?.trim() || null) : null,   // ✅
+      custom_project_no_text: isOtherEU ? (e.customProjectNoText?.trim() || null) : null, // ✅
+      detail_id:              e.detailId,
+      period_type:  e.period === "some_time" ? "some_time" : "fixed",
+      period_label: e.period === "some_time"
+        ? `${e.startTime} – ${e.endTime} น.`
+        : PERIOD_OPTIONS.find((p) => p.value === e.period)?.label ?? e.period,
+      period_start: e.period === "some_time" ? e.startTime : null,
+      period_end:   e.period === "some_time" ? e.endTime   : null,
+    };
+  });
 
     const { error: itemsErr } = await supabase.from('daily_report_items').insert(itemsToInsert);
     if (itemsErr) throw itemsErr;

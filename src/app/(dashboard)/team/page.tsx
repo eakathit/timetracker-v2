@@ -28,6 +28,8 @@ interface ReportRow {
   period_start: string | null;
   period_end:   string | null;
   period_type:  string;
+  custom_end_user_text:   string | null;
+  custom_project_no_text: string | null;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -295,25 +297,31 @@ export default function TeamPage() {
       // Step 2: get all items for those reports
       const reportIds = reports.map((r) => r.id);
       const { data: items, error: iErr } = await supabase
-        .from("daily_report_items")
-        .select("id, report_id, end_user_id, project_id, detail_id, period_type, period_label, period_start, period_end")
-        .in("report_id", reportIds);
+  .from("daily_report_items")
+  .select(`
+    id, report_id, end_user_id, project_id, detail_id,
+    period_type, period_label, period_start, period_end,
+    custom_end_user_text, custom_project_no_text
+  `)
+  .in("report_id", reportIds);
 
       if (iErr) throw iErr;
       if (!items) { setRows([]); return; }
 
       const mapped: ReportRow[] = items.map((item) => ({
-        item_id:     String(item.id),
-        report_date: reportMeta[item.report_id]?.report_date ?? "",
-        user_id:     reportMeta[item.report_id]?.user_id ?? "",
-        project_id:  item.project_id,
-        end_user_id: item.end_user_id,
-        detail_id:   item.detail_id,
-        period_label: item.period_label ?? null,
-        period_start: item.period_start ?? null,
-        period_end:   item.period_end   ?? null,
-        period_type:  item.period_type  ?? "fixed",
-      }));
+  item_id:                String(item.id),
+  report_date:            reportMeta[item.report_id]?.report_date ?? "",
+  user_id:                reportMeta[item.report_id]?.user_id ?? "",
+  project_id:             item.project_id,
+  end_user_id:            item.end_user_id,
+  detail_id:              item.detail_id,
+  period_label:           item.period_label ?? null,
+  period_start:           item.period_start ?? null,
+  period_end:             item.period_end   ?? null,
+  period_type:            item.period_type  ?? "fixed",
+  custom_end_user_text:   item.custom_end_user_text   ?? null, 
+  custom_project_no_text: item.custom_project_no_text ?? null, 
+}));
 
       setRows(mapped);
     } catch (err: any) {
@@ -726,16 +734,20 @@ export default function TeamPage() {
 
                         {/* End User */}
                         <td className="px-4 py-3 whitespace-nowrap">
-                          <span className="text-xs font-semibold text-gray-700">{eu?.name || "–"}</span>
+                          <span className="text-xs font-semibold text-gray-700">
+  {row.custom_end_user_text || eu?.name || "–"}
+</span>
                         </td>
 
                         {/* Project */}
                         <td className="px-4 py-3">
-                          <ProjectBadge project={proj} />
-                          {proj?.name && (
-                            <p className="text-[10px] text-gray-400 mt-0.5 max-w-[100px] truncate">{proj.name}</p>
-                          )}
-                        </td>
+  <span className="inline-flex items-center px-2 py-0.5 rounded-lg bg-sky-50 border border-sky-200 text-sky-700 text-[10px] font-extrabold whitespace-nowrap">
+    #{row.custom_project_no_text || proj?.project_no || "–"}
+  </span>
+  {proj?.name && (
+    <p className="text-[10px] text-gray-400 mt-0.5 max-w-[100px] truncate">{proj.name}</p>
+  )}
+</td>
 
                         {/* Detail */}
                         <td className="px-4 py-3 max-w-[160px]">
@@ -775,13 +787,15 @@ export default function TeamPage() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 flex-wrap mb-1">
-                        <ProjectBadge project={proj} />
-                        <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold border ${getPeriodStyle(row)}`}>
-                          {getPeriodLabel(row)}
-                        </span>
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-lg bg-sky-50 border border-sky-200 text-sky-700 text-[10px] font-extrabold whitespace-nowrap">
+  #{row.custom_project_no_text || proj?.project_no || "?"}
+</span>
                       </div>
                       <p className="text-sm font-semibold text-gray-800 leading-snug"></p>
-                      <p className="text-xs text-gray-400 mt-0.5 truncate">{eu?.name || "–"}{proj?.name ? ` · ${proj.name}` : ""}</p>
+                      <p className="text-xs text-gray-400 mt-0.5 truncate">
+  {row.custom_end_user_text || eu?.name || "–"}
+  {proj?.name ? ` · ${proj.name}` : ""}
+</p>
                       <div className="flex items-center gap-1.5 mt-1">
                         <AvatarChip profile={profile} showName />
                       </div>
@@ -875,15 +889,24 @@ export default function TeamPage() {
                               {userRows.map((row) => {
                                 const proj   = projectMap[row.project_id];
                                 const eu     = euMap[row.end_user_id];
+                                // รองรับ Other Mode
+                                const euName      = row.custom_end_user_text || eu?.name || "–";
+                                const projectNo   = row.custom_project_no_text || proj?.project_no || null;
+                                const isOther     = !!row.custom_end_user_text;
+
                                 return (
                                   <div key={row.item_id} className="flex items-start gap-3 px-4 py-3 hover:bg-gray-50/50 transition-colors">
                                     <div className="w-1 self-stretch rounded-full flex-shrink-0 bg-sky-300 mt-0.5" />
                                     <div className="flex-1 min-w-0">
                                       <div className="flex items-center gap-2 flex-wrap">
-                                        <ProjectBadge project={proj} />
-                                        {eu?.name && (
-                                          <span className="text-[10px] text-gray-500 font-semibold">{eu.name}</span>
-                                        )}
+                                        <span className="inline-flex items-center px-2 py-0.5 rounded-lg bg-sky-50 border border-sky-200 text-sky-700 text-[10px] font-extrabold whitespace-nowrap">
+  #{row.custom_project_no_text || proj?.project_no || "?"}
+</span>
+{(row.custom_end_user_text || eu?.name) && (
+  <span className={`text-[10px] font-semibold ${row.custom_end_user_text ? "text-amber-500" : "text-gray-500"}`}>
+    {row.custom_end_user_text || eu?.name}
+  </span>
+)}
                                         <span className={`ml-auto flex-shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${getPeriodStyle(row)}`}>
                                           {getPeriodLabel(row)}
                                         </span>
