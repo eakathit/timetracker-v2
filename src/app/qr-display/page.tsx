@@ -259,7 +259,7 @@ export default function QRDisplayPage() {
   // ✅ KEY FIX: อ่าน viewport จริงจาก JS — ไม่ใช้ CSS units ที่ TV browser อาจคำนวณผิด
   const { w: vpW, h: vpH } = useViewport();
 
-  const [timeLeft, setTimeLeft]       = useState(60);
+  const [timeLeft, setTimeLeft]       = useState(15);
   const [isLoading, setIsLoading]     = useState(true);
   const [currentTime, setCurrentTime] = useState("");
   const [currentDate, setCurrentDate] = useState("");
@@ -300,7 +300,19 @@ export default function QRDisplayPage() {
     setIsLoading(true);
     try {
       const res = await fetch("/api/qr-token", { cache: "no-store" });
+
+      if (!res.ok) {
+      console.error("[refreshQR] API error:", res.status);
+      return;
+    }
+    
       const payload: QRPayload = await res.json();
+
+      if (!payload.exp || !payload.t) {
+  console.error("[refreshQR] invalid payload:", payload);
+  return;
+}
+
       if (canvasRef.current) {
         await QRCode.toCanvas(canvasRef.current, JSON.stringify(payload), {
           width: 480,
@@ -378,15 +390,15 @@ export default function QRDisplayPage() {
 
   // ── QR countdown & auto-refresh ───────────────────────────────────────────────
   useEffect(() => {
-    refreshQR();
-    const id = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) { refreshQR(); return 60; }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(id);
-  }, [refreshQR]);
+  refreshQR();
+  const id = setInterval(() => {
+    setTimeLeft((prev) => {
+      if (prev <= 1) { refreshQR(); return 15; }  // ← 15
+      return prev - 1;
+    });
+  }, 1000);
+  return () => clearInterval(id);
+}, [refreshQR]);
 
   // ── Poll entries every 5s ─────────────────────────────────────────────────────
   useEffect(() => {
@@ -414,8 +426,8 @@ export default function QRDisplayPage() {
 
   const factoryEntries = allEntries.filter((e) => e.work_type === "in_factory");
   const onsiteEntries  = allEntries.filter((e) => e.work_type !== "in_factory");
-  const isExpiringSoon = timeLeft <= 10;
-  const progressPct   = (timeLeft / 60) * 100;
+  const isExpiringSoon = timeLeft <= 5;           // เตือนเมื่อเหลือ 5 วิ (1/3 ของ 15วิ)
+  const progressPct   = (timeLeft / 15) * 100;
 
   return (
     // ✅ h-dvh: dynamic viewport height
@@ -565,7 +577,7 @@ export default function QRDisplayPage() {
             <div className="mt-3">
               <div className="flex justify-between items-center mb-1.5">
                 <span className={`text-xs font-medium ${isExpiringSoon ? "text-rose-500" : "text-slate-400"}`}>
-                  {isExpiringSoon ? "⚠ กำลังหมดอายุ!" : "QR Code จะเปลี่ยนทุก 1 นาที"}
+                  {isExpiringSoon ? "⚠ กำลังหมดอายุ!" : "QR Code จะเปลี่ยนทุก 15 วินาที"}
                 </span>
                 <span className={`font-mono font-bold text-xs ${isExpiringSoon ? "text-rose-500" : "text-slate-400"}`}>
                   {timeLeft}s

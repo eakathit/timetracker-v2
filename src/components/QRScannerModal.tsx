@@ -131,6 +131,7 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
           t: string;
           loc: string;
           exp: number;
+          nonce: string;
         };
 
         if (payload.exp < Date.now()) {
@@ -142,7 +143,7 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
         const res = await fetch("/api/factory-checkin", {
           method:  "POST",
           headers: { "Content-Type": "application/json" },
-          body:    JSON.stringify({ token: payload.t, loc: payload.loc }),
+          body:    JSON.stringify({ token: payload.t, loc: payload.loc, nonce: payload.nonce, }),
         });
 
         const data = await res.json();

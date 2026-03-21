@@ -1,8 +1,15 @@
 // src/app/api/factory-checkin/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { validateQRToken } from "@/lib/qr-token";
+
+// Service role สำหรับ consume nonce (ต้องการ bypass RLS)
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 function getLocalToday(): string {
   return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Bangkok" });
@@ -11,17 +18,53 @@ function getLocalToday(): string {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { token, loc } = body as { token: string; loc: string };
+    const { token, loc, nonce } = body as {
+      token: string;
+      loc:   string;
+      nonce: string; // ← ใหม่
+    };
 
-    // ── 1. Validate QR token ────────────────────────────────────────────────
-    if (!token || !loc) {
-      return NextResponse.json({ error: "token และ loc จำเป็น" }, { status: 400 });
+    // ── 1. Basic validation ────────────────────────────────────────────────
+    if (!token || !loc || !nonce) {
+      return NextResponse.json(
+        { error: "token, loc และ nonce จำเป็น" },
+        { status: 400 }
+      );
     }
+
+    // ── 2. ตรวจ HMAC token (time window) ──────────────────────────────────
     if (!validateQRToken(token, loc)) {
-      return NextResponse.json({ error: "QR Code หมดอายุแล้ว กรุณาสแกนใหม่" }, { status: 401 });
+      return NextResponse.json(
+        { error: "QR Code หมดอายุแล้ว กรุณาสแกนใหม่" },
+        { status: 401 }
+      );
     }
 
-    // ── 2. ตรวจสอบ Auth ────────────────────────────────────────────────────
+    // ── 3. ตรวจและ consume nonce (one-time use) ───────────────────────────
+    // ดึง nonce row — ต้องมีอยู่ใน DB และยังไม่ถูกใช้
+    const { data: nonceRow, error: nonceErr } = await supabaseAdmin
+      .from("qr_nonces")
+      .select("nonce, used_at")
+      .eq("nonce", nonce)
+      .eq("location_id", loc)
+      .maybeSingle();
+
+    if (nonceErr || !nonceRow) {
+      return NextResponse.json(
+        { error: "QR Code ไม่ถูกต้อง" },
+        { status: 401 }
+      );
+    }
+
+    if (nonceRow.used_at) {
+      // nonce ถูก scan ไปแล้ว — แจ้งให้ scan QR ใหม่บนหน้าจอ
+      return NextResponse.json(
+        { error: "QR Code นี้ถูกใช้งานไปแล้ว กรุณาสแกน QR ใหม่บนหน้าจอ" },
+        { status: 409 }
+      );
+    }
+
+    // ── 4. ตรวจสอบ Auth ────────────────────────────────────────────────────
     const cookieStore = await cookies();
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -42,13 +85,32 @@ export async function POST(req: NextRequest) {
 
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
-      return NextResponse.json({ error: "กรุณาเข้าสู่ระบบก่อน" }, { status: 401 });
+      return NextResponse.json(
+        { error: "กรุณาเข้าสู่ระบบก่อน" },
+        { status: 401 }
+      );
     }
 
+    // ── 5. Mark nonce as used (atomic — WHERE used_at IS NULL) ────────────
+    // ใช้ .is("used_at", null) ป้องกัน race condition กรณี 2 คน scan พร้อมกัน
+    const { data: updated } = await supabaseAdmin
+  .from("qr_nonces")
+  .update({ used_at: new Date().toISOString(), used_by: user.id })
+  .eq("nonce", nonce)
+  .is("used_at", null)
+  .select("nonce");  // คืน rows ที่ถูก update กลับมา
+
+if (!updated || updated.length === 0) {
+  return NextResponse.json(
+    { error: "QR Code นี้ถูกใช้งานไปแล้ว กรุณาสแกน QR ใหม่บนหน้าจอ" },
+    { status: 409 }
+  );
+}
+
+    // ── 6. ตรวจสอบว่า check-in ซ้ำไหม ────────────────────────────────────
     const today = getLocalToday();
     const now   = new Date().toISOString();
 
-    // ── 3. ตรวจสอบว่า check-in ซ้ำไหม ────────────────────────────────────
     const { data: existing } = await supabase
       .from("daily_time_logs")
       .select("id, first_check_in")
@@ -63,15 +125,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ── 4. คำนวณ status & day info ─────────────────────────────────────────
+    // ── 7. คำนวณ status ────────────────────────────────────────────────────
     const checkInBangkok = new Date(
-  new Date(now).toLocaleString("en-US", { timeZone: "Asia/Bangkok" })
-);
-const lateThreshold = new Date(checkInBangkok);
-lateThreshold.setHours(8, 30, 0, 0);
-const attendanceStatus = checkInBangkok > lateThreshold ? "late" : "on_time";
+      new Date(now).toLocaleString("en-US", { timeZone: "Asia/Bangkok" })
+    );
+    const lateThreshold = new Date(checkInBangkok);
+    lateThreshold.setHours(8, 30, 0, 0);
+    const attendanceStatus = checkInBangkok > lateThreshold ? "late" : "on_time";
 
-    // ── 5. บันทึก daily_time_logs ──────────────────────────────────────────
+    // ── 8. บันทึก daily_time_logs ──────────────────────────────────────────
     const newEvent = {
       event:     "arrive_factory",
       timestamp: now,
@@ -80,7 +142,6 @@ const attendanceStatus = checkInBangkok > lateThreshold ? "late" : "on_time";
     };
 
     if (existing) {
-      // row มีแต่ยังไม่ check-in (edge case)
       await supabase
         .from("daily_time_logs")
         .update({

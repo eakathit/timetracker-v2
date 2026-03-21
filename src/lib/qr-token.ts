@@ -1,16 +1,18 @@
 // src/lib/qr-token.ts
-import { createHmac } from "crypto";
+import { createHmac, randomBytes } from "crypto";
 
-const SECRET = process.env.QR_TOKEN_SECRET ?? "change-me-in-production";
+const SECRET      = process.env.QR_TOKEN_SECRET ?? "change-me-in-production";
 const LOCATION_ID = "factory-main";
-const WINDOW_MINUTES = 1; // accept ± 1 นาที เผื่อนาฬิกา tablet drift
 
-// ─── Bucket = เลขนาทีปัจจุบัน (เปลี่ยนทุก 1 นาที) ──────────────────────────
-export function getMinuteBucket(date = new Date()): number {
-  return Math.floor(date.getTime() / (1000 * 60));
+const BUCKET_SECONDS = 15; // QR เปลี่ยนทุก 15 วินาที
+const WINDOW_BUCKETS = 1;  // accept ±1 bucket = ±15s เผื่อ clock drift
+
+// ─── Bucket = ช่วง 15 วินาทีปัจจุบัน ────────────────────────────────────────
+export function getSecondBucket(date = new Date()): number {
+  return Math.floor(date.getTime() / (1000 * BUCKET_SECONDS));
 }
 
-// ─── สร้าง HMAC token สำหรับ bucket นั้นๆ ──────────────────────────────────
+// ─── สร้าง HMAC token สำหรับ bucket นั้นๆ ───────────────────────────────────
 export function generateTokenForBucket(bucket: number, locationId: string): string {
   return createHmac("sha256", SECRET)
     .update(`${bucket}:${locationId}`)
@@ -18,26 +20,28 @@ export function generateTokenForBucket(bucket: number, locationId: string): stri
     .slice(0, 24);
 }
 
-// ─── Payload ที่เข้ารหัสใน QR code ─────────────────────────────────────────
+// ─── Payload ที่เข้ารหัสใน QR code ──────────────────────────────────────────
 export interface QRPayload {
-  t: string;   // token
-  loc: string; // location id
-  exp: number; // unix ms หมดอายุ
+  t:     string; // HMAC token
+  loc:   string; // location id
+  exp:   number; // unix ms หมดอายุ
+  nonce: string; // one-time use ID ← ใหม่
 }
 
 export function buildQRPayload(locationId = LOCATION_ID): QRPayload {
-  const bucket = getMinuteBucket();
+  const bucket = getSecondBucket();
   return {
-    t:   generateTokenForBucket(bucket, locationId),
-    loc: locationId,
-    exp: (bucket + 1) * 60 * 1000,
+    t:     generateTokenForBucket(bucket, locationId),
+    loc:   locationId,
+    exp:   (bucket + 1) * BUCKET_SECONDS * 1000,
+    nonce: randomBytes(16).toString("hex"), // 32 char hex สุ่มใหม่ทุกครั้ง
   };
 }
 
-// ─── Validate: ตรวจสอบว่า token ยังอยู่ใน window ─────────────────────────
+// ─── Validate HMAC token (ไม่ตรวจ nonce — ทำที่ฝั่ง API) ───────────────────
 export function validateQRToken(token: string, locationId: string): boolean {
-  const now = getMinuteBucket();
-  for (let offset = -WINDOW_MINUTES; offset <= WINDOW_MINUTES; offset++) {
+  const now = getSecondBucket();
+  for (let offset = -WINDOW_BUCKETS; offset <= WINDOW_BUCKETS; offset++) {
     if (token === generateTokenForBucket(now + offset, locationId)) return true;
   }
   return false;
