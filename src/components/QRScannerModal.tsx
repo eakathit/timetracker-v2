@@ -51,7 +51,13 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
     try {
       const video = videoRef.current!;
 
-      // ── ขอ stream — fallback ถ้าขอ resolution สูงไม่ได้ ──────────────
+      // ── iOS PWA Critical Fix ──────────────────────────────────────────
+      // ต้องเรียก play() แบบ synchronous ก่อน await ใดๆ ทั้งหมด
+      // เพื่อ "จอง" gesture token ไว้ก่อนที่ permission dialog จะขัด chain
+      // play() จะ fail (ยังไม่มี source) แต่ iOS จะ mark video ว่า user-activated แล้ว
+      video.play().catch(() => {}); // ← intentionally NOT awaited
+
+      // ── ขอ stream ──────────────────────────────────────────────────────
       let stream: MediaStream;
       try {
         stream = await navigator.mediaDevices.getUserMedia({
@@ -75,14 +81,12 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
       streamRef.current = stream;
 
       // ── ผูก stream เข้า video ─────────────────────────────────────────
-      // video.load() รีเซ็ต element ให้สะอาด — จำเป็นสำหรับ iOS ครั้งที่ 2+
+      // ❌ ห้ามเรียก video.load() — บน iOS มันจะ detach srcObject ทำให้จอดำ
       video.srcObject = stream;
-      video.load();
-
       try {
         await video.play();
       } catch {
-        // iOS บางรุ่น throw แต่ video ยังเล่นได้ — ignore ได้
+        // iOS อาจ throw แต่ video ยังเล่นได้ — ignore ได้
       }
 
       // ── เริ่ม decode ──────────────────────────────────────────────────

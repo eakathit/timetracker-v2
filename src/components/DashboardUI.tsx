@@ -674,7 +674,7 @@ const handleEndOT = async () => {
       {/* ── 1. HEADER ──────────────────────────────────────────────────────── */}
 <div className="flex justify-between items-center relative gap-4">
   <div className="overflow-hidden">
-    <p className="text-gray-500">TimeTracker System v0</p>
+    <p className="text-gray-500">TimeTracker System v1</p>
     <h2 className="text-xl md:text-2xl font-bold truncate text-sky-700">
       {userName || userEmail || "ผู้ใช้งาน"}
     </h2>
@@ -1179,7 +1179,6 @@ const handleEndOT = async () => {
         />
       )}
 
-      {/* 👇 วางตรงนี้ — ก่อนปิด </main> */}
       {process.env.NEXT_PUBLIC_ENABLE_DEV_TOOLS === "true" && userRole === "admin" && (
         <div className="fixed bottom-28 right-3 z-50 flex flex-col gap-2 items-end">
           <button
