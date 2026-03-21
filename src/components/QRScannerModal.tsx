@@ -98,6 +98,14 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
       stoppedRef.current = true;
       controls.stop();
       streamRef.current?.getTracks().forEach((t) => t.stop());
+
+      // iOS PWA: release camera hardware ทันที
+      const video = videoRef.current;
+      if (video) {
+        video.pause();
+        video.srcObject = null;
+      }
+
       setState("loading");
 
       try {
