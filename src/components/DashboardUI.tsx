@@ -676,7 +676,7 @@ const handleEndOT = async () => {
       {/* ── 1. HEADER ──────────────────────────────────────────────────────── */}
 <div className="flex justify-between items-center relative gap-4">
   <div className="overflow-hidden">
-    <p className="text-gray-500">TimeTracker System v3</p>
+    <p className="text-gray-500">TimeTracker System v4</p>
     <h2 className="text-xl md:text-2xl font-bold truncate text-sky-700">
       {userName || userEmail || "ผู้ใช้งาน"}
     </h2>

@@ -50,18 +50,11 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
 
   try {
     const video = videoRef.current!;
-
-    // pre-unlock gesture สำหรับ iOS PWA
     video.play().catch(() => {});
 
-    // ── iOS PWA: รอให้ camera session เก่า release ก่อน ──────────────
-    // Safari browser ไม่ต้องการ แต่ iOS PWA (WKWebView) ต้องรอ
-    // ไม่งั้น getUserMedia จะคืน stream ที่ black frame
     await new Promise((resolve) => setTimeout(resolve, 500));
+    if (stoppedRef.current) return;
 
-    if (stoppedRef.current) return; // user ปิด modal ระหว่างรอ
-
-    // ── ขอ stream ──────────────────────────────────────────────────────
     let stream: MediaStream;
     try {
       stream = await navigator.mediaDevices.getUserMedia({
@@ -87,10 +80,25 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
 
     try {
       await video.play();
-    } catch {
-      // iOS อาจ throw แต่ video ยังเล่นได้
+    } catch { /* ignore */ }
+
+    // ── iOS PWA: ตรวจว่า video มีภาพจริงหรือเปล่าหลัง 1.5 วิ ──────────
+    // ถ้า videoWidth === 0 = จอดำ = WKWebView ยัง hold camera ไว้
+    // วิธีเดียวที่แก้ได้คือ reload page ให้ WKWebView เริ่มใหม่
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+
+    if (stoppedRef.current) return;
+
+    if (video.videoWidth === 0) {
+      // จอดำ — reload เพื่อ reset WKWebView camera state
+      stream.getTracks().forEach((t) => t.stop());
+      video.pause();
+      video.srcObject = null;
+      window.location.reload();
+      return;
     }
 
+    // ── เริ่ม decode ──────────────────────────────────────────────────
     await reader.decodeFromVideoElement(video, async (result, _err, controls) => {
       controlsRef.current = controls;
       if (!result || stoppedRef.current) return;
@@ -99,12 +107,8 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
       controls.stop();
       streamRef.current?.getTracks().forEach((t) => t.stop());
 
-      // iOS PWA: release camera hardware ทันที
-      const video = videoRef.current;
-      if (video) {
-        video.pause();
-        video.srcObject = null;
-      }
+      const v = videoRef.current;
+      if (v) { v.pause(); v.srcObject = null; }
 
       setState("loading");
 
@@ -141,17 +145,7 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
           minute: "2-digit",
         });
         setMessage(`Check-in สำเร็จ เวลา ${checkInTime}`);
-        setTimeout(() => {
-          onSuccess(data.checkin_at);
-          // iOS PWA เท่านั้น: reload เพื่อ reset camera state ของ WKWebView
-          // ถ้าไม่ทำ กล้องจะดำในครั้งถัดไปแม้จะปิดแอปแล้ว
-          if (
-            typeof window !== "undefined" &&
-            (window.navigator as Navigator & { standalone?: boolean }).standalone === true
-          ) {
-            setTimeout(() => window.location.reload(), 300);
-          }
-        }, 1500);
+        setTimeout(() => onSuccess(data.checkin_at), 1500);
       } catch {
         setState("error");
         setMessage("QR Code ไม่ถูกต้อง");
