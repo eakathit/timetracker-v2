@@ -43,106 +43,107 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
   }, []);
 
   const startCamera = useCallback(async () => {
-    stoppedRef.current = false;
-    setState("scanning");
+  stoppedRef.current = false;
+  setState("scanning");
 
-    const reader = new BrowserQRCodeReader();
+  const reader = new BrowserQRCodeReader();
 
+  try {
+    const video = videoRef.current!;
+
+    // pre-unlock gesture สำหรับ iOS PWA
+    video.play().catch(() => {});
+
+    // ── iOS PWA: รอให้ camera session เก่า release ก่อน ──────────────
+    // Safari browser ไม่ต้องการ แต่ iOS PWA (WKWebView) ต้องรอ
+    // ไม่งั้น getUserMedia จะคืน stream ที่ black frame
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    if (stoppedRef.current) return; // user ปิด modal ระหว่างรอ
+
+    // ── ขอ stream ──────────────────────────────────────────────────────
+    let stream: MediaStream;
     try {
-      const video = videoRef.current!;
-
-      // ── iOS PWA Critical Fix ──────────────────────────────────────────
-      // ต้องเรียก play() แบบ synchronous ก่อน await ใดๆ ทั้งหมด
-      // เพื่อ "จอง" gesture token ไว้ก่อนที่ permission dialog จะขัด chain
-      // play() จะ fail (ยังไม่มี source) แต่ iOS จะ mark video ว่า user-activated แล้ว
-      video.play().catch(() => {}); // ← intentionally NOT awaited
-
-      // ── ขอ stream ──────────────────────────────────────────────────────
-      let stream: MediaStream;
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: { ideal: "environment" },
-            width:  { ideal: 1280 },
-            height: { ideal: 720 },
-          },
-        });
-      } catch {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: "environment" } },
-        });
-      }
-
-      if (stoppedRef.current) {
-        stream.getTracks().forEach((t) => t.stop());
-        return;
-      }
-
-      streamRef.current = stream;
-
-      // ── ผูก stream เข้า video ─────────────────────────────────────────
-      // ❌ ห้ามเรียก video.load() — บน iOS มันจะ detach srcObject ทำให้จอดำ
-      video.srcObject = stream;
-      try {
-        await video.play();
-      } catch {
-        // iOS อาจ throw แต่ video ยังเล่นได้ — ignore ได้
-      }
-
-      // ── เริ่ม decode ──────────────────────────────────────────────────
-      await reader.decodeFromVideoElement(video, async (result, _err, controls) => {
-        controlsRef.current = controls;
-        if (!result || stoppedRef.current) return;
-
-        stoppedRef.current = true;
-        controls.stop();
-        streamRef.current?.getTracks().forEach((t) => t.stop());
-        setState("loading");
-
-        try {
-          const payload = JSON.parse(result.getText()) as {
-            t: string;
-            loc: string;
-            exp: number;
-          };
-
-          if (payload.exp < Date.now()) {
-            setState("error");
-            setMessage("QR Code หมดอายุแล้ว กรุณาสแกนใหม่");
-            return;
-          }
-
-          const res = await fetch("/api/factory-checkin", {
-            method:  "POST",
-            headers: { "Content-Type": "application/json" },
-            body:    JSON.stringify({ token: payload.t, loc: payload.loc }),
-          });
-
-          const data = await res.json();
-
-          if (!res.ok) {
-            setState("error");
-            setMessage(data.error ?? "เกิดข้อผิดพลาด");
-            return;
-          }
-
-          setState("success");
-          const checkInTime = new Date(data.checkin_at).toLocaleTimeString("th-TH", {
-            hour: "2-digit",
-            minute: "2-digit",
-          });
-          setMessage(`Check-in สำเร็จ เวลา ${checkInTime}`);
-          setTimeout(() => onSuccess(data.checkin_at), 1500);
-        } catch {
-          setState("error");
-          setMessage("QR Code ไม่ถูกต้อง");
-        }
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: "environment" },
+          width:  { ideal: 1280 },
+          height: { ideal: 720 },
+        },
       });
     } catch {
-      setState("error");
-      setMessage("ไม่สามารถเปิดกล้องได้ กรุณาอนุญาตสิทธิ์กล้อง");
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: "environment" } },
+      });
     }
-  }, [onSuccess]);
+
+    if (stoppedRef.current) {
+      stream.getTracks().forEach((t) => t.stop());
+      return;
+    }
+
+    streamRef.current = stream;
+    video.srcObject = stream;
+
+    try {
+      await video.play();
+    } catch {
+      // iOS อาจ throw แต่ video ยังเล่นได้
+    }
+
+    await reader.decodeFromVideoElement(video, async (result, _err, controls) => {
+      controlsRef.current = controls;
+      if (!result || stoppedRef.current) return;
+
+      stoppedRef.current = true;
+      controls.stop();
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+      setState("loading");
+
+      try {
+        const payload = JSON.parse(result.getText()) as {
+          t: string;
+          loc: string;
+          exp: number;
+        };
+
+        if (payload.exp < Date.now()) {
+          setState("error");
+          setMessage("QR Code หมดอายุแล้ว กรุณาสแกนใหม่");
+          return;
+        }
+
+        const res = await fetch("/api/factory-checkin", {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify({ token: payload.t, loc: payload.loc }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          setState("error");
+          setMessage(data.error ?? "เกิดข้อผิดพลาด");
+          return;
+        }
+
+        setState("success");
+        const checkInTime = new Date(data.checkin_at).toLocaleTimeString("th-TH", {
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+        setMessage(`Check-in สำเร็จ เวลา ${checkInTime}`);
+        setTimeout(() => onSuccess(data.checkin_at), 1500);
+      } catch {
+        setState("error");
+        setMessage("QR Code ไม่ถูกต้อง");
+      }
+    });
+  } catch {
+    setState("error");
+    setMessage("ไม่สามารถเปิดกล้องได้ กรุณาอนุญาตสิทธิ์กล้อง");
+  }
+}, [onSuccess]);
 
   const handleClose = useCallback(() => {
     stoppedRef.current = true;
