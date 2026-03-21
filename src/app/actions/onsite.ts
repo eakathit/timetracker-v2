@@ -219,8 +219,8 @@ export async function getTodayActiveSession(): Promise<
 function calcAttendanceStatus(checkInIso: string): "on_time" | "late" {
   const checkIn = new Date(checkInIso);
   const lateThreshold = new Date(checkIn);
-  lateThreshold.setHours(8, 30, 0, 0); // กำหนดเวลาเริ่มงาน 08:30
-  return checkIn > lateThreshold ? "late" : "on_time";
+  lateThreshold.setHours(8, 31, 0, 0); // 08:31:00 ถึงสาย
+  return checkIn >= lateThreshold ? "late" : "on_time";
 }
 
 // Helper: ตรวจสอบสิทธิ์เบี้ยเลี้ยง On-site (Check-in ก่อน 08:30)

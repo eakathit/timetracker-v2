@@ -112,8 +112,8 @@ export async function POST(req: NextRequest) {
       new Date(now).toLocaleString("en-US", { timeZone: "Asia/Bangkok" })
     );
     const lateThreshold = new Date(checkInBangkok);
-    lateThreshold.setHours(8, 30, 0, 0);
-    const attendanceStatus = checkInBangkok > lateThreshold ? "late" : "on_time";
+    lateThreshold.setHours(8, 31, 0, 0);
+    const attendanceStatus = checkInBangkok >= lateThreshold ? "late" : "on_time";
 
     // ── 7. บันทึก daily_time_logs ──────────────────────────────────────────
     const newEvent = {
