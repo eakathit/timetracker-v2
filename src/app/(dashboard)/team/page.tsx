@@ -363,23 +363,44 @@ export default function TeamPage() {
 
   // ── Stats ──────────────────────────────────────────────────────────────────────
   const stats = useMemo(() => {
-    const uniqueDates    = new Set(filtered.map((r) => r.report_date)).size;
-    const uniqueUsers    = new Set(filtered.map((r) => r.user_id)).size;
-    const uniqueProjects = new Set(filtered.map((r) => r.project_id)).size;
+  const uniqueDates    = new Set(filtered.map((r) => r.report_date)).size;
+  const uniqueUsers    = new Set(filtered.map((r) => r.user_id)).size;
 
-    // project breakdown sorted by count desc
-    const projBreak: Record<string, { count: number; users: Set<string>; dates: Set<string> }> = {};
-    filtered.forEach((r) => {
-      if (!projBreak[r.project_id]) projBreak[r.project_id] = { count: 0, users: new Set(), dates: new Set() };
-      projBreak[r.project_id].count++;
-      projBreak[r.project_id].users.add(r.user_id);
-      projBreak[r.project_id].dates.add(r.report_date);
-    });
-    const projBreakSorted = Object.entries(projBreak)
-      .sort(([, a], [, b]) => b.count - a.count);
+  const projBreak: Record<string, {
+    count: number;
+    users: Set<string>;
+    dates: Set<string>;
+    customEuText?: string;
+    customProjNoText?: string;
+  }> = {};
 
-    return { total: filtered.length, uniqueDates, uniqueUsers, uniqueProjects, projBreakSorted };
-  }, [filtered]);
+  filtered.forEach((r) => {
+    // ✅ Other rows ใช้ custom text เป็น key แทน project_id
+    const key = r.project_id
+      ? r.project_id
+      : `__other__::${r.custom_project_no_text || ""}::${r.custom_end_user_text || ""}`;
+
+    if (!projBreak[key]) {
+      projBreak[key] = {
+        count: 0,
+        users: new Set(),
+        dates: new Set(),
+        customEuText:     r.custom_end_user_text   ?? undefined,
+        customProjNoText: r.custom_project_no_text ?? undefined,
+      };
+    }
+    projBreak[key].count++;
+    projBreak[key].users.add(r.user_id);
+    projBreak[key].dates.add(r.report_date);
+  });
+
+  const projBreakSorted = Object.entries(projBreak)
+    .sort(([, a], [, b]) => b.count - a.count);
+
+  const uniqueProjects = projBreakSorted.length;
+
+  return { total: filtered.length, uniqueDates, uniqueUsers, uniqueProjects, projBreakSorted };
+}, [filtered]);
 
   // ── Month navigation ──────────────────────────────────────────────────────────
   const prevMonth = () => {
@@ -955,42 +976,53 @@ export default function TeamPage() {
 
             <div className="divide-y divide-gray-50 max-h-[400px] overflow-y-auto">
               {stats.projBreakSorted.map(([projId, data]) => {
-                const proj = projectMap[projId];
-                const eu   = euMap[proj?.end_user_id ?? ""];
-                const pct  = stats.total > 0 ? Math.round((data.count / stats.total) * 100) : 0;
+  const isOther = projId.startsWith("__other__");
+  const proj    = isOther ? undefined : projectMap[projId];
+  const eu      = isOther ? undefined : euMap[proj?.end_user_id ?? ""];
 
-                return (
-                  <div key={projId} className="flex items-center gap-4 px-5 py-4 hover:bg-gray-50/50 transition-colors">
-                    <div className="flex-shrink-0 min-w-[56px]">
-                      <span className="block px-2.5 py-1.5 rounded-xl bg-sky-50 border border-sky-200 text-sky-700 text-xs font-extrabold text-center">
-                        #{proj?.project_no || "?"}
-                      </span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-1.5">
-                        <p className="text-sm font-semibold text-gray-800 truncate">
-                          {proj?.name || "ไม่ระบุชื่อ"}
-                          {eu && <span className="text-gray-400 font-normal text-xs"> · {eu.name}</span>}
-                        </p>
-                        <span className="text-xs font-extrabold text-sky-600 flex-shrink-0 ml-3">{data.count} รายการ</span>
-                      </div>
-                      <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-gradient-to-r from-sky-400 to-blue-500 rounded-full transition-all duration-700"
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
-                      <div className="flex items-center gap-3 mt-1">
-                        <span className="text-[10px] text-gray-400">{data.dates.size} วัน</span>
-                        <span className="text-gray-200">·</span>
-                        <span className="text-[10px] text-gray-400">{data.users.size} คน</span>
-                        <span className="text-gray-200">·</span>
-                        <span className="text-[10px] text-gray-400 font-semibold">{pct}%</span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+  // ✅ fallback ไปหา custom text
+  const displayProjNo = data.customProjNoText || proj?.project_no || "–";
+  const displayEuName = data.customEuText     || eu?.name         || null;
+  const displayName   = proj?.name            || null;
+
+  const pct = stats.total > 0 ? Math.round((data.count / stats.total) * 100) : 0;
+
+  return (
+    <div key={projId} className="flex items-center gap-4 px-5 py-4 hover:bg-gray-50/50 transition-colors">
+      <div className="flex-shrink-0 min-w-[56px]">
+        <span className="block px-2.5 py-1.5 rounded-xl bg-sky-50 border border-sky-200 text-sky-700 text-xs font-extrabold text-center">
+          #{displayProjNo}
+        </span>
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center justify-between mb-1.5">
+          <p className="text-sm font-semibold text-gray-800 truncate">
+            {displayName || (isOther ? "ไม่ระบุชื่อโปรเจค" : "ไม่ระบุชื่อ")}
+            {displayEuName && (
+              <span className="text-gray-400 font-normal text-xs"> · {displayEuName}</span>
+            )}
+          </p>
+          <span className="text-xs font-extrabold text-sky-600 flex-shrink-0 ml-3">
+            {data.count} รายการ
+          </span>
+        </div>
+        <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+          <div
+            className="h-full bg-gradient-to-r from-sky-400 to-blue-500 rounded-full transition-all duration-700"
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+        <div className="flex items-center gap-3 mt-1">
+          <span className="text-[10px] text-gray-400">{data.dates.size} วัน</span>
+          <span className="text-gray-200">·</span>
+          <span className="text-[10px] text-gray-400">{data.users.size} คน</span>
+          <span className="text-gray-200">·</span>
+          <span className="text-[10px] text-gray-400 font-semibold">{pct}%</span>
+        </div>
+      </div>
+    </div>
+  );
+})}
             </div>
           </div>
         )}

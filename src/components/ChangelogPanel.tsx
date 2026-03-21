@@ -21,7 +21,7 @@ const CHANGELOG: ChangelogEntry[] = [
     date: "2026-03-21",
     items: [
       { tag: "improvement",         text: "เเก้ไขให้สามารถสเเกน qr-code ได้ง่ายขึ้น" },
-      { tag: "feature",             text: "เพิ่ม Other ในช่อง End USer หน้ากรอก Report" },
+      { tag: "feature",             text: "เพิ่ม Other ในช่อง End User หน้ากรอก Report" },
     ],
   },
   {
