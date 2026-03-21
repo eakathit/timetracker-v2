@@ -12,8 +12,9 @@ interface Props {
 type ScanState = "scanning" | "loading" | "success" | "error";
 
 export default function QRScannerModal({ onSuccess, onClose }: Props) {
-  const videoRef    = useRef<HTMLVideoElement>(null);
-  const controlsRef = useRef<IScannerControls | null>(null);
+  const videoRef     = useRef<HTMLVideoElement>(null);
+  const controlsRef  = useRef<IScannerControls | null>(null);
+  const streamRef    = useRef<MediaStream | null>(null);
   const [state, setState]     = useState<ScanState>("scanning");
   const [message, setMessage] = useState("");
 
@@ -21,75 +22,104 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
     const reader = new BrowserQRCodeReader();
     let stopped = false;
 
-    // ── กำหนด Camera Constraints ──────────────────────────────────────────────
-    // สำคัญมาก: resolution สูง + กล้องหลัง + continuous autofocus
-    const constraints: MediaStreamConstraints = {
-      video: {
-        facingMode: { ideal: "environment" }, // บังคับกล้องหลัง
-        width:  { ideal: 1920 },              // ขอ resolution สูงสุดที่กล้องรองรับ
-        height: { ideal: 1080 },
-        // Continuous autofocus — รองรับใน Chrome/Android, iOS Safari จะ ignore ถ้าไม่รองรับ
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        advanced: [{ focusMode: "continuous" } as any],
-      },
+    // ── Step 1: ขอ stream จาก getUserMedia โดยตรง ──────────────────────────
+    // ไม่ใช้ advanced[] เพราะทำให้กล้องดำบน iOS/บาง Android
+    // ใช้ ideal แทน exact เสมอ เพื่อให้ browser fallback ได้
+    const getStream = async (): Promise<MediaStream> => {
+      // พยายามขอ resolution สูงก่อน
+      try {
+        return await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: "environment" },
+            width:  { ideal: 1280 },
+            height: { ideal: 720 },
+          },
+        });
+      } catch {
+        // fallback: ขอแค่กล้องหลัง ไม่สน resolution
+        return await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: "environment" } },
+        });
+      }
     };
 
-    reader
-      .decodeFromConstraints(constraints, videoRef.current!, async (result, err, controls) => {
-        controlsRef.current = controls;
-        if (!result || stopped) return;
-
-        stopped = true;
-        controls.stop();
-        setState("loading");
-
-        try {
-          const payload = JSON.parse(result.getText()) as {
-            t: string;
-            loc: string;
-            exp: number;
-          };
-
-          if (payload.exp < Date.now()) {
-            setState("error");
-            setMessage("QR Code หมดอายุแล้ว กรุณาสแกนใหม่");
-            return;
-          }
-
-          const res = await fetch("/api/factory-checkin", {
-            method:  "POST",
-            headers: { "Content-Type": "application/json" },
-            body:    JSON.stringify({ token: payload.t, loc: payload.loc }),
-          });
-
-          const data = await res.json();
-
-          if (!res.ok) {
-            setState("error");
-            setMessage(data.error ?? "เกิดข้อผิดพลาด");
-            return;
-          }
-
-          setState("success");
-          const checkInTime = new Date(data.checkin_at).toLocaleTimeString("th-TH", {
-            hour: "2-digit",
-            minute: "2-digit",
-          });
-          setMessage(`Check-in สำเร็จ เวลา ${checkInTime}`);
-          setTimeout(() => onSuccess(data.checkin_at), 1500);
-        } catch {
-          setState("error");
-          setMessage("QR Code ไม่ถูกต้อง");
+    getStream()
+      .then((stream) => {
+        if (stopped) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
         }
+
+        streamRef.current = stream;
+
+        // ── Step 2: ผูก stream เข้า <video> element โดยตรง ──────────────
+        const video = videoRef.current!;
+        video.srcObject = stream;
+
+        // ── Step 3: ให้ zxing decode จาก video element ──────────────────
+        reader
+          .decodeFromVideoElement(video, async (result, err, controls) => {
+            controlsRef.current = controls;
+            if (!result || stopped) return;
+
+            stopped = true;
+            controls.stop();
+            setState("loading");
+
+            try {
+              const payload = JSON.parse(result.getText()) as {
+                t: string;
+                loc: string;
+                exp: number;
+              };
+
+              if (payload.exp < Date.now()) {
+                setState("error");
+                setMessage("QR Code หมดอายุแล้ว กรุณาสแกนใหม่");
+                return;
+              }
+
+              const res = await fetch("/api/factory-checkin", {
+                method:  "POST",
+                headers: { "Content-Type": "application/json" },
+                body:    JSON.stringify({ token: payload.t, loc: payload.loc }),
+              });
+
+              const data = await res.json();
+
+              if (!res.ok) {
+                setState("error");
+                setMessage(data.error ?? "เกิดข้อผิดพลาด");
+                return;
+              }
+
+              setState("success");
+              const checkInTime = new Date(data.checkin_at).toLocaleTimeString("th-TH", {
+                hour: "2-digit",
+                minute: "2-digit",
+              });
+              setMessage(`Check-in สำเร็จ เวลา ${checkInTime}`);
+              setTimeout(() => onSuccess(data.checkin_at), 1500);
+            } catch {
+              setState("error");
+              setMessage("QR Code ไม่ถูกต้อง");
+            }
+          })
+          .catch(() => {
+            setState("error");
+            setMessage("ไม่สามารถเริ่มสแกนได้ กรุณาลองใหม่");
+          });
       })
       .catch(() => {
         setState("error");
         setMessage("ไม่สามารถเปิดกล้องได้ กรุณาอนุญาตสิทธิ์กล้อง");
       });
 
+    // ── Cleanup: หยุด stream และ controls ──────────────────────────────────
     return () => {
       stopped = true;
       controlsRef.current?.stop();
+      streamRef.current?.getTracks().forEach((t) => t.stop());
     };
   }, []);
 
@@ -124,7 +154,6 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
         {state === "scanning" && (
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="relative w-64 h-64">
-              {/* Corner brackets */}
               {[
                 "top-0 left-0 border-t-4 border-l-4 rounded-tl-xl",
                 "top-0 right-0 border-t-4 border-r-4 rounded-tr-xl",
@@ -133,9 +162,10 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
               ].map((cls, i) => (
                 <div key={i} className={`absolute w-10 h-10 border-white ${cls}`} />
               ))}
-              {/* Scan line animation */}
-              <div className="absolute inset-x-0 h-0.5 bg-sky-400 opacity-80 animate-[scanline_2s_ease-in-out_infinite]"
-                style={{ top: "50%", boxShadow: "0 0 8px #38bdf8" }} />
+              <div
+                className="absolute inset-x-0 h-0.5 bg-sky-400 opacity-80 animate-[scanline_2s_ease-in-out_infinite]"
+                style={{ top: "50%", boxShadow: "0 0 8px #38bdf8" }}
+              />
             </div>
             <p className="absolute bottom-24 text-white text-sm text-center px-8">
               วางกล้องให้ตรงกับ QR Code บนหน้าจอโรงงาน
@@ -171,12 +201,7 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
                 </div>
                 <p className="text-white text-lg text-center">{message}</p>
                 <button
-                  onClick={() => {
-                    setState("scanning");
-                    setMessage("");
-                    // restart scanner โดย reload component
-                    window.location.reload();
-                  }}
+                  onClick={() => window.location.reload()}
                   className="mt-2 px-6 py-2 bg-white/10 text-white rounded-xl text-sm border border-white/20"
                 >
                   ลองใหม่
