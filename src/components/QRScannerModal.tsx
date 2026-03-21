@@ -141,7 +141,17 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
           minute: "2-digit",
         });
         setMessage(`Check-in สำเร็จ เวลา ${checkInTime}`);
-        setTimeout(() => onSuccess(data.checkin_at), 1500);
+        setTimeout(() => {
+          onSuccess(data.checkin_at);
+          // iOS PWA เท่านั้น: reload เพื่อ reset camera state ของ WKWebView
+          // ถ้าไม่ทำ กล้องจะดำในครั้งถัดไปแม้จะปิดแอปแล้ว
+          if (
+            typeof window !== "undefined" &&
+            (window.navigator as Navigator & { standalone?: boolean }).standalone === true
+          ) {
+            setTimeout(() => window.location.reload(), 300);
+          }
+        }, 1500);
       } catch {
         setState("error");
         setMessage("QR Code ไม่ถูกต้อง");
