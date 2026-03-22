@@ -51,99 +51,115 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
   }, []);
 
   const startCamera = useCallback(async () => {
-  stoppedRef.current = false;
+    stoppedRef.current = false;
 
-  const reader = new BrowserQRCodeReader();
-  const video  = videoRef.current!;
+    const video = videoRef.current!;
 
-  try {
-    log("starting...");
+    try {
+      log("getting stream...");
 
-    // ✅ เรียก decodeFromConstraints ก่อนเลย ไม่มี setState นำหน้า
-    const controls = await reader.decodeFromConstraints(
-      {
+      const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: { ideal: "environment" },
           width:  { ideal: 1280 },
           height: { ideal: 720 },
         },
-      },
-      video,
-      async (result, err, controls) => {
-        controlsRef.current = controls;
-
-        if (!streamRef.current && video.srcObject instanceof MediaStream) {
-          streamRef.current = video.srcObject;
-        }
-
-        // ✅ setState scanning เมื่อกล้องเริ่มทำงานแล้ว
-        setState("scanning");
-
-        if (err) return;
-        if (!result || stoppedRef.current) return;
-
-          log("scanned! readyState: " + video.readyState);
-
-          stoppedRef.current = true;
-          controls.stop();
-          streamRef.current?.getTracks().forEach((t) => t.stop());
-          streamRef.current = null;
-
-          const v = videoRef.current;
-          if (v) { v.pause(); v.srcObject = null; }
-
-          setState("loading");
-
-          try {
-            const payload = JSON.parse(result.getText()) as {
-              t:     string;
-              loc:   string;
-              exp:   number;
-              nonce: string;
-            };
-
-            if (payload.exp < Date.now()) {
-              setState("error");
-              setMessage("QR Code หมดอายุแล้ว กรุณาสแกนใหม่");
-              return;
-            }
-
-            const res = await fetch("/api/factory-checkin", {
-              method:  "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ token: payload.t, loc: payload.loc, nonce: payload.nonce }),
-            });
-
-            const data = await res.json();
-
-            if (!res.ok) {
-              setState("error");
-              setMessage(data.error ?? "เกิดข้อผิดพลาด");
-              return;
-            }
-
-            setState("success");
-            const checkInTime = new Date(data.checkin_at).toLocaleTimeString("th-TH", {
-              hour: "2-digit",
-              minute: "2-digit",
-            });
-            setMessage(`Check-in สำเร็จ เวลา ${checkInTime}`);
-            setTimeout(() => onSuccess(data.checkin_at), 1500);
-          } catch {
-            setState("error");
-            setMessage("QR Code ไม่ถูกต้อง");
-          }
-        }
+      }).catch(() =>
+        navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: "environment" } },
+        })
       );
 
-      controlsRef.current = controls;
-    log("decodeFromConstraints started");
-  } catch (e) {
-    log("error: " + e);
-    setState("error");
-    setMessage("ไม่สามารถเปิดกล้องได้ กรุณาอนุญาตสิทธิ์กล้อง");
-  }
-}, [onSuccess]);
+      if (stoppedRef.current) {
+        stream.getTracks().forEach((t) => t.stop());
+        return;
+      }
+
+      streamRef.current = stream;
+      video.srcObject   = stream;
+
+      // ✅ รอ loadedmetadata ก่อน แล้วค่อย play
+      await new Promise<void>((resolve) => {
+        if (video.readyState >= 1) { resolve(); return; }
+        video.onloadedmetadata = () => {
+          video.onloadedmetadata = null;
+          resolve();
+        };
+      });
+
+      log("metadata loaded: " + video.videoWidth + "x" + video.videoHeight);
+
+      await video.play();
+      log("playing!");
+
+      setState("scanning");
+
+      if (stoppedRef.current) return;
+
+      // ── decode ด้วย zxing ─────────────────────────────────────────
+      const reader = new BrowserQRCodeReader();
+      await reader.decodeFromVideoElement(video, async (result, _err, controls) => {
+        controlsRef.current = controls;
+        if (!result || stoppedRef.current) return;
+
+        log("scanned!");
+        stoppedRef.current = true;
+        controls.stop();
+        streamRef.current?.getTracks().forEach((t) => t.stop());
+        streamRef.current = null;
+
+        const v = videoRef.current;
+        if (v) { v.pause(); v.srcObject = null; }
+
+        setState("loading");
+
+        try {
+          const payload = JSON.parse(result.getText()) as {
+            t:     string;
+            loc:   string;
+            exp:   number;
+            nonce: string;
+          };
+
+          if (payload.exp < Date.now()) {
+            setState("error");
+            setMessage("QR Code หมดอายุแล้ว กรุณาสแกนใหม่");
+            return;
+          }
+
+          const res = await fetch("/api/factory-checkin", {
+            method:  "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ token: payload.t, loc: payload.loc, nonce: payload.nonce }),
+          });
+
+          const data = await res.json();
+
+          if (!res.ok) {
+            setState("error");
+            setMessage(data.error ?? "เกิดข้อผิดพลาด");
+            return;
+          }
+
+          setState("success");
+          const checkInTime = new Date(data.checkin_at).toLocaleTimeString("th-TH", {
+            hour: "2-digit",
+            minute: "2-digit",
+          });
+          setMessage(`Check-in สำเร็จ เวลา ${checkInTime}`);
+          setTimeout(() => onSuccess(data.checkin_at), 1500);
+        } catch {
+          setState("error");
+          setMessage("QR Code ไม่ถูกต้อง");
+        }
+      });
+
+    } catch (e) {
+      log("error: " + e);
+      setState("error");
+      setMessage("ไม่สามารถเปิดกล้องได้ กรุณาอนุญาตสิทธิ์กล้อง");
+    }
+  }, [onSuccess]);
 
   const handleClose = useCallback(() => {
     stoppedRef.current = true;
