@@ -1,16 +1,13 @@
-// src/components/QRScannerModal.tsx
 "use client";
 
 import { useRef, useState, useCallback, useEffect } from "react";
 import { BrowserQRCodeReader, IScannerControls } from "@zxing/browser";
 
 // ── Module-level stream cache ─────────────────────────────────────────────────
-// อยู่นอก component → ไม่ถูก reset เมื่อ unmount/remount
-// iOS จะไม่ถาม permission ซ้ำตราบใดที่ stream ยังมีชีวิต
 let _cachedStream: MediaStream | null = null;
 
 async function getOrCreateStream(): Promise<MediaStream> {
-  if (_cachedStream?.active) return _cachedStream; // ← reuse ทันที
+  if (_cachedStream?.active) return _cachedStream;
 
   try {
     _cachedStream = await navigator.mediaDevices.getUserMedia({
@@ -44,13 +41,29 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
   const [state, setState]     = useState<ScanState>("idle");
   const [message, setMessage] = useState("");
 
-  // ── Cleanup: detach video เท่านั้น ห้าม stop tracks ────────────────────────
+  // ── Release camera เมื่อแอปเข้า background ──────────────────────────────────
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        _cachedStream?.getTracks().forEach((t) => t.stop());
+        _cachedStream = null;
+        if (videoRef.current) {
+          videoRef.current.pause();
+          videoRef.current.srcObject = null;
+        }
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, []);
+
+  // ── Cleanup เมื่อ unmount ────────────────────────────────────────────────────
   useEffect(() => {
     return () => {
       stoppedRef.current = true;
       controlsRef.current?.stop();
-      // ❌ ห้าม: streamRef.current?.getTracks().forEach((t) => t.stop())
-      // ✅ แค่ detach จาก video element เพื่อปิดหน้ากล้อง
       if (videoRef.current) {
         videoRef.current.pause();
         videoRef.current.srcObject = null;
@@ -62,8 +75,6 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
 
   const stopCamera = useCallback(() => {
     controlsRef.current?.stop();
-    // ❌ ห้าม: stream.getTracks().forEach((t) => t.stop())
-    // ✅ แค่ detach — _cachedStream ยังมีชีวิต รอใช้งานครั้งต่อไป
     if (videoRef.current) {
       videoRef.current.pause();
       videoRef.current.srcObject = null;
@@ -84,21 +95,14 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
       await new Promise((resolve) => setTimeout(resolve, 300));
       if (stoppedRef.current) return;
 
-      // ── ใช้ cached stream แทนการขอใหม่ทุกครั้ง ───────────────────────
       const stream = await getOrCreateStream();
+      if (stoppedRef.current) return;
 
-      if (stoppedRef.current) return; // ไม่ stop stream เพราะ cache ใช้ร่วมกัน
-
-      streamRef.current  = stream;
-      video.srcObject    = stream;
+      streamRef.current = stream;
+      video.srcObject   = stream;
       try { await video.play(); } catch { /* ignore */ }
 
-      // ── รอให้ video render ─────────────────────────────────────────────
-      // ถ้า reuse stream ไม่ต้องรอนาน, ถ้าใหม่รอ 1500ms
-      const isReuse = stream === _cachedStream && stream.active;
-      await new Promise((resolve) =>
-        setTimeout(resolve, isReuse ? 500 : 1500)
-      );
+      await new Promise((resolve) => setTimeout(resolve, 1500));
       if (stoppedRef.current) return;
 
       const isBlackFrame = (): boolean => {
@@ -121,7 +125,7 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
       };
 
       if (isBlackFrame()) {
-        // black frame: invalidate cache แล้ว reload
+        // invalidate cache แล้ว reload
         _cachedStream?.getTracks().forEach((t) => t.stop());
         _cachedStream = null;
         video.pause();
@@ -130,15 +134,19 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
         return;
       }
 
-      // ── เริ่ม decode ──────────────────────────────────────────────────
       await reader.decodeFromVideoElement(video, async (result, _err, controls) => {
         controlsRef.current = controls;
         if (!result || stoppedRef.current) return;
 
         stoppedRef.current = true;
         controls.stop();
-        // ❌ ห้าม: streamRef.current?.getTracks().forEach((t) => t.stop())
-        // ✅ แค่ detach video
+
+        // ✅ Checkin สำเร็จ → stop tracks จริงๆ เพื่อ release iOS camera hardware
+        _cachedStream?.getTracks().forEach((t) => t.stop());
+        _cachedStream = null;
+        streamRef.current?.getTracks().forEach((t) => t.stop());
+        streamRef.current = null;
+
         const v = videoRef.current;
         if (v) { v.pause(); v.srcObject = null; }
 
@@ -205,12 +213,8 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-black">
-      {/* ── Top bar ─────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between px-4 py-3 safe-area-top">
-        <button
-          onClick={handleClose}
-          className="text-white text-sm flex items-center gap-1"
-        >
+        <button onClick={handleClose} className="text-white text-sm flex items-center gap-1">
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
@@ -220,9 +224,7 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
         <div className="w-14" />
       </div>
 
-      {/* ── Camera area ─────────────────────────────────────────────────── */}
       <div className="relative flex-1">
-
         <video
           ref={videoRef}
           className={`w-full h-full object-cover ${state === "idle" ? "invisible" : ""}`}
@@ -231,15 +233,13 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
           muted
         />
 
-        {/* ── IDLE ─────────────────────────────────────────────────────── */}
         {state === "idle" && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-6">
             <div className="w-24 h-24 rounded-full bg-white/10 border-2 border-white/30 flex items-center justify-center">
               <svg className="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
                   d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-                  d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
               </svg>
             </div>
             <div className="text-center px-8">
@@ -255,7 +255,6 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
           </div>
         )}
 
-        {/* ── SCANNING ─────────────────────────────────────────────────── */}
         {state === "scanning" && (
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="relative w-64 h-64">
@@ -278,7 +277,6 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
           </div>
         )}
 
-        {/* ── LOADING / SUCCESS / ERROR ────────────────────────────────── */}
         {(state === "loading" || state === "success" || state === "error") && (
           <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center gap-4 p-6">
             {state === "loading" && (
@@ -315,7 +313,6 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
             )}
           </div>
         )}
-
       </div>
     </div>
   );
