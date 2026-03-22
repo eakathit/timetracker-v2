@@ -179,6 +179,7 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
         <video
           ref={videoRef}
           className="w-full h-full object-cover"
+          autoPlay
           playsInline
           muted
         />
