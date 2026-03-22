@@ -39,6 +39,13 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
   const [state, setState]     = useState<ScanState>("idle");
   const [message, setMessage] = useState("");
 
+  // ✅ เพิ่มตรงนี้เลย ต่อจาก useState ที่มีอยู่
+  const [debugLog, setDebugLog] = useState<string[]>([]);
+  const log = (msg: string) => {
+    console.log(msg);
+    setDebugLog(prev => [...prev, msg]);
+  };
+
   // ── Release camera เมื่อแอปเข้า background ──────────────────────────────────
   useEffect(() => {
     const handleVisibilityChange = () => {
@@ -321,6 +328,16 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
           </div>
         )}
       </div>
+
+      {/* Debug panel — ลบออกหลังเทสเสร็จ */}
+{debugLog.length > 0 && (
+  <div className="absolute bottom-0 left-0 right-0 bg-black/90 p-3 max-h-48 overflow-y-auto z-50">
+    {debugLog.map((log, i) => (
+      <p key={i} className="text-green-400 text-xs font-mono">{log}</p>
+    ))}
+  </div>
+)}
+
     </div>
   );
 }
