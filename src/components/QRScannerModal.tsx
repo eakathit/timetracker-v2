@@ -100,8 +100,8 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
 
     streamRef.current = stream;
     video.srcObject   = stream;
+    video.load(); // ✅ เพิ่มบรรทัดนี้ — บอก iOS ให้เริ่ม load media
 
-    // ✅ ไม่ await — fire and forget แล้วรอด้วย setTimeout
     video.play().catch((e) => log("play error: " + e));
 
     await new Promise((resolve) => setTimeout(resolve, 2000));
