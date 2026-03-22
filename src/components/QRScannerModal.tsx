@@ -3,28 +3,26 @@
 import { useRef, useState, useCallback, useEffect } from "react";
 import { BrowserQRCodeReader, IScannerControls } from "@zxing/browser";
 
-// ── Module-level stream cache ─────────────────────────────────────────────────
 let _cachedStream: MediaStream | null = null;
 
 async function getOrCreateStream(): Promise<MediaStream> {
   if (_cachedStream?.active) return _cachedStream;
 
-  try {
-    _cachedStream = await navigator.mediaDevices.getUserMedia({
-      video: {
-        facingMode: { ideal: "environment" },
-        width:  { ideal: 1280 },
-        height: { ideal: 720 },
-      },
-    });
-  } catch {
-    _cachedStream = await navigator.mediaDevices.getUserMedia({
+  // ❌ ลบ try/catch ซ้อน — เรียกตรงๆ ใน gesture context ทันที
+  _cachedStream = await navigator.mediaDevices.getUserMedia({
+    video: {
+      facingMode: { ideal: "environment" },
+      width:  { ideal: 1280 },
+      height: { ideal: 720 },
+    },
+  }).catch(() =>
+    navigator.mediaDevices.getUserMedia({
       video: { facingMode: { ideal: "environment" } },
-    });
-  }
+    })
+  );
+
   return _cachedStream;
 }
-// ─────────────────────────────────────────────────────────────────────────────
 
 interface Props {
   onSuccess: (checkInTime: string) => void;
@@ -54,9 +52,7 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
       }
     };
     document.addEventListener("visibilitychange", handleVisibilityChange);
-    return () => {
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-    };
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, []);
 
   // ── Cleanup เมื่อ unmount ────────────────────────────────────────────────────
@@ -92,19 +88,27 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
     try {
       const video = videoRef.current!;
 
-      await new Promise((resolve) => setTimeout(resolve, 300));
-      if (stoppedRef.current) return;
-
+      // ✅ ลบ setTimeout(300ms) ออก — ต้องเรียก getUserMedia ทันทีใน gesture context
       const stream = await getOrCreateStream();
       if (stoppedRef.current) return;
 
       streamRef.current = stream;
       video.srcObject   = stream;
+
+      // ✅ รอ video event จริง แทน fixed timeout
+      await Promise.race([
+        new Promise<void>((resolve) => {
+          if (video.readyState >= 2) { resolve(); return; }
+          video.onloadeddata = () => resolve();
+        }),
+        new Promise<void>((resolve) => setTimeout(resolve, 3000)), // fallback
+      ]);
+
       try { await video.play(); } catch { /* ignore */ }
 
-      await new Promise((resolve) => setTimeout(resolve, 1500));
       if (stoppedRef.current) return;
 
+      // ── ตรวจ black frame ───────────────────────────────────────────────
       const isBlackFrame = (): boolean => {
         try {
           const canvas = document.createElement("canvas");
@@ -125,15 +129,17 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
       };
 
       if (isBlackFrame()) {
-        // invalidate cache แล้ว reload
+        // ✅ แทน reload ทั้งหน้า → clear cache แล้วกลับ idle ให้กดใหม่
         _cachedStream?.getTracks().forEach((t) => t.stop());
         _cachedStream = null;
         video.pause();
         video.srcObject = null;
-        window.location.reload();
+        setState("error");
+        setMessage("กล้องไม่พร้อม กรุณาลองใหม่");
         return;
       }
 
+      // ── เริ่ม decode ──────────────────────────────────────────────────
       await reader.decodeFromVideoElement(video, async (result, _err, controls) => {
         controlsRef.current = controls;
         if (!result || stoppedRef.current) return;
@@ -141,7 +147,7 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
         stoppedRef.current = true;
         controls.stop();
 
-        // ✅ Checkin สำเร็จ → stop tracks จริงๆ เพื่อ release iOS camera hardware
+        // ✅ stop tracks จริงหลัง checkin สำเร็จ
         _cachedStream?.getTracks().forEach((t) => t.stop());
         _cachedStream = null;
         streamRef.current?.getTracks().forEach((t) => t.stop());
