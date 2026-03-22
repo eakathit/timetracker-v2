@@ -100,21 +100,23 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
 
     streamRef.current = stream;
     video.srcObject   = stream;
-    video.load(); // ✅ เพิ่มบรรทัดนี้ — บอก iOS ให้เริ่ม load media
+    // ❌ ลบ video.load() ออก
+
+    // ✅ รอ loadedmetadata event ก่อน play
+    await new Promise<void>((resolve) => {
+      if (video.readyState >= 1) { resolve(); return; }
+      video.onloadedmetadata = () => resolve();
+      setTimeout(resolve, 5000); // fallback
+    });
+    log("readyState after metadata: " + video.readyState);
 
     video.play().catch((e) => log("play error: " + e));
 
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    await new Promise((resolve) => setTimeout(resolve, 1000));
     if (stoppedRef.current) return;
 
     log("readyState after wait: " + video.readyState);
     log("size after wait: " + video.videoWidth + "x" + video.videoHeight);
-
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-    if (stoppedRef.current) return;
-
-    log("readyState after wait: " + video.readyState);  // ✅
-    log("size after wait: " + video.videoWidth + "x" + video.videoHeight);  // ✅
 
     const isBlackFrame = (): boolean => {
       try {
