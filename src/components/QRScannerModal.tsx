@@ -95,16 +95,17 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
       streamRef.current = stream;
       video.srcObject   = stream;
 
-      // ✅ รอ video event จริง แทน fixed timeout
+      // ✅ play() ก่อน แล้วค่อยรอ event — iOS จำเป็นต้องเป็นลำดับนี้
+      try { await video.play(); } catch { /* ignore */ }
+
+      // ✅ รอ canplay event (เชื่อถือได้กว่า loadeddata บน iOS)
       await Promise.race([
         new Promise<void>((resolve) => {
-          if (video.readyState >= 2) { resolve(); return; }
-          video.onloadeddata = () => resolve();
+          if (video.readyState >= 3) { resolve(); return; } // HAVE_FUTURE_DATA
+          video.addEventListener("canplay", () => resolve(), { once: true });
         }),
-        new Promise<void>((resolve) => setTimeout(resolve, 3000)), // fallback
+        new Promise<void>((resolve) => setTimeout(resolve, 5000)), // fallback 5s
       ]);
-
-      try { await video.play(); } catch { /* ignore */ }
 
       if (stoppedRef.current) return;
 
