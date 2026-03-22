@@ -51,39 +51,36 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
   }, []);
 
   const startCamera = useCallback(async () => {
-    stoppedRef.current = false;
-    setState("scanning");
+  stoppedRef.current = false;
 
-    // รอ React re-render เสร็จก่อน
-    await new Promise((resolve) => setTimeout(resolve, 100));
-    if (stoppedRef.current) return;
+  const reader = new BrowserQRCodeReader();
+  const video  = videoRef.current!;
 
-    const reader = new BrowserQRCodeReader();
-    const video  = videoRef.current!;
+  try {
+    log("starting...");
 
-    try {
-      log("starting...");
-
-      // ✅ ให้ zxing จัดการ getUserMedia + play() เองทั้งหมด
-      await reader.decodeFromConstraints(
-        {
-          video: {
-            facingMode: { ideal: "environment" },
-            width:  { ideal: 1280 },
-            height: { ideal: 720 },
-          },
+    // ✅ เรียก decodeFromConstraints ก่อนเลย ไม่มี setState นำหน้า
+    const controls = await reader.decodeFromConstraints(
+      {
+        video: {
+          facingMode: { ideal: "environment" },
+          width:  { ideal: 1280 },
+          height: { ideal: 720 },
         },
-        video,
-        async (result, err, controls) => {
-          controlsRef.current = controls;
+      },
+      video,
+      async (result, err, controls) => {
+        controlsRef.current = controls;
 
-          // เก็บ stream ref จาก video element
-          if (!streamRef.current && video.srcObject instanceof MediaStream) {
-            streamRef.current = video.srcObject;
-          }
+        if (!streamRef.current && video.srcObject instanceof MediaStream) {
+          streamRef.current = video.srcObject;
+        }
 
-          if (err) return; // scan error ปกติ ไม่ต้องทำอะไร
-          if (!result || stoppedRef.current) return;
+        // ✅ setState scanning เมื่อกล้องเริ่มทำงานแล้ว
+        setState("scanning");
+
+        if (err) return;
+        if (!result || stoppedRef.current) return;
 
           log("scanned! readyState: " + video.readyState);
 
@@ -139,13 +136,14 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
         }
       );
 
-      log("decodeFromConstraints started");
-    } catch (e) {
-      log("error: " + e);
-      setState("error");
-      setMessage("ไม่สามารถเปิดกล้องได้ กรุณาอนุญาตสิทธิ์กล้อง");
-    }
-  }, [onSuccess]);
+      controlsRef.current = controls;
+    log("decodeFromConstraints started");
+  } catch (e) {
+    log("error: " + e);
+    setState("error");
+    setMessage("ไม่สามารถเปิดกล้องได้ กรุณาอนุญาตสิทธิ์กล้อง");
+  }
+}, [onSuccess]);
 
   const handleClose = useCallback(() => {
     stoppedRef.current = true;
