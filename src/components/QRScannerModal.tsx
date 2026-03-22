@@ -80,65 +80,65 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
   }, []);
 
   const startCamera = useCallback(async () => {
-    stoppedRef.current = false;
-    setState("scanning");
+  stoppedRef.current = false;
+  setState("scanning");
 
-    const reader = new BrowserQRCodeReader();
+  const reader = new BrowserQRCodeReader();
 
-    try {
-      const video = videoRef.current!;
+  try {
+    const video = videoRef.current!;
+    const stream = await getOrCreateStream();
+    if (stoppedRef.current) return;
 
-      // ✅ ลบ setTimeout(300ms) ออก — ต้องเรียก getUserMedia ทันทีใน gesture context
-      const stream = await getOrCreateStream();
-      if (stoppedRef.current) return;
+    streamRef.current = stream;
+    video.srcObject   = stream;
 
-      streamRef.current = stream;
-      video.srcObject   = stream;
+    try { await video.play(); } catch { /* ignore */ }
 
-      // ✅ play() ก่อน แล้วค่อยรอ event — iOS จำเป็นต้องเป็นลำดับนี้
-      try { await video.play(); } catch { /* ignore */ }
+    // ── Debug: log ทุก step ────────────────────────────────────────
+    console.log("readyState after play:", video.readyState);
+    console.log("videoWidth:", video.videoWidth, "videoHeight:", video.videoHeight);
 
-      // ✅ รอ canplay event (เชื่อถือได้กว่า loadeddata บน iOS)
-      await Promise.race([
-        new Promise<void>((resolve) => {
-          if (video.readyState >= 3) { resolve(); return; } // HAVE_FUTURE_DATA
-          video.addEventListener("canplay", () => resolve(), { once: true });
-        }),
-        new Promise<void>((resolve) => setTimeout(resolve, 5000)), // fallback 5s
-      ]);
+    // รอแบบ fixed timeout ก่อน — เชื่อถือได้สุดบน iOS
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    if (stoppedRef.current) return;
 
-      if (stoppedRef.current) return;
+    console.log("readyState after wait:", video.readyState);
+    console.log("videoWidth after wait:", video.videoWidth);
 
-      // ── ตรวจ black frame ───────────────────────────────────────────────
-      const isBlackFrame = (): boolean => {
-        try {
-          const canvas = document.createElement("canvas");
-          canvas.width = 16;
-          canvas.height = 16;
-          const ctx = canvas.getContext("2d");
-          if (!ctx) return false;
-          ctx.drawImage(video, 0, 0, 16, 16);
-          const pixels = ctx.getImageData(0, 0, 16, 16).data;
-          let total = 0;
-          for (let i = 0; i < pixels.length; i += 4) {
-            total += pixels[i] + pixels[i + 1] + pixels[i + 2];
-          }
-          return total < 512;
-        } catch {
-          return false;
+    // ── ตรวจ black frame ───────────────────────────────────────────
+    const isBlackFrame = (): boolean => {
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = 16;
+        canvas.height = 16;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return false;
+        ctx.drawImage(video, 0, 0, 16, 16);
+        const pixels = ctx.getImageData(0, 0, 16, 16).data;
+        let total = 0;
+        for (let i = 0; i < pixels.length; i += 4) {
+          total += pixels[i] + pixels[i + 1] + pixels[i + 2];
         }
-      };
-
-      if (isBlackFrame()) {
-        // ✅ แทน reload ทั้งหน้า → clear cache แล้วกลับ idle ให้กดใหม่
-        _cachedStream?.getTracks().forEach((t) => t.stop());
-        _cachedStream = null;
-        video.pause();
-        video.srcObject = null;
-        setState("error");
-        setMessage("กล้องไม่พร้อม กรุณาลองใหม่");
-        return;
+        console.log("brightness total:", total); // ← ดูค่านี้
+        return total < 512;
+      } catch {
+        return false;
       }
+    };
+
+    const black = isBlackFrame();
+    console.log("isBlackFrame:", black);
+
+    if (black) {
+      _cachedStream?.getTracks().forEach((t) => t.stop());
+      _cachedStream = null;
+      video.pause();
+      video.srcObject = null;
+      setState("error");
+      setMessage("กล้องไม่พร้อม กรุณาลองใหม่");
+      return;
+    }
 
       // ── เริ่ม decode ──────────────────────────────────────────────────
       await reader.decodeFromVideoElement(video, async (result, _err, controls) => {
