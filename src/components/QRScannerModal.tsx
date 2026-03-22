@@ -54,131 +54,97 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
     stoppedRef.current = false;
     setState("scanning");
 
+    // รอ React re-render เสร็จก่อน
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    if (stoppedRef.current) return;
+
     const reader = new BrowserQRCodeReader();
     const video  = videoRef.current!;
 
-    // ✅ เรียก getUserMedia ตรงๆ เป็น async operation แรกสุด
-    // iOS จำ permission ไว้แล้ว → ไม่ถาม แต่ต้องอยู่ใน gesture context
-    let stream: MediaStream;
     try {
-      stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: "environment" },
-          width:  { ideal: 1280 },
-          height: { ideal: 720 },
+      log("starting...");
+
+      // ✅ ให้ zxing จัดการ getUserMedia + play() เองทั้งหมด
+      await reader.decodeFromConstraints(
+        {
+          video: {
+            facingMode: { ideal: "environment" },
+            width:  { ideal: 1280 },
+            height: { ideal: 720 },
+          },
         },
-      });
-    } catch {
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: "environment" } },
-        });
-      } catch {
-        setState("error");
-        setMessage("ไม่สามารถเปิดกล้องได้ กรุณาอนุญาตสิทธิ์กล้อง");
-        return;
-      }
-    }
+        video,
+        async (result, err, controls) => {
+          controlsRef.current = controls;
 
-    if (stoppedRef.current) {
-      stream.getTracks().forEach((t) => t.stop());
-      return;
-    }
+          // เก็บ stream ref จาก video element
+          if (!streamRef.current && video.srcObject instanceof MediaStream) {
+            streamRef.current = video.srcObject;
+          }
 
-    log("stream active: " + stream.active);
-    streamRef.current = stream;
-    video.srcObject   = stream;
+          if (err) return; // scan error ปกติ ไม่ต้องทำอะไร
+          if (!result || stoppedRef.current) return;
 
-    video.play().catch((e) => log("play error: " + e));
+          log("scanned! readyState: " + video.readyState);
 
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-    if (stoppedRef.current) return;
+          stoppedRef.current = true;
+          controls.stop();
+          streamRef.current?.getTracks().forEach((t) => t.stop());
+          streamRef.current = null;
 
-    log("readyState: " + video.readyState);
-    log("size: " + video.videoWidth + "x" + video.videoHeight);
+          const v = videoRef.current;
+          if (v) { v.pause(); v.srcObject = null; }
 
-    const isBlackFrame = (): boolean => {
-      try {
-        const canvas = document.createElement("canvas");
-        canvas.width = 16;
-        canvas.height = 16;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) return false;
-        ctx.drawImage(video, 0, 0, 16, 16);
-        const pixels = ctx.getImageData(0, 0, 16, 16).data;
-        let total = 0;
-        for (let i = 0; i < pixels.length; i += 4) {
-          total += pixels[i] + pixels[i + 1] + pixels[i + 2];
+          setState("loading");
+
+          try {
+            const payload = JSON.parse(result.getText()) as {
+              t:     string;
+              loc:   string;
+              exp:   number;
+              nonce: string;
+            };
+
+            if (payload.exp < Date.now()) {
+              setState("error");
+              setMessage("QR Code หมดอายุแล้ว กรุณาสแกนใหม่");
+              return;
+            }
+
+            const res = await fetch("/api/factory-checkin", {
+              method:  "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ token: payload.t, loc: payload.loc, nonce: payload.nonce }),
+            });
+
+            const data = await res.json();
+
+            if (!res.ok) {
+              setState("error");
+              setMessage(data.error ?? "เกิดข้อผิดพลาด");
+              return;
+            }
+
+            setState("success");
+            const checkInTime = new Date(data.checkin_at).toLocaleTimeString("th-TH", {
+              hour: "2-digit",
+              minute: "2-digit",
+            });
+            setMessage(`Check-in สำเร็จ เวลา ${checkInTime}`);
+            setTimeout(() => onSuccess(data.checkin_at), 1500);
+          } catch {
+            setState("error");
+            setMessage("QR Code ไม่ถูกต้อง");
+          }
         }
-        log("brightness: " + total);
-        return total < 512;
-      } catch {
-        return false;
-      }
-    };
+      );
 
-    const black = isBlackFrame();
-    log("isBlackFrame: " + black);
-
-    if (black) {
-      stream.getTracks().forEach((t) => t.stop());
-      video.pause();
-      video.srcObject = null;
+      log("decodeFromConstraints started");
+    } catch (e) {
+      log("error: " + e);
       setState("error");
-      setMessage("กล้องไม่พร้อม กรุณาลองใหม่");
-      return;
+      setMessage("ไม่สามารถเปิดกล้องได้ กรุณาอนุญาตสิทธิ์กล้อง");
     }
-
-    await reader.decodeFromVideoElement(video, async (result, _err, controls) => {
-      controlsRef.current = controls;
-      if (!result || stoppedRef.current) return;
-
-      stoppedRef.current = true;
-      controls.stop();
-      streamRef.current?.getTracks().forEach((t) => t.stop());
-      streamRef.current = null;
-
-      const v = videoRef.current;
-      if (v) { v.pause(); v.srcObject = null; }
-
-      setState("loading");
-
-      try {
-        const payload = JSON.parse(result.getText()) as {
-          t: string; loc: string; exp: number; nonce: string;
-        };
-
-        if (payload.exp < Date.now()) {
-          setState("error");
-          setMessage("QR Code หมดอายุแล้ว กรุณาสแกนใหม่");
-          return;
-        }
-
-        const res = await fetch("/api/factory-checkin", {
-          method:  "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ token: payload.t, loc: payload.loc, nonce: payload.nonce }),
-        });
-
-        const data = await res.json();
-
-        if (!res.ok) {
-          setState("error");
-          setMessage(data.error ?? "เกิดข้อผิดพลาด");
-          return;
-        }
-
-        setState("success");
-        const checkInTime = new Date(data.checkin_at).toLocaleTimeString("th-TH", {
-          hour: "2-digit", minute: "2-digit",
-        });
-        setMessage(`Check-in สำเร็จ เวลา ${checkInTime}`);
-        setTimeout(() => onSuccess(data.checkin_at), 1500);
-      } catch {
-        setState("error");
-        setMessage("QR Code ไม่ถูกต้อง");
-      }
-    });
   }, [onSuccess]);
 
   const handleClose = useCallback(() => {
@@ -196,6 +162,7 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-black">
+      {/* ── Top bar ─────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between px-4 py-3 safe-area-top">
         <button onClick={handleClose} className="text-white text-sm flex items-center gap-1">
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -207,6 +174,7 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
         <div className="w-14" />
       </div>
 
+      {/* ── Camera area ─────────────────────────────────────────────────── */}
       <div className="relative flex-1">
         <video
           ref={videoRef}
@@ -215,6 +183,7 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
           muted
         />
 
+        {/* ── IDLE ─────────────────────────────────────────────────────── */}
         {state === "idle" && (
           <div className="absolute inset-0 bg-black flex flex-col items-center justify-center gap-6">
             <div className="w-24 h-24 rounded-full bg-white/10 border-2 border-white/30 flex items-center justify-center">
@@ -237,6 +206,7 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
           </div>
         )}
 
+        {/* ── SCANNING ─────────────────────────────────────────────────── */}
         {state === "scanning" && (
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="relative w-64 h-64">
@@ -259,6 +229,7 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
           </div>
         )}
 
+        {/* ── LOADING / SUCCESS / ERROR ────────────────────────────────── */}
         {(state === "loading" || state === "success" || state === "error") && (
           <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center gap-4 p-6">
             {state === "loading" && (
@@ -297,6 +268,7 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
         )}
       </div>
 
+      {/* Debug panel — ลบออกหลังเทสเสร็จ */}
       {debugLog.length > 0 && (
         <div className="absolute bottom-0 left-0 right-0 bg-black/90 p-3 max-h-48 overflow-y-auto z-50">
           {debugLog.map((l, i) => (
