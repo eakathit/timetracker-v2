@@ -52,52 +52,25 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
 
   const startCamera = useCallback(async () => {
     stoppedRef.current = false;
+    setState("scanning");
 
-    const video = videoRef.current!;
+    const video  = videoRef.current!;
+    const reader = new BrowserQRCodeReader();
 
     try {
-      log("getting stream...");
-
+      // ✅ getUserMedia เป็น async operation แรกสุด ไม่มีอะไรนำหน้า
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: "environment" },
-          width:  { ideal: 1280 },
-          height: { ideal: 720 },
-        },
-      }).catch(() =>
-        navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: "environment" } },
-        })
-      );
+        video: { facingMode: { ideal: "environment" } },
+      });
 
-      if (stoppedRef.current) {
-        stream.getTracks().forEach((t) => t.stop());
-        return;
-      }
+      log("got stream");
+      if (stoppedRef.current) { stream.getTracks().forEach(t => t.stop()); return; }
 
       streamRef.current = stream;
       video.srcObject   = stream;
+      // ✅ ไม่เรียก play() เอง — ให้ autoPlay จัดการ
 
-      // ✅ รอ loadedmetadata ก่อน แล้วค่อย play
-      await new Promise<void>((resolve) => {
-        if (video.readyState >= 1) { resolve(); return; }
-        video.onloadedmetadata = () => {
-          video.onloadedmetadata = null;
-          resolve();
-        };
-      });
-
-      log("metadata loaded: " + video.videoWidth + "x" + video.videoHeight);
-
-      await video.play();
-      log("playing!");
-
-      setState("scanning");
-
-      if (stoppedRef.current) return;
-
-      // ── decode ด้วย zxing ─────────────────────────────────────────
-      const reader = new BrowserQRCodeReader();
+      log("starting decode...");
       await reader.decodeFromVideoElement(video, async (result, _err, controls) => {
         controlsRef.current = controls;
         if (!result || stoppedRef.current) return;
