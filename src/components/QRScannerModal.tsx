@@ -46,17 +46,6 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
     setDebugLog(prev => [...prev, msg]);
   };
 
-  // ── Pre-warm: attach stream ตอน modal เปิด ───────────────────────────────────
-  useEffect(() => {
-    getOrCreateStream().then((stream) => {
-      const video = videoRef.current;
-      if (!video) return;
-      streamRef.current = stream;
-      video.srcObject = stream;
-      log("pre-warm done");
-    }).catch((e) => log("pre-warm error: " + e));
-  }, []);
-
   // ── Release camera เมื่อแอปเข้า background ──────────────────────────────────
   useEffect(() => {
     const handleVisibilityChange = () => {
@@ -255,7 +244,6 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
         <video
           ref={videoRef}
           className="w-full h-full object-cover"
-          autoPlay
           playsInline
           muted
         />
