@@ -101,16 +101,14 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
     streamRef.current = stream;
     video.srcObject   = stream;
 
-    // ✅ ใส่ timeout ให้ play() — ถ้า hang เกิน 3s ให้ไปต่อเลย
-    try {
-      await Promise.race([
-        video.play(),
-        new Promise((_, reject) => setTimeout(() => reject(new Error("play timeout")), 3000))
-      ]);
-    } catch (e) { log("play error: " + e); }
+    // ✅ ไม่ await — fire and forget แล้วรอด้วย setTimeout
+    video.play().catch((e) => log("play error: " + e));
 
-    log("readyState after play: " + video.readyState);
-    log("size: " + video.videoWidth + "x" + video.videoHeight);
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    if (stoppedRef.current) return;
+
+    log("readyState after wait: " + video.readyState);
+    log("size after wait: " + video.videoWidth + "x" + video.videoHeight);
 
     await new Promise((resolve) => setTimeout(resolve, 2000));
     if (stoppedRef.current) return;
