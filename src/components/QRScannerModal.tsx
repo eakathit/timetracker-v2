@@ -86,7 +86,7 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
     streamRef.current   = null;
   }, []);
 
-  const startCamera = useCallback(async () => {
+ const startCamera = useCallback(async () => {
   stoppedRef.current = false;
   setState("scanning");
 
@@ -95,25 +95,23 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
   try {
     const video = videoRef.current!;
     const stream = await getOrCreateStream();
+    log("stream active: " + stream.active);  // ✅
     if (stoppedRef.current) return;
 
     streamRef.current = stream;
     video.srcObject   = stream;
 
-    try { await video.play(); } catch { /* ignore */ }
+    try { await video.play(); } catch (e) { log("play error: " + e); }  // ✅
 
-    // ── Debug: log ทุก step ────────────────────────────────────────
-    console.log("readyState after play:", video.readyState);
-    console.log("videoWidth:", video.videoWidth, "videoHeight:", video.videoHeight);
+    log("readyState after play: " + video.readyState);  // ✅
+    log("size: " + video.videoWidth + "x" + video.videoHeight);  // ✅
 
-    // รอแบบ fixed timeout ก่อน — เชื่อถือได้สุดบน iOS
     await new Promise((resolve) => setTimeout(resolve, 2000));
     if (stoppedRef.current) return;
 
-    console.log("readyState after wait:", video.readyState);
-    console.log("videoWidth after wait:", video.videoWidth);
+    log("readyState after wait: " + video.readyState);  // ✅
+    log("size after wait: " + video.videoWidth + "x" + video.videoHeight);  // ✅
 
-    // ── ตรวจ black frame ───────────────────────────────────────────
     const isBlackFrame = (): boolean => {
       try {
         const canvas = document.createElement("canvas");
@@ -127,7 +125,7 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
         for (let i = 0; i < pixels.length; i += 4) {
           total += pixels[i] + pixels[i + 1] + pixels[i + 2];
         }
-        console.log("brightness total:", total); // ← ดูค่านี้
+        log("brightness total: " + total);  // ✅
         return total < 512;
       } catch {
         return false;
@@ -135,7 +133,7 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
     };
 
     const black = isBlackFrame();
-    console.log("isBlackFrame:", black);
+    log("isBlackFrame: " + black);  // ✅
 
     if (black) {
       _cachedStream?.getTracks().forEach((t) => t.stop());
