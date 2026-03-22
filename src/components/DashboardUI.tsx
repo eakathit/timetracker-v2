@@ -171,7 +171,6 @@ export default function DashboardUI({ userName, userEmail, userId, userRole }: D
   const [isInitializing, setIsInitializing] = useState(true);
   const [showReportPopup, setShowReportPopup] = useState(false);
   const [showQRScanner, setShowQRScanner] = useState(false);
-  const [scanKey, setScanKey] = useState(0);
 
   const [popupEndUsers, setPopupEndUsers] = useState<any[]>([]);
   const [popupProjects, setPopupProjects] = useState<any[]>([]);
@@ -584,7 +583,6 @@ const validateLocationForOT = useCallback((): Promise<boolean> => {
 
   const handleQRCheckInSuccess = async (checkInIsoTime: string) => {
   setShowQRScanner(false);
-  setScanKey(k => k + 1); // ← force remount ครั้งถัดไป
   setRawCheckIn(checkInIsoTime);
   setCheckInTime(
     new Date(checkInIsoTime).toLocaleTimeString("th-TH", {
@@ -1176,12 +1174,8 @@ const handleEndOT = async () => {
 
       {showQRScanner && (
   <QRScannerModal
-    key={scanKey}        // ← ทุกครั้งที่ key เปลี่ยน = component ใหม่ทั้งหมด
     onSuccess={handleQRCheckInSuccess}
-    onClose={() => {
-      setShowQRScanner(false);
-      setScanKey(k => k + 1); // ← force remount ตอนปิดด้วย
-    }}
+    onClose={() => setShowQRScanner(false)}
   />
 )}
 

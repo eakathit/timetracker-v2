@@ -22,6 +22,7 @@ const CHANGELOG: ChangelogEntry[] = [
     items: [
       { tag: "improvement",         text: "เเก้ไขให้สามารถสเเกน qr-code ได้ง่ายขึ้น" },
       { tag: "feature",             text: "เพิ่ม Other ในช่อง End User หน้ากรอก Report" },
+      { tag: "feature",             text: "เพิ่มฟีเจอร์ Report Sync" },
     ],
   },
   {

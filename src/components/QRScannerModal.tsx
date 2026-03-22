@@ -4,6 +4,31 @@
 import { useRef, useState, useCallback, useEffect } from "react";
 import { BrowserQRCodeReader, IScannerControls } from "@zxing/browser";
 
+// ── Module-level stream cache ─────────────────────────────────────────────────
+// อยู่นอก component → ไม่ถูก reset เมื่อ unmount/remount
+// iOS จะไม่ถาม permission ซ้ำตราบใดที่ stream ยังมีชีวิต
+let _cachedStream: MediaStream | null = null;
+
+async function getOrCreateStream(): Promise<MediaStream> {
+  if (_cachedStream?.active) return _cachedStream; // ← reuse ทันที
+
+  try {
+    _cachedStream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: { ideal: "environment" },
+        width:  { ideal: 1280 },
+        height: { ideal: 720 },
+      },
+    });
+  } catch {
+    _cachedStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: "environment" } },
+    });
+  }
+  return _cachedStream;
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 interface Props {
   onSuccess: (checkInTime: string) => void;
   onClose:   () => void;
@@ -19,158 +44,151 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
   const [state, setState]     = useState<ScanState>("idle");
   const [message, setMessage] = useState("");
 
-  // ── Cleanup เมื่อ component unmount (สำคัญมากสำหรับ iOS) ─────────────────
+  // ── Cleanup: detach video เท่านั้น ห้าม stop tracks ────────────────────────
   useEffect(() => {
     return () => {
       stoppedRef.current = true;
       controlsRef.current?.stop();
-      streamRef.current?.getTracks().forEach((t) => t.stop());
-      // ล้าง srcObject เพื่อให้ iOS release camera session ทันที
+      // ❌ ห้าม: streamRef.current?.getTracks().forEach((t) => t.stop())
+      // ✅ แค่ detach จาก video element เพื่อปิดหน้ากล้อง
       if (videoRef.current) {
+        videoRef.current.pause();
         videoRef.current.srcObject = null;
       }
+      controlsRef.current = null;
+      streamRef.current   = null;
     };
   }, []);
 
   const stopCamera = useCallback(() => {
     controlsRef.current?.stop();
-    streamRef.current?.getTracks().forEach((t) => t.stop());
+    // ❌ ห้าม: stream.getTracks().forEach((t) => t.stop())
+    // ✅ แค่ detach — _cachedStream ยังมีชีวิต รอใช้งานครั้งต่อไป
     if (videoRef.current) {
+      videoRef.current.pause();
       videoRef.current.srcObject = null;
     }
-    streamRef.current   = null;
     controlsRef.current = null;
+    streamRef.current   = null;
   }, []);
 
   const startCamera = useCallback(async () => {
-  stoppedRef.current = false;
-  setState("scanning");
+    stoppedRef.current = false;
+    setState("scanning");
 
-  const reader = new BrowserQRCodeReader();
+    const reader = new BrowserQRCodeReader();
 
-  try {
-    const video = videoRef.current!;
-    video.play().catch(() => {});
-
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    if (stoppedRef.current) return;
-
-    let stream: MediaStream;
     try {
-      stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: "environment" },
-          width:  { ideal: 1280 },
-          height: { ideal: 720 },
-        },
+      const video = videoRef.current!;
+
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      if (stoppedRef.current) return;
+
+      // ── ใช้ cached stream แทนการขอใหม่ทุกครั้ง ───────────────────────
+      const stream = await getOrCreateStream();
+
+      if (stoppedRef.current) return; // ไม่ stop stream เพราะ cache ใช้ร่วมกัน
+
+      streamRef.current  = stream;
+      video.srcObject    = stream;
+      try { await video.play(); } catch { /* ignore */ }
+
+      // ── รอให้ video render ─────────────────────────────────────────────
+      // ถ้า reuse stream ไม่ต้องรอนาน, ถ้าใหม่รอ 1500ms
+      const isReuse = stream === _cachedStream && stream.active;
+      await new Promise((resolve) =>
+        setTimeout(resolve, isReuse ? 500 : 1500)
+      );
+      if (stoppedRef.current) return;
+
+      const isBlackFrame = (): boolean => {
+        try {
+          const canvas = document.createElement("canvas");
+          canvas.width = 16;
+          canvas.height = 16;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) return false;
+          ctx.drawImage(video, 0, 0, 16, 16);
+          const pixels = ctx.getImageData(0, 0, 16, 16).data;
+          let total = 0;
+          for (let i = 0; i < pixels.length; i += 4) {
+            total += pixels[i] + pixels[i + 1] + pixels[i + 2];
+          }
+          return total < 512;
+        } catch {
+          return false;
+        }
+      };
+
+      if (isBlackFrame()) {
+        // black frame: invalidate cache แล้ว reload
+        _cachedStream?.getTracks().forEach((t) => t.stop());
+        _cachedStream = null;
+        video.pause();
+        video.srcObject = null;
+        window.location.reload();
+        return;
+      }
+
+      // ── เริ่ม decode ──────────────────────────────────────────────────
+      await reader.decodeFromVideoElement(video, async (result, _err, controls) => {
+        controlsRef.current = controls;
+        if (!result || stoppedRef.current) return;
+
+        stoppedRef.current = true;
+        controls.stop();
+        // ❌ ห้าม: streamRef.current?.getTracks().forEach((t) => t.stop())
+        // ✅ แค่ detach video
+        const v = videoRef.current;
+        if (v) { v.pause(); v.srcObject = null; }
+
+        setState("loading");
+
+        try {
+          const payload = JSON.parse(result.getText()) as {
+            t:     string;
+            loc:   string;
+            exp:   number;
+            nonce: string;
+          };
+
+          if (payload.exp < Date.now()) {
+            setState("error");
+            setMessage("QR Code หมดอายุแล้ว กรุณาสแกนใหม่");
+            return;
+          }
+
+          const res = await fetch("/api/factory-checkin", {
+            method:  "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ token: payload.t, loc: payload.loc, nonce: payload.nonce }),
+          });
+
+          const data = await res.json();
+
+          if (!res.ok) {
+            setState("error");
+            setMessage(data.error ?? "เกิดข้อผิดพลาด");
+            return;
+          }
+
+          setState("success");
+          const checkInTime = new Date(data.checkin_at).toLocaleTimeString("th-TH", {
+            hour: "2-digit",
+            minute: "2-digit",
+          });
+          setMessage(`Check-in สำเร็จ เวลา ${checkInTime}`);
+          setTimeout(() => onSuccess(data.checkin_at), 1500);
+        } catch {
+          setState("error");
+          setMessage("QR Code ไม่ถูกต้อง");
+        }
       });
     } catch {
-      stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: "environment" } },
-      });
+      setState("error");
+      setMessage("ไม่สามารถเปิดกล้องได้ กรุณาอนุญาตสิทธิ์กล้อง");
     }
-
-    if (stoppedRef.current) {
-      stream.getTracks().forEach((t) => t.stop());
-      return;
-    }
-
-    streamRef.current = stream;
-    video.srcObject = stream;
-    try { await video.play(); } catch { /* ignore */ }
-
-    // ── รอให้ video render ก่อน แล้วตรวจ pixel จริง ───────────────────
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    if (stoppedRef.current) return;
-
-    // sample pixel จาก video frame จริงๆ ด้วย canvas
-    const isBlackFrame = (): boolean => {
-      try {
-        const canvas = document.createElement("canvas");
-        canvas.width = 16;
-        canvas.height = 16;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) return false;
-        ctx.drawImage(video, 0, 0, 16, 16);
-        const pixels = ctx.getImageData(0, 0, 16, 16).data;
-        let total = 0;
-        for (let i = 0; i < pixels.length; i += 4) {
-          total += pixels[i] + pixels[i + 1] + pixels[i + 2];
-        }
-        // ถ้า brightness เฉลี่ยต่ำมาก = จอดำ
-        return total < 512;
-      } catch {
-        return false;
-      }
-    };
-
-    if (isBlackFrame()) {
-      // iOS WKWebView ยัง hold camera — reload เพื่อ reset
-      stream.getTracks().forEach((t) => t.stop());
-      video.pause();
-      video.srcObject = null;
-      window.location.reload();
-      return;
-    }
-
-    // ── เริ่ม decode ──────────────────────────────────────────────────
-    await reader.decodeFromVideoElement(video, async (result, _err, controls) => {
-      controlsRef.current = controls;
-      if (!result || stoppedRef.current) return;
-
-      stoppedRef.current = true;
-      controls.stop();
-      streamRef.current?.getTracks().forEach((t) => t.stop());
-      const v = videoRef.current;
-      if (v) { v.pause(); v.srcObject = null; }
-
-      setState("loading");
-
-      try {
-        const payload = JSON.parse(result.getText()) as {
-          t:     string;
-          loc:   string;
-          exp:   number;
-          nonce: string; // ← เพิ่ม
-        };
-
-        if (payload.exp < Date.now()) {
-          setState("error");
-          setMessage("QR Code หมดอายุแล้ว กรุณาสแกนใหม่");
-          return;
-        }
-
-        const res = await fetch("/api/factory-checkin", {
-          method:  "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ token: payload.t, loc: payload.loc, nonce: payload.nonce }),
-        });
-
-        const data = await res.json();
-
-        if (!res.ok) {
-          setState("error");
-          setMessage(data.error ?? "เกิดข้อผิดพลาด");
-          return;
-        }
-
-        setState("success");
-        const checkInTime = new Date(data.checkin_at).toLocaleTimeString("th-TH", {
-          hour: "2-digit",
-          minute: "2-digit",
-        });
-        setMessage(`Check-in สำเร็จ เวลา ${checkInTime}`);
-        setTimeout(() => onSuccess(data.checkin_at), 1500);
-      } catch {
-        setState("error");
-        setMessage("QR Code ไม่ถูกต้อง");
-      }
-    });
-  } catch {
-    setState("error");
-    setMessage("ไม่สามารถเปิดกล้องได้ กรุณาอนุญาตสิทธิ์กล้อง");
-  }
-}, [onSuccess]);
+  }, [onSuccess]);
 
   const handleClose = useCallback(() => {
     stoppedRef.current = true;
