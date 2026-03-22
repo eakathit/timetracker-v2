@@ -46,6 +46,11 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
     setDebugLog(prev => [...prev, msg]);
   };
 
+  // ── Pre-warm: ขอ stream ไว้ก่อน ห้ามแตะ video element ───────────────────────
+  useEffect(() => {
+    getOrCreateStream().catch(() => {});
+  }, []);
+
   // ── Release camera เมื่อแอปเข้า background ──────────────────────────────────
   useEffect(() => {
     const handleVisibilityChange = () => {
@@ -95,23 +100,27 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
     try {
       const video = videoRef.current!;
 
-      // stream attach ไว้แล้วตอน pre-warm — ถ้ายังไม่มีค่อยขอใหม่
-      if (!video.srcObject) {
+      // ✅ ถ้า stream cache อยู่แล้ว → set + play() แบบ sync ใน gesture context
+      if (_cachedStream?.active) {
+        streamRef.current = _cachedStream;
+        video.srcObject = _cachedStream;
+        video.play().catch((e) => log("play error: " + e));
+        log("play sync (cached)");
+      } else {
+        // ครั้งแรก: ต้อง await — iOS จะ prompt permission
         const stream = await getOrCreateStream();
+        if (stoppedRef.current) return;
         streamRef.current = stream;
         video.srcObject = stream;
+        video.play().catch((e) => log("play error: " + e));
+        log("play async (new stream)");
       }
-
-      log("srcObject set: " + !!video.srcObject);
-
-      // ✅ fire and forget — ไม่ await เพื่อไม่หลุด gesture context
-      video.play().catch((e) => log("play error: " + e));
 
       await new Promise((resolve) => setTimeout(resolve, 2000));
       if (stoppedRef.current) return;
 
       log("readyState after wait: " + video.readyState);
-      log("size after wait: " + video.videoWidth + "x" + video.videoHeight);
+      log("size: " + video.videoWidth + "x" + video.videoHeight);
 
       // ── ตรวจ black frame ───────────────────────────────────────────
       const isBlackFrame = (): boolean => {
