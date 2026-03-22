@@ -1,3 +1,4 @@
+// src/components/QRScannerModal.tsx
 "use client";
 
 import { useRef, useState, useCallback, useEffect } from "react";
@@ -18,24 +19,16 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
   const [state, setState]     = useState<ScanState>("idle");
   const [message, setMessage] = useState("");
 
-  const [debugLog, setDebugLog] = useState<string[]>([]);
-  const log = (msg: string) => {
-    console.log(msg);
-    setDebugLog(prev => [...prev, msg]);
-  };
-
-  // ── Cleanup เมื่อ unmount ────────────────────────────────────────────────────
+  // ── Cleanup เมื่อ component unmount (สำคัญมากสำหรับ iOS) ─────────────────
   useEffect(() => {
     return () => {
       stoppedRef.current = true;
       controlsRef.current?.stop();
       streamRef.current?.getTracks().forEach((t) => t.stop());
+      // ล้าง srcObject เพื่อให้ iOS release camera session ทันที
       if (videoRef.current) {
-        videoRef.current.pause();
         videoRef.current.srcObject = null;
       }
-      controlsRef.current = null;
-      streamRef.current   = null;
     };
   }, []);
 
@@ -43,96 +36,141 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
     controlsRef.current?.stop();
     streamRef.current?.getTracks().forEach((t) => t.stop());
     if (videoRef.current) {
-      videoRef.current.pause();
       videoRef.current.srcObject = null;
     }
-    controlsRef.current = null;
     streamRef.current   = null;
+    controlsRef.current = null;
   }, []);
 
   const startCamera = useCallback(async () => {
-    stoppedRef.current = false;
-    setState("scanning");
+  stoppedRef.current = false;
+  setState("scanning");
 
-    const video  = videoRef.current!;
-    const reader = new BrowserQRCodeReader();
+  const reader = new BrowserQRCodeReader();
 
+  try {
+    const video = videoRef.current!;
+    video.play().catch(() => {});
+
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    if (stoppedRef.current) return;
+
+    let stream: MediaStream;
     try {
-      // ✅ getUserMedia เป็น async operation แรกสุด ไม่มีอะไรนำหน้า
-      const stream = await navigator.mediaDevices.getUserMedia({
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: "environment" },
+          width:  { ideal: 1280 },
+          height: { ideal: 720 },
+        },
+      });
+    } catch {
+      stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: { ideal: "environment" } },
       });
-
-      log("got stream");
-      if (stoppedRef.current) { stream.getTracks().forEach(t => t.stop()); return; }
-
-      streamRef.current = stream;
-      video.srcObject   = stream;
-      // ✅ ไม่เรียก play() เอง — ให้ autoPlay จัดการ
-
-      log("starting decode...");
-      await reader.decodeFromVideoElement(video, async (result, _err, controls) => {
-        controlsRef.current = controls;
-        if (!result || stoppedRef.current) return;
-
-        log("scanned!");
-        stoppedRef.current = true;
-        controls.stop();
-        streamRef.current?.getTracks().forEach((t) => t.stop());
-        streamRef.current = null;
-
-        const v = videoRef.current;
-        if (v) { v.pause(); v.srcObject = null; }
-
-        setState("loading");
-
-        try {
-          const payload = JSON.parse(result.getText()) as {
-            t:     string;
-            loc:   string;
-            exp:   number;
-            nonce: string;
-          };
-
-          if (payload.exp < Date.now()) {
-            setState("error");
-            setMessage("QR Code หมดอายุแล้ว กรุณาสแกนใหม่");
-            return;
-          }
-
-          const res = await fetch("/api/factory-checkin", {
-            method:  "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ token: payload.t, loc: payload.loc, nonce: payload.nonce }),
-          });
-
-          const data = await res.json();
-
-          if (!res.ok) {
-            setState("error");
-            setMessage(data.error ?? "เกิดข้อผิดพลาด");
-            return;
-          }
-
-          setState("success");
-          const checkInTime = new Date(data.checkin_at).toLocaleTimeString("th-TH", {
-            hour: "2-digit",
-            minute: "2-digit",
-          });
-          setMessage(`Check-in สำเร็จ เวลา ${checkInTime}`);
-          setTimeout(() => onSuccess(data.checkin_at), 1500);
-        } catch {
-          setState("error");
-          setMessage("QR Code ไม่ถูกต้อง");
-        }
-      });
-
-    } catch (e) {
-      log("error: " + e);
-      setState("error");
-      setMessage("ไม่สามารถเปิดกล้องได้ กรุณาอนุญาตสิทธิ์กล้อง");
     }
-  }, [onSuccess]);
+
+    if (stoppedRef.current) {
+      stream.getTracks().forEach((t) => t.stop());
+      return;
+    }
+
+    streamRef.current = stream;
+    video.srcObject = stream;
+    try { await video.play(); } catch { /* ignore */ }
+
+    // ── รอให้ video render ก่อน แล้วตรวจ pixel จริง ───────────────────
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    if (stoppedRef.current) return;
+
+    // sample pixel จาก video frame จริงๆ ด้วย canvas
+    const isBlackFrame = (): boolean => {
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = 16;
+        canvas.height = 16;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return false;
+        ctx.drawImage(video, 0, 0, 16, 16);
+        const pixels = ctx.getImageData(0, 0, 16, 16).data;
+        let total = 0;
+        for (let i = 0; i < pixels.length; i += 4) {
+          total += pixels[i] + pixels[i + 1] + pixels[i + 2];
+        }
+        // ถ้า brightness เฉลี่ยต่ำมาก = จอดำ
+        return total < 512;
+      } catch {
+        return false;
+      }
+    };
+
+    if (isBlackFrame()) {
+      // iOS WKWebView ยัง hold camera — reload เพื่อ reset
+      stream.getTracks().forEach((t) => t.stop());
+      video.pause();
+      video.srcObject = null;
+      window.location.reload();
+      return;
+    }
+
+    // ── เริ่ม decode ──────────────────────────────────────────────────
+    await reader.decodeFromVideoElement(video, async (result, _err, controls) => {
+      controlsRef.current = controls;
+      if (!result || stoppedRef.current) return;
+
+      stoppedRef.current = true;
+      controls.stop();
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+      const v = videoRef.current;
+      if (v) { v.pause(); v.srcObject = null; }
+
+      setState("loading");
+
+      try {
+        const payload = JSON.parse(result.getText()) as {
+          t:     string;
+          loc:   string;
+          exp:   number;
+          nonce: string; // ← เพิ่ม
+        };
+
+        if (payload.exp < Date.now()) {
+          setState("error");
+          setMessage("QR Code หมดอายุแล้ว กรุณาสแกนใหม่");
+          return;
+        }
+
+        const res = await fetch("/api/factory-checkin", {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token: payload.t, loc: payload.loc, nonce: payload.nonce }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          setState("error");
+          setMessage(data.error ?? "เกิดข้อผิดพลาด");
+          return;
+        }
+
+        setState("success");
+        const checkInTime = new Date(data.checkin_at).toLocaleTimeString("th-TH", {
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+        setMessage(`Check-in สำเร็จ เวลา ${checkInTime}`);
+        setTimeout(() => onSuccess(data.checkin_at), 1500);
+      } catch {
+        setState("error");
+        setMessage("QR Code ไม่ถูกต้อง");
+      }
+    });
+  } catch {
+    setState("error");
+    setMessage("ไม่สามารถเปิดกล้องได้ กรุณาอนุญาตสิทธิ์กล้อง");
+  }
+}, [onSuccess]);
 
   const handleClose = useCallback(() => {
     stoppedRef.current = true;
@@ -151,7 +189,10 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
     <div className="fixed inset-0 z-50 flex flex-col bg-black">
       {/* ── Top bar ─────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between px-4 py-3 safe-area-top">
-        <button onClick={handleClose} className="text-white text-sm flex items-center gap-1">
+        <button
+          onClick={handleClose}
+          className="text-white text-sm flex items-center gap-1"
+        >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
@@ -163,9 +204,10 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
 
       {/* ── Camera area ─────────────────────────────────────────────────── */}
       <div className="relative flex-1">
+
         <video
           ref={videoRef}
-          className="w-full h-full object-cover"
+          className={`w-full h-full object-cover ${state === "idle" ? "invisible" : ""}`}
           autoPlay
           playsInline
           muted
@@ -173,12 +215,13 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
 
         {/* ── IDLE ─────────────────────────────────────────────────────── */}
         {state === "idle" && (
-          <div className="absolute inset-0 bg-black flex flex-col items-center justify-center gap-6">
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-6">
             <div className="w-24 h-24 rounded-full bg-white/10 border-2 border-white/30 flex items-center justify-center">
               <svg className="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
                   d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                  d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
               </svg>
             </div>
             <div className="text-center px-8">
@@ -254,16 +297,8 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
             )}
           </div>
         )}
-      </div>
 
-      {/* Debug panel — ลบออกหลังเทสเสร็จ */}
-      {debugLog.length > 0 && (
-        <div className="absolute bottom-0 left-0 right-0 bg-black/90 p-3 max-h-48 overflow-y-auto z-50">
-          {debugLog.map((l, i) => (
-            <p key={i} className="text-green-400 text-xs font-mono">{l}</p>
-          ))}
-        </div>
-      )}
+      </div>
     </div>
   );
 }

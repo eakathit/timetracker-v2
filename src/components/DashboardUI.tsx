@@ -171,6 +171,7 @@ export default function DashboardUI({ userName, userEmail, userId, userRole }: D
   const [isInitializing, setIsInitializing] = useState(true);
   const [showReportPopup, setShowReportPopup] = useState(false);
   const [showQRScanner, setShowQRScanner] = useState(false);
+  const [scanKey, setScanKey] = useState(0);
 
   const [popupEndUsers, setPopupEndUsers] = useState<any[]>([]);
   const [popupProjects, setPopupProjects] = useState<any[]>([]);
@@ -583,6 +584,7 @@ const validateLocationForOT = useCallback((): Promise<boolean> => {
 
   const handleQRCheckInSuccess = async (checkInIsoTime: string) => {
   setShowQRScanner(false);
+  setScanKey(k => k + 1); // ← force remount ครั้งถัดไป
   setRawCheckIn(checkInIsoTime);
   setCheckInTime(
     new Date(checkInIsoTime).toLocaleTimeString("th-TH", {
@@ -906,11 +908,11 @@ const handleEndOT = async () => {
                 <span>{otTimeReady ? "Start OT" : "Start OT (18:00 น.)"}</span>
               </button>
 
-              {!otTimeReady && (
-  <p className="text-xs text-gray-400 text-center">
-    ปุ่มจะเปิดใช้งานเวลา 18:00 น.
-  </p>
-)}
+              <p className="text-xs text-gray-400 text-center">
+                {otTimeReady
+                  ? "OT จะถูกนับเป็นหน่วย 30 นาที"
+                  : "ปุ่มจะเปิดใช้งานเวลา 18:00 น."}
+              </p>
             </div>
           </div>
         )}
@@ -924,7 +926,7 @@ const handleEndOT = async () => {
                 {otElapsed}
               </span>
               <span className="text-xs text-amber-500 font-medium">
-                OT Time
+                OT Elapsed
               </span>
             </div>
 
@@ -1174,8 +1176,12 @@ const handleEndOT = async () => {
 
       {showQRScanner && (
   <QRScannerModal
+    key={scanKey}        // ← ทุกครั้งที่ key เปลี่ยน = component ใหม่ทั้งหมด
     onSuccess={handleQRCheckInSuccess}
-    onClose={() => setShowQRScanner(false)}
+    onClose={() => {
+      setShowQRScanner(false);
+      setScanKey(k => k + 1); // ← force remount ตอนปิดด้วย
+    }}
   />
 )}
 
