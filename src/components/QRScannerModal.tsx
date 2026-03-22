@@ -3,12 +3,12 @@
 import { useRef, useState, useCallback, useEffect } from "react";
 import { BrowserQRCodeReader, IScannerControls } from "@zxing/browser";
 
+// ── Module-level stream cache ─────────────────────────────────────────────────
 let _cachedStream: MediaStream | null = null;
 
 async function getOrCreateStream(): Promise<MediaStream> {
   if (_cachedStream?.active) return _cachedStream;
 
-  // ❌ ลบ try/catch ซ้อน — เรียกตรงๆ ใน gesture context ทันที
   _cachedStream = await navigator.mediaDevices.getUserMedia({
     video: {
       facingMode: { ideal: "environment" },
@@ -23,6 +23,7 @@ async function getOrCreateStream(): Promise<MediaStream> {
 
   return _cachedStream;
 }
+// ─────────────────────────────────────────────────────────────────────────────
 
 interface Props {
   onSuccess: (checkInTime: string) => void;
@@ -39,12 +40,22 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
   const [state, setState]     = useState<ScanState>("idle");
   const [message, setMessage] = useState("");
 
-  // ✅ เพิ่มตรงนี้เลย ต่อจาก useState ที่มีอยู่
   const [debugLog, setDebugLog] = useState<string[]>([]);
   const log = (msg: string) => {
     console.log(msg);
     setDebugLog(prev => [...prev, msg]);
   };
+
+  // ── Pre-warm: attach stream ตอน modal เปิด ───────────────────────────────────
+  useEffect(() => {
+    getOrCreateStream().then((stream) => {
+      const video = videoRef.current;
+      if (!video) return;
+      streamRef.current = stream;
+      video.srcObject = stream;
+      log("pre-warm done");
+    }).catch((e) => log("pre-warm error: " + e));
+  }, []);
 
   // ── Release camera เมื่อแอปเข้า background ──────────────────────────────────
   useEffect(() => {
@@ -86,68 +97,66 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
     streamRef.current   = null;
   }, []);
 
- const startCamera = useCallback(async () => {
-  stoppedRef.current = false;
-  setState("scanning");
+  const startCamera = useCallback(async () => {
+    stoppedRef.current = false;
+    setState("scanning");
 
-  const reader = new BrowserQRCodeReader();
+    const reader = new BrowserQRCodeReader();
 
-  try {
-    const video = videoRef.current!;
-    const stream = await getOrCreateStream();
-    log("stream active: " + stream.active);  // ✅
-    if (stoppedRef.current) return;
+    try {
+      const video = videoRef.current!;
 
-    streamRef.current = stream;
-    video.srcObject   = stream;
-    // ✅ ไม่ต้อง call play() เลย — autoPlay attribute จัดการเอง
-
-    // รอจนกล้องเริ่มแสดงผลจริงๆ
-    await new Promise<void>((resolve) => {
-      if (video.readyState >= 3) { resolve(); return; }
-      const onPlaying = () => {
-        video.removeEventListener("playing", onPlaying);
-        resolve();
-      };
-      video.addEventListener("playing", onPlaying);
-      setTimeout(resolve, 5000); // fallback
-    });
-
-    log("readyState after playing: " + video.readyState);
-    log("size: " + video.videoWidth + "x" + video.videoHeight);
-
-    const isBlackFrame = (): boolean => {
-      try {
-        const canvas = document.createElement("canvas");
-        canvas.width = 16;
-        canvas.height = 16;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) return false;
-        ctx.drawImage(video, 0, 0, 16, 16);
-        const pixels = ctx.getImageData(0, 0, 16, 16).data;
-        let total = 0;
-        for (let i = 0; i < pixels.length; i += 4) {
-          total += pixels[i] + pixels[i + 1] + pixels[i + 2];
-        }
-        log("brightness total: " + total);  // ✅
-        return total < 512;
-      } catch {
-        return false;
+      // stream attach ไว้แล้วตอน pre-warm — ถ้ายังไม่มีค่อยขอใหม่
+      if (!video.srcObject) {
+        const stream = await getOrCreateStream();
+        streamRef.current = stream;
+        video.srcObject = stream;
       }
-    };
 
-    const black = isBlackFrame();
-    log("isBlackFrame: " + black);  // ✅
+      log("srcObject set: " + !!video.srcObject);
 
-    if (black) {
-      _cachedStream?.getTracks().forEach((t) => t.stop());
-      _cachedStream = null;
-      video.pause();
-      video.srcObject = null;
-      setState("error");
-      setMessage("กล้องไม่พร้อม กรุณาลองใหม่");
-      return;
-    }
+      // ✅ fire and forget — ไม่ await เพื่อไม่หลุด gesture context
+      video.play().catch((e) => log("play error: " + e));
+
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      if (stoppedRef.current) return;
+
+      log("readyState after wait: " + video.readyState);
+      log("size after wait: " + video.videoWidth + "x" + video.videoHeight);
+
+      // ── ตรวจ black frame ───────────────────────────────────────────
+      const isBlackFrame = (): boolean => {
+        try {
+          const canvas = document.createElement("canvas");
+          canvas.width = 16;
+          canvas.height = 16;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) return false;
+          ctx.drawImage(video, 0, 0, 16, 16);
+          const pixels = ctx.getImageData(0, 0, 16, 16).data;
+          let total = 0;
+          for (let i = 0; i < pixels.length; i += 4) {
+            total += pixels[i] + pixels[i + 1] + pixels[i + 2];
+          }
+          log("brightness total: " + total);
+          return total < 512;
+        } catch {
+          return false;
+        }
+      };
+
+      const black = isBlackFrame();
+      log("isBlackFrame: " + black);
+
+      if (black) {
+        _cachedStream?.getTracks().forEach((t) => t.stop());
+        _cachedStream = null;
+        video.pause();
+        video.srcObject = null;
+        setState("error");
+        setMessage("กล้องไม่พร้อม กรุณาลองใหม่");
+        return;
+      }
 
       // ── เริ่ม decode ──────────────────────────────────────────────────
       await reader.decodeFromVideoElement(video, async (result, _err, controls) => {
@@ -229,6 +238,7 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-black">
+      {/* ── Top bar ─────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between px-4 py-3 safe-area-top">
         <button onClick={handleClose} className="text-white text-sm flex items-center gap-1">
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -240,6 +250,7 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
         <div className="w-14" />
       </div>
 
+      {/* ── Camera area ─────────────────────────────────────────────────── */}
       <div className="relative flex-1">
         <video
           ref={videoRef}
@@ -249,28 +260,30 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
           muted
         />
 
+        {/* ── IDLE ─────────────────────────────────────────────────────── */}
         {state === "idle" && (
-  <div className="absolute inset-0 bg-black flex flex-col items-center justify-center gap-6">
-    <div className="w-24 h-24 rounded-full bg-white/10 border-2 border-white/30 flex items-center justify-center">
-      <svg className="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-          d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-      </svg>
-    </div>
-    <div className="text-center px-8">
-      <p className="text-white text-lg font-semibold mb-1">แตะเพื่อเปิดกล้อง</p>
-      <p className="text-white/60 text-sm">กดปุ่มด้านล่างเพื่อเริ่มสแกน QR Code</p>
-    </div>
-    <button
-      onClick={startCamera}
-      className="px-8 py-3.5 bg-sky-500 active:bg-sky-600 text-white font-semibold rounded-2xl text-base"
-    >
-      เปิดกล้องสแกน
-    </button>
-  </div>
-)}
+          <div className="absolute inset-0 bg-black flex flex-col items-center justify-center gap-6">
+            <div className="w-24 h-24 rounded-full bg-white/10 border-2 border-white/30 flex items-center justify-center">
+              <svg className="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                  d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </div>
+            <div className="text-center px-8">
+              <p className="text-white text-lg font-semibold mb-1">แตะเพื่อเปิดกล้อง</p>
+              <p className="text-white/60 text-sm">กดปุ่มด้านล่างเพื่อเริ่มสแกน QR Code</p>
+            </div>
+            <button
+              onClick={startCamera}
+              className="px-8 py-3.5 bg-sky-500 active:bg-sky-600 text-white font-semibold rounded-2xl text-base"
+            >
+              เปิดกล้องสแกน
+            </button>
+          </div>
+        )}
 
+        {/* ── SCANNING ─────────────────────────────────────────────────── */}
         {state === "scanning" && (
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="relative w-64 h-64">
@@ -293,6 +306,7 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
           </div>
         )}
 
+        {/* ── LOADING / SUCCESS / ERROR ────────────────────────────────── */}
         {(state === "loading" || state === "success" || state === "error") && (
           <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center gap-4 p-6">
             {state === "loading" && (
@@ -329,16 +343,17 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
             )}
           </div>
         )}
+
       </div>
 
       {/* Debug panel — ลบออกหลังเทสเสร็จ */}
-{debugLog.length > 0 && (
-  <div className="absolute bottom-0 left-0 right-0 bg-black/90 p-3 max-h-48 overflow-y-auto z-50">
-    {debugLog.map((log, i) => (
-      <p key={i} className="text-green-400 text-xs font-mono">{log}</p>
-    ))}
-  </div>
-)}
+      {debugLog.length > 0 && (
+        <div className="absolute bottom-0 left-0 right-0 bg-black/90 p-3 max-h-48 overflow-y-auto z-50">
+          {debugLog.map((l, i) => (
+            <p key={i} className="text-green-400 text-xs font-mono">{l}</p>
+          ))}
+        </div>
+      )}
 
     </div>
   );
