@@ -1,7 +1,7 @@
-// src/app/api/cron/auto-checkout/route.ts
+// src/app/api/cron/auto-checkout-holiday/route.ts
 // ─────────────────────────────────────────────────────────────────────────────
-// GitHub Actions / Cron: ทุกวัน เวลา 17:30 ICT (10:30 UTC)
-// หน้าที่: Auto-checkout พนักงานทุกคนที่ Check-in แล้วแต่ยังไม่ได้ Checkout
+// GitHub Actions / Cron: ทุกวัน เวลา 23:00 ICT (16:00 UTC)
+// หน้าที่: Safety-net checkout สำหรับพนักงาน Holiday Shift ที่ยังไม่ได้ Checkout
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { createClient } from "@supabase/supabase-js";
@@ -13,12 +13,11 @@ const supabaseAdmin = createClient(
 );
 
 function getThaiToday(): string {
-  return new Date()
-    .toLocaleDateString("en-CA", { timeZone: "Asia/Bangkok" });
+  return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Bangkok" });
 }
 
-function getAutoCheckoutTime(dateStr: string): string {
-  return new Date(`${dateStr}T17:30:00+07:00`).toISOString();
+function getSafetyCheckoutTime(dateStr: string): string {
+  return new Date(`${dateStr}T23:00:00+07:00`).toISOString();
 }
 
 export async function GET(req: NextRequest) {
@@ -29,44 +28,50 @@ export async function GET(req: NextRequest) {
 
   try {
     const today        = getThaiToday();
-    const checkoutTime = getAutoCheckoutTime(today);
+    const checkoutTime = getSafetyCheckoutTime(today);
 
     // หา record ที่:
     // - วันนี้
-    // - มี check-in แล้ว (ไม่ว่า work_type ไหน)
+    // - เป็น holiday shift
+    // - มี check-in แล้ว
     // - ยังไม่ได้ checkout
     // - ยังไม่เคย auto-checkout มาก่อน
     const { data: logs, error: fetchErr } = await supabaseAdmin
       .from("daily_time_logs")
-      .select("id, user_id, timeline_events")
+      .select("id, user_id, first_check_in, timeline_events")
       .eq("log_date", today)
-      .eq("work_type", "in_factory")
-      .eq("shift_type", "regular")
+      .eq("shift_type", "holiday")
       .eq("auto_checked_out", false)
       .is("last_check_out", null)
-      .not("first_check_in", "is", null); // ✅ ลบ work_type filter ออก
+      .not("first_check_in", "is", null);
 
     if (fetchErr) throw fetchErr;
     if (!logs || logs.length === 0) {
       return NextResponse.json({
         success: true,
-        message: "ไม่มี record ที่ต้อง auto-checkout",
+        message: "ไม่มี holiday shift record ที่ต้อง auto-checkout",
         count: 0,
       });
     }
 
     const results = await Promise.allSettled(
       logs.map(async (log) => {
-        const autoCheckoutEvent = {
+        const netHours =
+          (new Date(checkoutTime).getTime() - new Date(log.first_check_in).getTime()) /
+            3_600_000 -
+          1; // หัก break 1 ชั่วโมง
+        const dayoffCredit = netHours >= 8 ? "earned" : "forfeited";
+
+        const safetyCheckoutEvent = {
           event:     "auto_checkout",
           timestamp: checkoutTime,
           source:    "github_actions",
-          note:      "ระบบ Auto-checkout เวลา 17:30",
+          note:      "Holiday safety checkout เวลา 23:00",
         };
 
         const updatedTimeline = [
           ...(log.timeline_events ?? []),
-          autoCheckoutEvent,
+          safetyCheckoutEvent,
         ];
 
         const { error } = await supabaseAdmin
@@ -74,8 +79,8 @@ export async function GET(req: NextRequest) {
           .update({
             last_check_out:   checkoutTime,
             auto_checked_out: true,
+            dayoff_credit:    dayoffCredit,
             timeline_events:  updatedTimeline,
-            regular_hours:    8,
           })
           .eq("id", log.id);
 
@@ -89,8 +94,8 @@ export async function GET(req: NextRequest) {
       .filter((r) => r.status === "rejected")
       .map((r) => (r as PromiseRejectedResult).reason);
 
-    console.log(`[auto-checkout] ${today}: ${succeeded} สำเร็จ, ${failed.length} ล้มเหลว`);
-    if (failed.length > 0) console.error("[auto-checkout] errors:", failed);
+    console.log(`[auto-checkout-holiday] ${today}: ${succeeded} สำเร็จ, ${failed.length} ล้มเหลว`);
+    if (failed.length > 0) console.error("[auto-checkout-holiday] errors:", failed);
 
     return NextResponse.json({
       success:       true,
@@ -101,7 +106,7 @@ export async function GET(req: NextRequest) {
     });
 
   } catch (err) {
-    console.error("[auto-checkout] Fatal error:", err);
+    console.error("[auto-checkout-holiday] Fatal error:", err);
     return NextResponse.json(
       { success: false, error: String(err) },
       { status: 500 }

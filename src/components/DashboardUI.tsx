@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import OTWindowCard from "@/components/OTWindowCard";
 import { ChangelogBellButton } from "@/components/ChangelogPanel";
+import WeeklyChart from "@/components/WeeklyChart";
 import dynamic from "next/dynamic";
 const QRScannerModal = dynamic(() => import("@/components/QRScannerModal"), { ssr: false });
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -599,11 +600,37 @@ const validateLocationForOT = useCallback((): Promise<boolean> => {
   const handleCheckOut = async () => {
     if (!userId || !validateLocation()) return;
     setIsSubmitting(true);
-    const now = new Date().toISOString();
-    const { error } = await pushEvent(
+    const now   = new Date().toISOString();
+    const today = getLocalToday();
+
+    const { data: log } = await supabase
+      .from("daily_time_logs")
+      .select("timeline_events, shift_type, first_check_in")
+      .eq("user_id", userId)
+      .eq("log_date", today)
+      .maybeSingle();
+
+    const timeline = [
+      ...(log?.timeline_events ?? []),
       { event: "checkout", timestamp: now, note: "เลิกงาน" },
-      { last_check_out: now }, // ✅ ลบ status: "completed" ออก
-    );
+    ];
+
+    const extraUpdate: Record<string, unknown> = { last_check_out: now };
+
+    if (log?.shift_type === "holiday" && log?.first_check_in) {
+      const netHours =
+        (new Date(now).getTime() - new Date(log.first_check_in).getTime()) /
+          3_600_000 -
+        1; // หัก break 1 ชั่วโมง
+      extraUpdate.dayoff_credit = netHours >= 8 ? "earned" : "forfeited";
+    }
+
+    const { error } = await supabase
+      .from("daily_time_logs")
+      .update({ timeline_events: timeline, ...extraUpdate })
+      .eq("user_id", userId)
+      .eq("log_date", today);
+
     if (!error) {
       setRawCheckOut(now);
       setWorkStatus("completed");
@@ -1108,7 +1135,10 @@ const handleEndOT = async () => {
         </div>
       </div>
       
-      {/* ── 5. DAILY REPORT POPUP (MODAL) ─────────────────────────────────── */}
+      {/* ── 5. WEEKLY SUMMARY CHART ─────────────────────────────────────────── */}
+      <WeeklyChart userId={userId} />
+
+      {/* ── 6. DAILY REPORT POPUP (MODAL) ─────────────────────────────────── */}
       {showReportPopup && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-6 bg-gray-900/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden animate-in slide-in-from-bottom-8 duration-300">

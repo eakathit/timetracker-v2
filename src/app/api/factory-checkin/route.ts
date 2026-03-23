@@ -115,6 +115,22 @@ export async function POST(req: NextRequest) {
     lateThreshold.setHours(8, 31, 0, 0);
     const attendanceStatus = checkInBangkok >= lateThreshold ? "late" : "on_time";
 
+    // ── 6.5. ตรวจ shift_type จาก holidays table ────────────────────────────
+    const { data: holidayRecord } = await supabase
+      .from("holidays")
+      .select("is_workday")
+      .eq("date", today)
+      .maybeSingle();
+
+    let shiftType: "regular" | "holiday";
+    if (holidayRecord) {
+      shiftType = holidayRecord.is_workday ? "regular" : "holiday";
+    } else {
+      const dayOfWeek = new Date(today).getDay(); // 0 = Sun, 6 = Sat
+      shiftType = dayOfWeek === 0 || dayOfWeek === 6 ? "holiday" : "regular";
+    }
+    const dayoffCredit = shiftType === "holiday" ? "pending" : null;
+
     // ── 7. บันทึก daily_time_logs ──────────────────────────────────────────
     const newEvent = {
       event:     "arrive_factory",
@@ -130,6 +146,8 @@ export async function POST(req: NextRequest) {
           first_check_in:  now,
           status:          attendanceStatus,
           work_type:       "in_factory",
+          shift_type:      shiftType,
+          dayoff_credit:   dayoffCredit,
           timeline_events: [newEvent],
         })
         .eq("id", existing.id);
@@ -140,6 +158,8 @@ export async function POST(req: NextRequest) {
         work_type:       "in_factory",
         first_check_in:  now,
         status:          attendanceStatus,
+        shift_type:      shiftType,
+        dayoff_credit:   dayoffCredit,
         timeline_events: [newEvent],
       });
     }
