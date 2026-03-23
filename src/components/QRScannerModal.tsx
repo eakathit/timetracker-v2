@@ -9,13 +9,14 @@ interface Props {
   onClose:   () => void;
 }
 
-type ScanState = "idle" | "scanning" | "loading" | "success" | "error";
+type ScanState = "idle" | "scanning" | "loading" | "success" | "error" | "camera_not_ready";
 
 export default function QRScannerModal({ onSuccess, onClose }: Props) {
   const videoRef    = useRef<HTMLVideoElement>(null);
   const controlsRef = useRef<IScannerControls | null>(null);
   const streamRef   = useRef<MediaStream | null>(null);
-  const stoppedRef  = useRef(false);
+  const stoppedRef        = useRef(false);
+  const blackFrameRetries = useRef(0);
   const [state, setState]     = useState<ScanState>("idle");
   const [message, setMessage] = useState("");
 
@@ -42,7 +43,8 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
     controlsRef.current = null;
   }, []);
 
-  const startCamera = useCallback(async () => {
+  const startCamera = useCallback(async (isUserInitiated = false) => {
+  if (isUserInitiated) blackFrameRetries.current = 0;
   stoppedRef.current = false;
   setState("scanning");
 
@@ -105,11 +107,21 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
     };
 
     if (isBlackFrame()) {
-      // iOS WKWebView ยัง hold camera — reload เพื่อ reset
       stream.getTracks().forEach((t) => t.stop());
       video.pause();
       video.srcObject = null;
-      window.location.reload();
+      streamRef.current = null;
+
+      if (blackFrameRetries.current < 3) {
+        blackFrameRetries.current += 1;
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        if (stoppedRef.current) return;
+        startCamera(false);
+        return;
+      }
+
+      setState("camera_not_ready");
+      setMessage("กล้องยังไม่พร้อม กรุณารอ 5-10 วินาทีแล้วกด ลองใหม่");
       return;
     }
 
@@ -185,6 +197,13 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
     setMessage("");
   }, [stopCamera]);
 
+  const handleCameraNotReadyRetry = useCallback(() => {
+    stopCamera();
+    stoppedRef.current = false;
+    setMessage("");
+    startCamera(true);
+  }, [stopCamera, startCamera]);
+
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-black">
       {/* ── Top bar ─────────────────────────────────────────────────────── */}
@@ -229,7 +248,7 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
               <p className="text-white/60 text-sm">กดปุ่มด้านล่างเพื่อเริ่มสแกน QR Code</p>
             </div>
             <button
-              onClick={startCamera}
+              onClick={() => startCamera(true)}
               className="px-8 py-3.5 bg-sky-500 active:bg-sky-600 text-white font-semibold rounded-2xl text-base"
             >
               เปิดกล้องสแกน
@@ -261,7 +280,7 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
         )}
 
         {/* ── LOADING / SUCCESS / ERROR ────────────────────────────────── */}
-        {(state === "loading" || state === "success" || state === "error") && (
+        {(state === "loading" || state === "success" || state === "error" || state === "camera_not_ready") && (
           <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center gap-4 p-6">
             {state === "loading" && (
               <>
@@ -289,6 +308,23 @@ export default function QRScannerModal({ onSuccess, onClose }: Props) {
                 <p className="text-white text-lg text-center">{message}</p>
                 <button
                   onClick={handleRetry}
+                  className="mt-2 px-6 py-2 bg-white/10 text-white rounded-xl text-sm border border-white/20"
+                >
+                  ลองใหม่
+                </button>
+              </>
+            )}
+            {state === "camera_not_ready" && (
+              <>
+                <div className="w-20 h-20 bg-amber-500 rounded-full flex items-center justify-center">
+                  <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M15 10l4.553-2.069A1 1 0 0121 8.882v6.236a1 1 0 01-1.447.894L15 14M3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" />
+                  </svg>
+                </div>
+                <p className="text-white text-lg text-center">{message}</p>
+                <button
+                  onClick={handleCameraNotReadyRetry}
                   className="mt-2 px-6 py-2 bg-white/10 text-white rounded-xl text-sm border border-white/20"
                 >
                   ลองใหม่
