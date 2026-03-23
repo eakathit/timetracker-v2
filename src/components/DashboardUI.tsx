@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import OTWindowCard from "@/components/OTWindowCard";
 import { ChangelogBellButton } from "@/components/ChangelogPanel";
+import WeeklyChart from "@/components/WeeklyChart";
 import dynamic from "next/dynamic";
 const QRScannerModal = dynamic(() => import("@/components/QRScannerModal"), { ssr: false });
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -1108,7 +1109,10 @@ const handleEndOT = async () => {
         </div>
       </div>
       
-      {/* ── 5. DAILY REPORT POPUP (MODAL) ─────────────────────────────────── */}
+      {/* ── 5. WEEKLY SUMMARY CHART ─────────────────────────────────────────── */}
+      <WeeklyChart userId={userId} />
+
+      {/* ── 6. DAILY REPORT POPUP (MODAL) ─────────────────────────────────── */}
       {showReportPopup && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-6 bg-gray-900/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden animate-in slide-in-from-bottom-8 duration-300">
