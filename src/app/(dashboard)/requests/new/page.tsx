@@ -814,7 +814,7 @@ function LeaveForm() {
                       isOverBalance ? "text-rose-500" : "text-indigo-500"
                     }`}
                   >
-                    ใช้ {days} วัน
+                    จะใช้ {days} วัน
                   </span>
                 )}
               </div>
@@ -843,7 +843,7 @@ function LeaveForm() {
               {/* detail row */}
               <div className="flex items-center gap-3 text-[11px] text-gray-400">
                 <span>
-                  ใช้แล้ว{" "}
+                  ใช้ไปเเล้ว{" "}
                   <strong className="text-gray-600">
                     {currentBalance.used}
                   </strong>{" "}

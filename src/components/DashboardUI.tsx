@@ -165,6 +165,109 @@ const elapsedStr = (isoStart: string | null): string => {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 };
 
+function CheckoutConfirmModal({
+  isOpen,
+  checkInIso,
+  onConfirm,
+  onCancel,
+}: {
+  isOpen:      boolean;
+  checkInIso:  string | null;
+  onConfirm:   () => void;
+  onCancel:    () => void;
+}) {
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) requestAnimationFrame(() => setVisible(true));
+    else setVisible(false);
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+
+  // คำนวณเวลาทำงานสะสม
+  const workedDisplay = (() => {
+    if (!checkInIso) return null;
+    const totalMin = Math.floor(
+      (Date.now() - new Date(checkInIso).getTime()) / 60_000,
+    );
+    const h = Math.floor(totalMin / 60);
+    const m = totalMin % 60;
+    return m > 0 ? `${h} ชม. ${m} นาที` : `${h} ชม.`;
+  })();
+
+  const checkInDisplay = checkInIso
+    ? new Date(checkInIso).toLocaleTimeString("th-TH", {
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : null;
+
+  return (
+    <div
+      className={`fixed inset-0 z-50 flex items-end justify-center transition-all duration-300 ${
+        visible ? "bg-black/50 backdrop-blur-sm" : "bg-transparent pointer-events-none"
+      }`}
+    >
+      <div
+        className={`w-full max-w-md bg-white rounded-t-3xl shadow-2xl transition-transform duration-300 ease-out ${
+          visible ? "translate-y-0" : "translate-y-full"
+        }`}
+      >
+        {/* Drag Handle */}
+        <div className="flex justify-center pt-3 pb-2">
+          <div className="w-10 h-1 bg-gray-200 rounded-full" />
+        </div>
+
+        <div className="px-6 pb-8 pt-2 space-y-5">
+
+          {/* Header */}
+          <div className="text-center space-y-1">
+            <div className="w-14 h-14 bg-rose-50 rounded-2xl flex items-center justify-center mx-auto mb-3">
+              <svg
+                className="w-7 h-7 text-rose-500"
+                fill="none" stroke="currentColor" viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
+                  d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+            </div>
+            <h2 className="text-lg font-extrabold text-gray-800">ยืนยัน Check-out?</h2>
+            <p className="text-sm text-gray-400">กรุณาตรวจสอบก่อนยืนยัน</p>
+          </div>
+
+          {/* Auto-checkout notice */}
+          <div className="flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
+            <span className="text-base mt-0.5">⏰</span>
+            <p className="text-xs text-amber-700 leading-relaxed">
+              หากไม่ Check-out ระบบจะทำ{" "}
+              <strong className="font-extrabold">Auto Check-out เวลา 17:30</strong>{" "}
+              ให้อัตโนมัติ
+            </p>
+          </div>
+
+          {/* Buttons */}
+          <div className="flex gap-3 pt-1">
+            <button
+              onClick={onCancel}
+              className="flex-1 py-3.5 rounded-2xl border border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50 active:scale-95 transition-all"
+            >
+              ยกเลิก
+            </button>
+            <button
+              onClick={onConfirm}
+              className="flex-1 py-3.5 rounded-2xl bg-rose-500 text-white text-sm font-extrabold hover:bg-rose-600 active:scale-95 transition-all shadow-sm shadow-rose-200"
+            >
+              ✓ ยืนยัน Check-out
+            </button>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function DashboardUI({
   userName,
@@ -190,6 +293,8 @@ export default function DashboardUI({
     "pending" | "earned" | "forfeited" | null
   >(null);
   const [showHolidayCheckout, setShowHolidayCheckout] = useState(false);
+  const [showCheckoutConfirm, setShowCheckoutConfirm] = useState(false);
+
   const [pendingCheckoutIso, setPendingCheckoutIso] = useState<string | null>(
     null,
   );
@@ -889,7 +994,7 @@ export default function DashboardUI({
 {workStatus === "working" && (
   <div className="flex flex-col items-center">
     <button
-      onClick={handleCheckOut}
+      onClick={() => setShowCheckoutConfirm(true)}
       disabled={isSubmitting || isInitializing}
       className={`w-48 h-48 rounded-full flex flex-col items-center justify-center mx-auto shadow-lg transition-all duration-300
         ${
@@ -1383,6 +1488,17 @@ export default function DashboardUI({
           </div>
         )}
 
+        {/* Checkout Confirm Modal */}
+<CheckoutConfirmModal
+  isOpen={showCheckoutConfirm}
+  checkInIso={rawCheckIn}
+  onConfirm={() => {
+    setShowCheckoutConfirm(false);
+    handleCheckOut();           // ← ไหลไป logic เดิมทั้งหมด (holiday check ฯลฯ)
+  }}
+  onCancel={() => setShowCheckoutConfirm(false)}
+/>
+
         {showHolidayCheckout && pendingCheckoutIso && rawCheckIn && (
         <HolidayCheckoutModal
           isOpen={showHolidayCheckout}
@@ -1397,6 +1513,7 @@ export default function DashboardUI({
           }}
         />
       )}
+
     </main>
   );
 }
