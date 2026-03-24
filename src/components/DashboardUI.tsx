@@ -5,10 +5,14 @@ import DailyReportForm from "@/components/DailyReportForm";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import OTWindowCard from "@/components/OTWindowCard";
+import HolidayProgressCard from "@/components/HolidayProgressCard";
+import HolidayCheckoutModal from "@/components/HolidayCheckoutModal";
 import { ChangelogBellButton } from "@/components/ChangelogPanel";
 import WeeklyChart from "@/components/WeeklyChart";
 import dynamic from "next/dynamic";
-const QRScannerModal = dynamic(() => import("@/components/QRScannerModal"), { ssr: false });
+const QRScannerModal = dynamic(() => import("@/components/QRScannerModal"), {
+  ssr: false,
+});
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface DashboardUIProps {
   userName?: string;
@@ -143,7 +147,8 @@ const calculateWorkTime = (inTime: string | null, outTime: string | null) => {
 // คำนวณ OT (หน่วย 30 นาที ปัดลง)
 const calcOtHours = (otStart: string | null, otEnd: string | null): number => {
   if (!otStart || !otEnd) return 0;
-  const mins = (new Date(otEnd).getTime() - new Date(otStart).getTime()) / 60_000;
+  const mins =
+    (new Date(otEnd).getTime() - new Date(otStart).getTime()) / 60_000;
   return Math.round((mins / 60) * 100) / 100;
 };
 
@@ -161,7 +166,12 @@ const elapsedStr = (isoStart: string | null): string => {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
-export default function DashboardUI({ userName, userEmail, userId, userRole }: DashboardUIProps) {
+export default function DashboardUI({
+  userName,
+  userEmail,
+  userId,
+  userRole,
+}: DashboardUIProps) {
   const router = useRouter();
   /* ── Clock ── */
   const [currentTime, setCurrentTime] = useState("");
@@ -173,6 +183,16 @@ export default function DashboardUI({ userName, userEmail, userId, userRole }: D
   const [showReportPopup, setShowReportPopup] = useState(false);
   const [showQRScanner, setShowQRScanner] = useState(false);
   const [scanKey, setScanKey] = useState(0);
+
+  /* ── Holiday shift ── */
+  const [shiftType, setShiftType] = useState<"regular" | "holiday">("regular");
+  const [dayoffCredit, setDayoffCredit] = useState<
+    "pending" | "earned" | "forfeited" | null
+  >(null);
+  const [showHolidayCheckout, setShowHolidayCheckout] = useState(false);
+  const [pendingCheckoutIso, setPendingCheckoutIso] = useState<string | null>(
+    null,
+  );
 
   const [popupEndUsers, setPopupEndUsers] = useState<any[]>([]);
   const [popupProjects, setPopupProjects] = useState<any[]>([]);
@@ -200,6 +220,10 @@ export default function DashboardUI({ userName, userEmail, userId, userRole }: D
     "checking" | "in_range" | "out_of_range" | "error"
   >("checking");
   const [distanceText, setDistanceText] = useState("กำลังตรวจสอบตำแหน่ง...");
+
+  const [holidayName, setHolidayName] = useState<string | null>(null);
+  const [payMultiplier, setPayMultiplier] = useState<number>(1.0);
+  const [dayType, setDayType] = useState<string>("workday");
 
   /* ── Derived ── */
   const workSummary = useMemo(
@@ -290,8 +314,8 @@ export default function DashboardUI({ userName, userEmail, userId, userRole }: D
       const { data } = await supabase
         .from("daily_time_logs")
         .select(
-          "first_check_in, last_check_out, work_type, timeline_events, ot_hours, auto_checked_out, ot_intent",
-        )
+  "first_check_in, last_check_out, work_type, timeline_events, ot_hours, auto_checked_out, ot_intent, shift_type, dayoff_credit, holiday_name, pay_multiplier, day_type"
+)
         .eq("user_id", userId)
         .eq("log_date", today)
         .maybeSingle();
@@ -299,20 +323,20 @@ export default function DashboardUI({ userName, userEmail, userId, userRole }: D
       if (data) {
         // ✅ เช็ค auto_checked_out ก่อนเลย (ต้องอยู่ในนี้)
         if (data.auto_checked_out && !data.ot_hours) {
-  const events: { event: string; timestamp: string }[] =
-    data.timeline_events ?? [];
-  const hasOtStart = events.some((e) => e.event === "ot_start");
+          const events: { event: string; timestamp: string }[] =
+            data.timeline_events ?? [];
+          const hasOtStart = events.some((e) => e.event === "ot_start");
 
-  if (!hasOtStart) {
-    // ยังไม่ได้กด Start OT เลย → Completed ปกติ
-    setWorkStatus("completed");
-    setRawCheckIn(data.first_check_in);
-    setRawCheckOut(data.last_check_out);
-    setIsInitializing(false);
-    return;
-  }
-  // มี ot_start อยู่ใน timeline → ไหลต่อให้ lastEvent logic จัดการ ✅
-}
+          if (!hasOtStart) {
+            // ยังไม่ได้กด Start OT เลย → Completed ปกติ
+            setWorkStatus("completed");
+            setRawCheckIn(data.first_check_in);
+            setRawCheckOut(data.last_check_out);
+            setIsInitializing(false);
+            return;
+          }
+          // มี ot_start อยู่ใน timeline → ไหลต่อให้ lastEvent logic จัดการ ✅
+        }
 
         if (data.first_check_in) {
           setRawCheckIn(data.first_check_in);
@@ -332,6 +356,12 @@ export default function DashboardUI({ userName, userEmail, userId, userRole }: D
             }),
           );
         }
+        
+        if (data.shift_type) setShiftType(data.shift_type as "regular" | "holiday");
+        if (data.dayoff_credit) setDayoffCredit(data.dayoff_credit as "pending" | "earned" | "forfeited");
+        if (data.holiday_name) setHolidayName(data.holiday_name);
+        if (data.pay_multiplier) setPayMultiplier(data.pay_multiplier);
+        if (data.day_type) setDayType(data.day_type as string);
 
         if (data.timeline_events && data.timeline_events.length > 0) {
           const otStartEvent = data.timeline_events.find(
@@ -396,41 +426,39 @@ export default function DashboardUI({ userName, userEmail, userId, userRole }: D
           filter: `user_id=eq.${userId}`,
         },
         (payload) => {
-  const row = payload.new as any;
-  if (row.log_date !== today) return;
+          const row = payload.new as any;
+          if (row.log_date !== today) return;
 
-  // ── ตรวจ timeline_events ล่าสุดก่อนเสมอ ────────────────────────────
-  const events: any[] = row.timeline_events ?? [];
-  if (events.length === 0) return;
-  const lastEvent = events[events.length - 1];
+          // ── ตรวจ timeline_events ล่าสุดก่อนเสมอ ────────────────────────────
+          const events: any[] = row.timeline_events ?? [];
+          if (events.length === 0) return;
+          const lastEvent = events[events.length - 1];
 
-  // ถ้า user เพิ่ง Start OT หรือ End OT → ไม่ต้อง override
-  // (handleStartOT / handleEndOT จัดการ state ไปแล้วใน optimistic update)
-  if (
-    lastEvent.event === "ot_start" ||
-    lastEvent.event === "ot_end"
-  ) return;
+          // ถ้า user เพิ่ง Start OT หรือ End OT → ไม่ต้อง override
+          // (handleStartOT / handleEndOT จัดการ state ไปแล้วใน optimistic update)
+          if (lastEvent.event === "ot_start" || lastEvent.event === "ot_end")
+            return;
 
-  // เฉพาะ auto_checkout จาก Cron เท่านั้นที่ให้ override UI
-  if (
-    lastEvent.event === "auto_checkout" &&
-    row.auto_checked_out &&
-    row.last_check_out
-  ) {
-    // ✅ เพิ่ม: ถ้ากำลัง OT อยู่ → ไม่ override
-    const hasOtStart = events.some((e: any) => e.event === "ot_start");
-    if (hasOtStart) return;
+          // เฉพาะ auto_checkout จาก Cron เท่านั้นที่ให้ override UI
+          if (
+            lastEvent.event === "auto_checkout" &&
+            row.auto_checked_out &&
+            row.last_check_out
+          ) {
+            // ✅ เพิ่ม: ถ้ากำลัง OT อยู่ → ไม่ override
+            const hasOtStart = events.some((e: any) => e.event === "ot_start");
+            if (hasOtStart) return;
 
-    setRawCheckOut(row.last_check_out);
-    setCheckOutTime(
-      new Date(row.last_check_out).toLocaleTimeString("th-TH", {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-    );
-    setWorkStatus("completed");
-  }
-},
+            setRawCheckOut(row.last_check_out);
+            setCheckOutTime(
+              new Date(row.last_check_out).toLocaleTimeString("th-TH", {
+                hour: "2-digit",
+                minute: "2-digit",
+              }),
+            );
+            setWorkStatus("completed");
+          }
+        },
       )
       .subscribe();
 
@@ -470,42 +498,42 @@ export default function DashboardUI({ userName, userEmail, userId, userRole }: D
   }, [workType, locationStatus]);
 
   // ── OT Location guard (one-time GPS check) ── เพิ่มใหม่ ──────────────────
-const validateLocationForOT = useCallback((): Promise<boolean> => {
-  return new Promise((resolve) => {
-    // on_site ไม่ต้องตรวจรัศมีโรงงาน
-    if (workType !== "in_factory") {
-      resolve(true);
-      return;
-    }
-    if (!navigator.geolocation) {
-      resolve(true); // fallback: อนุญาตถ้าไม่มี GPS
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      ({ coords: { latitude, longitude } }) => {
-        const dist = calculateDistance(
-          FACTORY_LAT,
-          FACTORY_LNG,
-          latitude,
-          longitude,
-        );
-        if (dist <= ALLOWED_RADIUS_METERS) {
-          resolve(true);
-        } else {
-          alert(
-            `ไม่สามารถบันทึก OT ได้\nคุณอยู่นอกพื้นที่โรงงาน (${Math.round(dist)} ม.)\nกรุณาเข้ามาในพื้นที่ก่อน`,
-          );
-          resolve(false);
-        }
-      },
-      () => {
-        // GPS error → อนุญาต (graceful degradation)
+  const validateLocationForOT = useCallback((): Promise<boolean> => {
+    return new Promise((resolve) => {
+      // on_site ไม่ต้องตรวจรัศมีโรงงาน
+      if (workType !== "in_factory") {
         resolve(true);
-      },
-      { timeout: 10_000, maximumAge: 30_000 },
-    );
-  });
-}, [workType]);
+        return;
+      }
+      if (!navigator.geolocation) {
+        resolve(true); // fallback: อนุญาตถ้าไม่มี GPS
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        ({ coords: { latitude, longitude } }) => {
+          const dist = calculateDistance(
+            FACTORY_LAT,
+            FACTORY_LNG,
+            latitude,
+            longitude,
+          );
+          if (dist <= ALLOWED_RADIUS_METERS) {
+            resolve(true);
+          } else {
+            alert(
+              `ไม่สามารถบันทึก OT ได้\nคุณอยู่นอกพื้นที่โรงงาน (${Math.round(dist)} ม.)\nกรุณาเข้ามาในพื้นที่ก่อน`,
+            );
+            resolve(false);
+          }
+        },
+        () => {
+          // GPS error → อนุญาต (graceful degradation)
+          resolve(true);
+        },
+        { timeout: 10_000, maximumAge: 30_000 },
+      );
+    });
+  }, [workType]);
 
   // ── Push event helper ─────────────────────────────────────────────────────
   const pushEvent = async (
@@ -535,7 +563,12 @@ const validateLocationForOT = useCallback((): Promise<boolean> => {
     const today = getLocalToday();
 
     // ── ใหม่: ดึงข้อมูลวันว่าเป็นวันอะไร ──
-    const { dayType, payMultiplier, holidayName } = await getDayInfo(today);
+    const { dayType: dt, payMultiplier: pm, holidayName: hn } = await getDayInfo(today);
+
+
+    setDayType(dt);
+    setPayMultiplier(pm);
+    setHolidayName(hn);
 
     const newEvent = {
       event: workType === "in_factory" ? "arrive_factory" : "arrive_site",
@@ -563,113 +596,170 @@ const validateLocationForOT = useCallback((): Promise<boolean> => {
       const attendanceStatus = calcAttendanceStatus(now);
 
       await supabase.from("daily_time_logs").insert([
-        {
-          user_id: userId,
-          log_date: today,
-          work_type: workType,
-          first_check_in: now,
-          timeline_events: [newEvent],
-          day_type: dayType,
-          pay_multiplier: payMultiplier,
-          holiday_name: holidayName,
-          status: attendanceStatus, // ✅ เพิ่มบรรทัดนี้
-        },
-      ]);
+  {
+    user_id: userId,
+    log_date: today,
+    work_type: workType,
+    first_check_in: now,
+    timeline_events: [newEvent],
+    day_type: dt,          // ← เปลี่ยน
+    pay_multiplier: pm,    // ← เปลี่ยน
+    holiday_name: hn,      // ← เปลี่ยน
+    status: attendanceStatus,
+  },
+]);
       setRawCheckIn(now);
     }
 
     setWorkStatus("working");
     setIsSubmitting(false);
     setShowReportPopup(true);
-  }; 
+  };
 
   const handleQRCheckInSuccess = async (checkInIsoTime: string) => {
-  setShowQRScanner(false);
-  setScanKey(k => k + 1); // ← force remount ครั้งถัดไป
-  setRawCheckIn(checkInIsoTime);
-  setCheckInTime(
-    new Date(checkInIsoTime).toLocaleTimeString("th-TH", {
-      hour: "2-digit",
-      minute: "2-digit",
-    })
-  );
-  setWorkStatus("working");
-  setShowReportPopup(true);
-};
-  
-  const handleCheckOut = async () => {
-    if (!userId || !validateLocation()) return;
-    setIsSubmitting(true);
-    const now   = new Date().toISOString();
-    const today = getLocalToday();
+    setShowQRScanner(false);
+    setScanKey((k) => k + 1); // ← force remount ครั้งถัดไป
+    setRawCheckIn(checkInIsoTime);
+    setCheckInTime(
+      new Date(checkInIsoTime).toLocaleTimeString("th-TH", {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+    );
+    setWorkStatus("working");
+    setShowReportPopup(true);
+  };
 
-    const { data: log } = await supabase
+  const handleCheckOut = async () => {
+  if (!userId) return;
+
+  const locationOk = await validateLocationForOT();
+  if (!locationOk) return;
+
+  const now   = new Date().toISOString();
+  const today = getLocalToday();
+
+  const { data: log } = await supabase
+    .from("daily_time_logs")
+    .select("timeline_events, shift_type, first_check_in")
+    .eq("user_id", userId)
+    .eq("log_date", today)
+    .maybeSingle();
+
+  // ✅ ใช้ shiftType state เป็นหลัก (ครอบคลุมทั้ง Dev Tools และ real DB)
+  // log?.shift_type อาจเป็น "regular" ถ้า Dev Tools force หรือยังไม่มี record
+  const effectiveShiftType = shiftType === "holiday" ? "holiday" : (log?.shift_type ?? "regular");
+
+  // ✅ rawCheckIn ครอบคลุมกรณี Dev Tools ที่ไม่มี log?.first_check_in
+  const effectiveCheckIn = log?.first_check_in ?? rawCheckIn;
+
+  if (effectiveShiftType === "holiday" && effectiveCheckIn) {
+    const netHours =
+      (new Date(now).getTime() - new Date(effectiveCheckIn).getTime()) /
+        3_600_000 - 1;
+
+    if (netHours >= 8) {
+      setPendingCheckoutIso(now);
+      setShowHolidayCheckout(true);
+      return; // ← หยุดรอ popup
+    }
+  }
+
+  await _doCheckOut(now, log);
+};
+
+  // ── Internal: execute checkout with optional dayoff_credit ───────────────
+  const _doCheckOut = async (
+    checkoutIso: string,
+    log: { timeline_events?: unknown; shift_type?: string; first_check_in?: string } | null,
+    claimDayoff?: boolean,
+  ) => {
+    setIsSubmitting(true);
+    const today = getLocalToday();
+ 
+    const fetchedLog = log ?? (await supabase
       .from("daily_time_logs")
       .select("timeline_events, shift_type, first_check_in")
       .eq("user_id", userId)
       .eq("log_date", today)
-      .maybeSingle();
-
+      .maybeSingle()
+      .then(r => r.data));
+ 
     const timeline = [
-      ...(log?.timeline_events ?? []),
-      { event: "checkout", timestamp: now, note: "เลิกงาน" },
+      ...((fetchedLog?.timeline_events as unknown[]) ?? []),
+      { event: "checkout", timestamp: checkoutIso, note: "เลิกงาน" },
     ];
-
-    const extraUpdate: Record<string, unknown> = { last_check_out: now };
-
-    if (log?.shift_type === "holiday" && log?.first_check_in) {
+ 
+    const extraUpdate: Record<string, unknown> = { last_check_out: checkoutIso };
+ 
+    if ((fetchedLog?.shift_type ?? shiftType) === "holiday" && fetchedLog?.first_check_in) {
       const netHours =
-        (new Date(now).getTime() - new Date(log.first_check_in).getTime()) /
+        (new Date(checkoutIso).getTime() - new Date(fetchedLog.first_check_in).getTime()) /
           3_600_000 -
-        1; // หัก break 1 ชั่วโมง
-      extraUpdate.dayoff_credit = netHours >= 8 ? "earned" : "forfeited";
+        1;
+      // claimDayoff = undefined → ไม่ครบ → forfeited
+      // claimDayoff = true  → ครบ + user ยืนยัน → earned
+      // claimDayoff = false → ครบ + user ไม่ต้องการ → forfeited
+      extraUpdate.dayoff_credit =
+        claimDayoff === true ? "earned" : "forfeited";
     }
-
-    const { error } = await supabase
+ 
+    await supabase
       .from("daily_time_logs")
-      .update({ timeline_events: timeline, ...extraUpdate })
+      .update({
+        ...extraUpdate,
+        timeline_events: timeline,
+      })
       .eq("user_id", userId)
       .eq("log_date", today);
-
+ 
+    setRawCheckOut(checkoutIso);
+    setCheckOutTime(
+      new Date(checkoutIso).toLocaleTimeString("th-TH", {
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    );
+    setWorkStatus("completed");
+    setIsSubmitting(false);
+    setPendingCheckoutIso(null);
+    setShowHolidayCheckout(false);
+    if (claimDayoff === true) setDayoffCredit("earned");
+    else if (shiftType === "holiday") setDayoffCredit("forfeited");
+  };
+  
+  const handleStartOT = async () => {
+    if (!userId || isSubmitting) return;
+    const locationOk = await validateLocationForOT();
+    if (!locationOk) return;
+    setIsSubmitting(true);
+    const now = new Date().toISOString();
+    const { error } = await pushEvent({ event: "ot_start", timestamp: now });
     if (!error) {
-      setRawCheckOut(now);
-      setWorkStatus("completed");
+      setRawOtStart(now);
+      setOtElapsed("00:00:00");
+      setWorkStatus("ot_working");
     }
     setIsSubmitting(false);
   };
 
-  const handleStartOT = async () => {
-  if (!userId || isSubmitting) return;
-  const locationOk = await validateLocationForOT();
-  if (!locationOk) return;
-  setIsSubmitting(true);
-  const now = new Date().toISOString();
-  const { error } = await pushEvent({ event: "ot_start", timestamp: now });
-  if (!error) {
-    setRawOtStart(now);
-    setOtElapsed("00:00:00");
-    setWorkStatus("ot_working");
-  }
-  setIsSubmitting(false);
-};
-
-const handleEndOT = async () => {
-  if (!userId || isSubmitting) return;
-  const locationOk = await validateLocationForOT();
-  if (!locationOk) return;
-  setIsSubmitting(true);
-  const now = new Date().toISOString();
-  const hrs = calcOtHours(rawOtStart, now);
-  const { error } = await pushEvent(
-    { event: "ot_end", timestamp: now },
-    { ot_hours: hrs },
-  );
-  if (!error) {
-    setRawOtEnd(now);
-    setWorkStatus("ot_completed");
-  }
-  setIsSubmitting(false);
-};
+  const handleEndOT = async () => {
+    if (!userId || isSubmitting) return;
+    const locationOk = await validateLocationForOT();
+    if (!locationOk) return;
+    setIsSubmitting(true);
+    const now = new Date().toISOString();
+    const hrs = calcOtHours(rawOtStart, now);
+    const { error } = await pushEvent(
+      { event: "ot_end", timestamp: now },
+      { ot_hours: hrs },
+    );
+    if (!error) {
+      setRawOtEnd(now);
+      setWorkStatus("ot_completed");
+    }
+    setIsSubmitting(false);
+  };
 
   // ── Shared spinner ────────────────────────────────────────────────────────
   const Spinner = () => (
@@ -701,20 +791,19 @@ const handleEndOT = async () => {
   return (
     <main className="p-4 md:p-6 pb-24 space-y-6 w-full">
       {/* ── 1. HEADER ──────────────────────────────────────────────────────── */}
-<div className="flex justify-between items-center relative gap-4">
-  <div className="overflow-hidden">
-    <p className="text-gray-500">TimeTracker System</p>
-    <h2 className="text-xl md:text-2xl font-bold truncate text-sky-700">
-      {userName || userEmail || "ผู้ใช้งาน"}
-    </h2>
-  </div>
+      <div className="flex justify-between items-center relative gap-4">
+        <div className="overflow-hidden">
+          <p className="text-gray-500">TimeTracker System</p>
+          <h2 className="text-xl md:text-2xl font-bold truncate text-sky-700">
+            {userName || userEmail || "ผู้ใช้งาน"}
+          </h2>
+        </div>
 
-  {/* ← เพิ่มตรงนี้ */}
-  <div className="flex-shrink-0">
-    <ChangelogBellButton />
-  </div>
-
-</div>
+        {/* ← เพิ่มตรงนี้ */}
+        <div className="flex-shrink-0">
+          <ChangelogBellButton />
+        </div>
+      </div>
 
       {/* ── 2. ACTION BUTTON CARD ───────────────────────────────────────────── */}
       <div className="card text-center bg-white p-6 rounded-2xl shadow-sm border border-gray-100 min-h-[380px]">
@@ -797,42 +886,54 @@ const handleEndOT = async () => {
         )}
 
         {/* WORKING → Check Out */}
-        {workStatus === "working" && (
-          <button
-            onClick={handleCheckOut}
-            disabled={isSubmitting || isInitializing} // ← เพิ่ม isInitializing
-            className={`w-48 h-48 rounded-full flex flex-col items-center justify-center mx-auto shadow-lg transition-all duration-300
-      ${
-        isSubmitting
-          ? "bg-rose-400 text-white opacity-80 cursor-wait"
-          : isInitializing
-            ? "bg-rose-300 text-white cursor-wait" // ← สีอ่อนกว่า ระหว่าง sync
-            : "bg-rose-400 text-white hover:bg-rose-500 active:scale-95"
-      }
-    `}
+{workStatus === "working" && (
+  <div className="flex flex-col items-center">
+    <button
+      onClick={handleCheckOut}
+      disabled={isSubmitting || isInitializing}
+      className={`w-48 h-48 rounded-full flex flex-col items-center justify-center mx-auto shadow-lg transition-all duration-300
+        ${
+          isSubmitting
+            ? "bg-rose-400 text-white opacity-80 cursor-wait"
+            : isInitializing
+              ? "bg-rose-300 text-white cursor-wait"
+              : "bg-rose-400 text-white hover:bg-rose-500 active:scale-95"
+        }
+      `}
+    >
+      {isSubmitting ? (
+        <Spinner />
+      ) : (
+        <>
+          <svg
+            className="w-16 h-16"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
           >
-            {isSubmitting ? (
-              <Spinner />
-            ) : (
-              <>
-                <svg
-                  className="w-16 h-16"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-                  />
-                </svg>
-                <span className="text-2xl font-semibold mt-2">Check Out</span>
-              </>
-            )}
-          </button>
-        )}
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+            />
+          </svg>
+          <span className="text-2xl font-semibold mt-2">Check Out</span>
+        </>
+      )}
+    </button>
+
+    {/* ── Holiday Progress Card — แสดงเฉพาะ holiday shift ── */}
+   {shiftType === "holiday" && rawCheckIn && (
+  <HolidayProgressCard
+    checkInIso={rawCheckIn}
+    holidayName={holidayName}
+    dayType={dayType}
+    payMultiplier={payMultiplier}
+  />
+)}
+  </div>
+)}
 
         {/* COMPLETED → ✅ + Start OT button */}
         {workStatus === "completed" && (
@@ -1025,30 +1126,44 @@ const handleEndOT = async () => {
         {/* Location Status — แสดงเฉพาะ on_site เท่านั้น */}
         {workType !== "in_factory" && (
           <div className="mt-4 pt-4 border-t border-gray-100">
-            <div className={`flex items-center gap-2 p-3 rounded-xl text-sm
-              ${locationStatus === "in_range"
-                ? "bg-emerald-50 text-emerald-700"
-                : locationStatus === "out_of_range"
-                  ? "bg-red-50 text-red-700"
-                  : locationStatus === "error"
-                    ? "bg-orange-50 text-orange-700"
-                    : "bg-gray-100 text-gray-500"
+            <div
+              className={`flex items-center gap-2 p-3 rounded-xl text-sm
+              ${
+                locationStatus === "in_range"
+                  ? "bg-emerald-50 text-emerald-700"
+                  : locationStatus === "out_of_range"
+                    ? "bg-red-50 text-red-700"
+                    : locationStatus === "error"
+                      ? "bg-orange-50 text-orange-700"
+                      : "bg-gray-100 text-gray-500"
               }`}
             >
-              <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
-                  d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
-                  d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+              <svg
+                className="w-4 h-4 flex-shrink-0"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                />
               </svg>
               <span className="text-xs font-medium">{distanceText}</span>
             </div>
           </div>
         )}
-
       </div>
 
-     {/* ── 4. DAILY SUMMARY CARD ───────────────────────────────────────────── */}
+      {/* ── 4. DAILY SUMMARY CARD ───────────────────────────────────────────── */}
       <div className="card bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
         <h3 className="font-semibold mb-4 text-gray-800">Daily Summary</h3>
         <div className="space-y-4 text-sm">
@@ -1134,7 +1249,7 @@ const handleEndOT = async () => {
           )}
         </div>
       </div>
-      
+
       {/* ── 5. WEEKLY SUMMARY CHART ─────────────────────────────────────────── */}
       <WeeklyChart userId={userId} />
 
@@ -1205,39 +1320,83 @@ const handleEndOT = async () => {
       )}
 
       {showQRScanner && (
-  <QRScannerModal
-    key={scanKey}        // ← ทุกครั้งที่ key เปลี่ยน = component ใหม่ทั้งหมด
-    onSuccess={handleQRCheckInSuccess}
-    onClose={() => {
-      setShowQRScanner(false);
-      setScanKey(k => k + 1); // ← force remount ตอนปิดด้วย
-    }}
-  />
-)}
-
-      {process.env.NEXT_PUBLIC_ENABLE_DEV_TOOLS === "true" && userRole === "admin" && (
-        <div className="fixed bottom-28 right-3 z-50 flex flex-col gap-2 items-end">
-          <button
-            onClick={() => setOtTimeReady(true)}
-            className="flex items-center gap-1.5 bg-purple-500 text-white text-xs font-bold px-3 py-2 rounded-xl shadow-lg opacity-80 active:scale-95"
-          >
-            🧪 Force OT Ready
-          </button>
-          <button
-            onClick={() => setWorkStatus("completed")}
-            className="flex items-center gap-1.5 bg-emerald-500 text-white text-xs font-bold px-3 py-2 rounded-xl shadow-lg opacity-80 active:scale-95"
-          >
-            ✅ Force Completed
-          </button>
-          <button
-            onClick={() => { setWorkStatus("idle"); setOtTimeReady(false); }}
-            className="flex items-center gap-1.5 bg-gray-500 text-white text-xs font-bold px-3 py-2 rounded-xl shadow-lg opacity-80 active:scale-95"
-          >
-            🔄 Reset
-          </button>
-        </div>
+        <QRScannerModal
+          key={scanKey} // ← ทุกครั้งที่ key เปลี่ยน = component ใหม่ทั้งหมด
+          onSuccess={handleQRCheckInSuccess}
+          onClose={() => {
+            setShowQRScanner(false);
+            setScanKey((k) => k + 1); // ← force remount ตอนปิดด้วย
+          }}
+        />
       )}
 
+      {process.env.NEXT_PUBLIC_ENABLE_DEV_TOOLS === "true" &&
+        userRole === "admin" && (
+          <div className="fixed bottom-28 right-3 z-50 flex flex-col gap-2 items-end">
+            <button
+              onClick={() => setOtTimeReady(true)}
+              className="flex items-center gap-1.5 bg-purple-500 text-white text-xs font-bold px-3 py-2 rounded-xl shadow-lg opacity-80 active:scale-95"
+            >
+              🧪 Force OT Ready
+            </button>
+            <button
+              onClick={() => setWorkStatus("completed")}
+              className="flex items-center gap-1.5 bg-emerald-500 text-white text-xs font-bold px-3 py-2 rounded-xl shadow-lg opacity-80 active:scale-95"
+            >
+              ✅ Force Completed
+            </button>
+            <button
+              onClick={() => {
+                setWorkStatus("idle");
+                setOtTimeReady(false);
+              }}
+              className="flex items-center gap-1.5 bg-gray-500 text-white text-xs font-bold px-3 py-2 rounded-xl shadow-lg opacity-80 active:scale-95"
+            >
+              🔄 Reset
+            </button>
+
+            <button
+      onClick={() => {
+        setShiftType("holiday");
+        setHolidayName("วันหยุดทดสอบ");
+        setPayMultiplier(2.0);
+        setWorkStatus("working");
+        setRawCheckIn(new Date(Date.now() - 9.5 * 3600 * 1000).toISOString()); // check-in 8.5 ชม.ที่แล้ว → ครบแล้ว
+      }}
+      className="flex items-center gap-1.5 bg-amber-500 text-white text-xs font-bold px-3 py-2 rounded-xl shadow-lg opacity-80 active:scale-95"
+    >
+      🎌 Force Holiday (ครบ)
+    </button>
+    <button
+      onClick={() => {
+        setShiftType("holiday");
+        setHolidayName("วันหยุดทดสอบ");
+        setPayMultiplier(2.0);
+        setWorkStatus("working");
+        setRawCheckIn(new Date(Date.now() - 3 * 3600 * 1000).toISOString()); // check-in 3 ชม.ที่แล้ว → ยังไม่ครบ
+      }}
+      className="flex items-center gap-1.5 bg-orange-400 text-white text-xs font-bold px-3 py-2 rounded-xl shadow-lg opacity-80 active:scale-95"
+    >
+      🎌 Force Holiday (ไม่ครบ)
+    </button>
+
+          </div>
+        )}
+
+        {showHolidayCheckout && pendingCheckoutIso && rawCheckIn && (
+        <HolidayCheckoutModal
+          isOpen={showHolidayCheckout}
+          checkInIso={rawCheckIn}
+          checkOutIso={pendingCheckoutIso}
+          holidayName={holidayName}
+          onClaim={() => _doCheckOut(pendingCheckoutIso, null, true)}
+          onSkip={() => _doCheckOut(pendingCheckoutIso, null, false)}
+          onClose={() => {
+            setShowHolidayCheckout(false);
+            setPendingCheckoutIso(null);
+          }}
+        />
+      )}
     </main>
   );
 }
