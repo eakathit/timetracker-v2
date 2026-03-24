@@ -2,6 +2,8 @@
 
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { createBrowserClient } from "@supabase/ssr";
+import type { LeaveBalanceWithPolicy } from "@/types/leave";
+import { LEAVE_TYPE_CONFIG } from "@/types/leave";
 
 // ─── Supabase Client (Browser) ────────────────────────────────────────────────
 function useSupabase() {
@@ -50,13 +52,6 @@ const MONTHS_TH = [
 ];
 const DAYS_SHORT = ["อา","จ","อ","พ","พฤ","ศ","ส"];
 
-const LEAVE_TYPE: Record<string, { label: string; color: string; bg: string }> = {
-  sick:      { label: "ลาป่วย",     color: "text-rose-600",   bg: "bg-rose-50 border-rose-200" },
-  annual:    { label: "ลาพักร้อน", color: "text-violet-600", bg: "bg-violet-50 border-violet-200" },
-  personal:  { label: "ลากิจ",      color: "text-amber-600",  bg: "bg-amber-50 border-amber-200" },
-  emergency: { label: "ลาฉุกเฉิน", color: "text-orange-600", bg: "bg-orange-50 border-orange-200" },
-};
-
 const DEPARTMENTS = [
   "Mechanic",
   "HR",
@@ -65,13 +60,13 @@ const DEPARTMENTS = [
   "Accounting",
 ];
 
-// Mock leave quota (ยังไม่มีตาราง leave quota ใน DB)
-const LEAVE_QUOTA_MOCK = [
-  { type: "sick",      used: 3, quota: 30, pending: 1 },
-  { type: "annual",   used: 2, quota: 10, pending: 0 },
-  { type: "personal", used: 2, quota: 3,  pending: 0 },
-  { type: "emergency",used: 0, quota: 3,  pending: 0 },
-];
+const LEAVE_BAR_COLOR: Record<string, string> = {
+  vacation:         "bg-violet-400",
+  sick:             "bg-rose-400",
+  personal:         "bg-amber-400",
+  special_personal: "bg-sky-400",
+  other:            "bg-gray-400",
+};
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 /** แปลง ISO timestamp → "HH:mm" ตาม local timezone */
@@ -367,69 +362,120 @@ function ListView({ logs }: { logs: DayLog[] }) {
 }
 
 // ─── Leave Quota Section ──────────────────────────────────────────────────────
-function LeaveQuotaSection() {
-  const BAR_COLORS = ["bg-rose-400", "bg-violet-400", "bg-amber-400", "bg-orange-400"];
-  const totalUsed  = LEAVE_QUOTA_MOCK.reduce((s, i) => s + i.used, 0);
-  const totalQuota = LEAVE_QUOTA_MOCK.reduce((s, i) => s + i.quota, 0);
-  const totalPct   = pct(totalUsed, totalQuota);
+function LeaveQuotaSection({ userId }: { userId: string }) {
+  const supabase = useSupabase();
+  const [balances, setBalances] = useState<LeaveBalanceWithPolicy[]>([]);
+  const [loading, setLoading]   = useState(true);
+  const currentYear = new Date().getFullYear();
+
+  // จัดลำดับ: vacation → sick → personal → special_personal → other
+  const ORDER = ["vacation", "sick", "personal", "special_personal", "other"];
+
+  useEffect(() => {
+    if (!userId) return;
+    supabase
+      .from("leave_balances_with_policy")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("year", currentYear)
+      .then(({ data }) => {
+        if (data) {
+          const sorted = [...(data as LeaveBalanceWithPolicy[])].sort(
+            (a, b) => ORDER.indexOf(a.leave_type) - ORDER.indexOf(b.leave_type)
+          );
+          setBalances(sorted);
+        }
+        setLoading(false);
+      });
+  }, [userId]);
+
+  const totalUsed  = balances.reduce((s, b) => s + Number(b.used_days), 0);
+  const totalTotal = balances.reduce((s, b) => s + Number(b.total_days), 0);
+  const totalPct   = totalTotal > 0 ? Math.round((totalUsed / totalTotal) * 100) : 0;
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      {/* header */}
       <div className="px-5 py-4 border-b border-gray-50">
-        <div className="flex items-center justify-between gap-2">
-          <h3 className="text-sm font-bold text-gray-700">สิทธิ์วันลา</h3>
-          <span className="text-[9px] font-black tracking-wider uppercase bg-amber-100 text-amber-600 border border-amber-200 px-2 py-0.5 rounded-lg flex-shrink-0">
-            Coming Soon
-          </span>
-        </div>
-        <p className="text-xs text-gray-400 mt-0.5">ใช้ไป {totalUsed} / {totalQuota} วัน ({totalPct}%)</p>
+        <h3 className="text-sm font-bold text-gray-700">สิทธิ์วันลา</h3>
+        {loading
+          ? <div className="h-3 w-36 bg-gray-100 rounded-full animate-pulse mt-1" />
+          : <p className="text-xs text-gray-400 mt-0.5">
+              ใช้ไป {totalUsed} / {totalTotal} วัน ({totalPct}%)
+            </p>
+        }
       </div>
-      {/* Mock data notice */}
-      <div className="mx-5 mt-4 px-3 py-2 rounded-xl bg-amber-50 border border-amber-100 flex items-center gap-2">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-amber-500 flex-shrink-0">
-          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-        </svg>
-        <p className="text-[11px] text-amber-600 font-medium">ข้อมูลนี้เป็นข้อมูลจำลอง · ฟีเจอร์อยู่ระหว่างพัฒนา</p>
-      </div>
-      <div className="p-5 space-y-4 opacity-50">
-        {LEAVE_QUOTA_MOCK.map((item, i) => {
-          const cfg = LEAVE_TYPE[item.type];
-          const w   = pct(item.used, item.quota);
-          return (
-            <div key={item.type}>
-              <div className="flex justify-between items-center mb-1.5">
-                <span className={`text-xs font-bold ${cfg.color}`}>{cfg.label}</span>
-                <div className="flex items-center gap-2">
-                  {item.pending > 0 && (
-                    <span className="text-[10px] bg-amber-50 text-amber-600 border border-amber-200 px-1.5 py-0.5 rounded-full font-bold">
-                      รอ {item.pending}
-                    </span>
-                  )}
-                  <span className="text-[10px] text-gray-400 font-medium">
-                    {item.used}/{item.quota} วัน
-                  </span>
-                </div>
+
+      <div className="p-5 space-y-4">
+        {loading ? (
+          [...Array(5)].map((_, i) => (
+            <div key={i} className="space-y-1.5">
+              <div className="flex justify-between">
+                <div className="h-3 w-20 bg-gray-100 rounded-full animate-pulse" />
+                <div className="h-3 w-14 bg-gray-100 rounded-full animate-pulse" />
               </div>
-              <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                <div
-                  className={`h-full rounded-full ${BAR_COLORS[i]} transition-all duration-700`}
-                  style={{ width: `${w}%` }}
-                />
-              </div>
+              <div className="h-2 bg-gray-100 rounded-full animate-pulse" />
             </div>
-          );
-        })}
-        <div className="flex items-center gap-3 mt-2 flex-wrap">
-          {LEAVE_QUOTA_MOCK.map((item, i) => {
-            const cfg = LEAVE_TYPE[item.type];
-            return (
-              <div key={item.type} className="flex items-center gap-1">
-                <div className={`w-2 h-2 rounded-full ${BAR_COLORS[i]}`} />
-                <span className="text-[10px] text-gray-400">{cfg.label}</span>
-              </div>
-            );
-          })}
-        </div>
+          ))
+        ) : balances.length === 0 ? (
+          <p className="text-xs text-gray-400 text-center py-4">ไม่พบข้อมูลสิทธิ์วันลา</p>
+        ) : (
+          <>
+            {balances.map((b) => {
+              const cfg      = LEAVE_TYPE_CONFIG[b.leave_type as keyof typeof LEAVE_TYPE_CONFIG];
+              const barColor = LEAVE_BAR_COLOR[b.leave_type] ?? "bg-gray-400";
+              const usedPct  = Number(b.used_pct);
+
+              return (
+                <div key={b.id}>
+                  <div className="flex justify-between items-center mb-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className={`text-xs font-bold ${cfg?.color ?? "text-gray-600"}`}>
+                        {b.label_th}
+                      </span>
+                      {Number(b.carried_over_days) > 0 && (
+                        <span className="text-[9px] font-bold bg-violet-50 text-violet-600 border border-violet-200 px-1.5 py-0.5 rounded-full">
+                          +{b.carried_over_days} ยกยอด
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {Number(b.pending_days) > 0 && (
+                        <span className="text-[9px] font-bold bg-amber-50 text-amber-600 border border-amber-200 px-1.5 py-0.5 rounded-full">
+                          รอ {b.pending_days}
+                        </span>
+                      )}
+                      <span className="text-[10px] text-gray-400 font-medium">
+                        {b.used_days}/{b.total_days} วัน
+                      </span>
+                    </div>
+                  </div>
+                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-700 ${
+                        usedPct >= 100 ? "bg-rose-400" : barColor
+                      }`}
+                      style={{ width: `${Math.min(usedPct, 100)}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* legend */}
+            <div className="flex items-center gap-3 mt-2 flex-wrap">
+              {balances.map((b) => {
+                const barColor = LEAVE_BAR_COLOR[b.leave_type] ?? "bg-gray-400";
+                return (
+                  <div key={b.leave_type} className="flex items-center gap-1">
+                    <div className={`w-2 h-2 rounded-full ${barColor}`} />
+                    <span className="text-[10px] text-gray-400">{b.label_th}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
@@ -689,8 +735,6 @@ const fetchMonthLogs = useCallback(async () => {
     ? Math.round((reportSent.length / reportTotal.length) * 100)
     : 0;
 
-  const totalLeaveRemaining = LEAVE_QUOTA_MOCK.reduce((s, i) => s + (i.quota - i.used), 0);
-
   // ─── Render ───────────────────────────────────────────────────────────────────
   return (
     <main className="min-h-screen bg-gray-50 pb-28 md:pb-10">
@@ -942,7 +986,7 @@ const fetchMonthLogs = useCallback(async () => {
             </div>
 
             {/* Leave Quota */}
-            <LeaveQuotaSection />
+            <LeaveQuotaSection userId={userId ?? ""} />
 
           </div>
         </div>

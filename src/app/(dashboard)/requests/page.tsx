@@ -77,11 +77,13 @@ const STATUS_CFG: Record<ReqStatus, { label: string; bg: string; border: string;
   rejected: { label: "ไม่อนุมัติ",  bg: "bg-rose-50",   border: "border-rose-200",   bar: "bg-rose-400",   text: "text-rose-500" },
 };
 
-const LEAVE_CFG: Record<LeaveType, { label: string; icon: string; bg: string; text: string }> = {
-  sick:      { label: "ลาป่วย",    icon: "🤒", bg: "bg-rose-50",  text: "text-rose-500" },
-  personal:  { label: "ลากิจ",    icon: "📋", bg: "bg-blue-50",  text: "text-blue-500" },
-  vacation:  { label: "ลาพักร้อน", icon: "🌴", bg: "bg-sky-50",   text: "text-sky-500" },
-  maternity: { label: "ลาคลอด",   icon: "👶", bg: "bg-pink-50",  text: "text-pink-500" },
+const LEAVE_CFG: Record<string, { label: string; icon: string; bg: string; text: string }> = {
+  sick:             { label: "ลาป่วย",     icon: "🤒", bg: "bg-rose-50",    text: "text-rose-500"   },
+  personal:         { label: "ลากิจ",      icon: "📋", bg: "bg-blue-50",    text: "text-blue-500"   },
+  vacation:         { label: "ลาพักร้อน",  icon: "🌴", bg: "bg-sky-50",     text: "text-sky-500"    },
+  special_personal: { label: "ลากิจพิเศษ", icon: "⭐", bg: "bg-amber-50",   text: "text-amber-500"  },
+  other:            { label: "ลาอื่นๆ",    icon: "📝", bg: "bg-gray-50",    text: "text-gray-500"   },
+  maternity:        { label: "ลาคลอด",     icon: "👶", bg: "bg-pink-50",    text: "text-pink-500"   },
 };
 
 const TH_MONTHS = ["", "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];

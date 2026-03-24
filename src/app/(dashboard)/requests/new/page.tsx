@@ -13,7 +13,8 @@ const supabase = createBrowserClient(
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type FormType  = "ot" | "leave";
-type LeaveType = "sick" | "personal" | "vacation" | "maternity";
+type LeaveType = "sick" | "personal" | "vacation" | "special_personal" | "other";
+const PERIOD_LEAVE_TYPES: LeaveType[] = ["sick", "personal", "special_personal"];
 // เพิ่มต่อจาก type LeaveType
 type LeavePeriod = "full" | "morning" | "afternoon" | "custom";
 
@@ -23,9 +24,6 @@ const PERIOD_OPTIONS: { id: LeavePeriod; label: string; sub: string }[] = [
   { id: "afternoon", label: "ครึ่งบ่าย", sub: "13:00 – 17:30" },
   { id: "custom",    label: "ระบุเวลาเอง", sub: "กำหนดเอง"      },
 ];
-
-// ประเภทที่ต้องการช่วงเวลา
-const PERIOD_LEAVE_TYPES: LeaveType[] = ["sick", "personal"];
 
 interface Project { id: string; project_no: string; name: string | null; end_user_id: string; }
 
@@ -44,35 +42,38 @@ const LeaveIcons: Record<string, React.ReactNode> = {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-6 h-6">
       <rect x="2" y="7" width="20" height="14" rx="2" />
       <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
-      <line x1="12" y1="12" x2="12" y2="16" />
-      <line x1="10" y1="14" x2="14" y2="14" />
+      <line x1="12" y1="12" x2="12" y2="16" /><line x1="10" y1="14" x2="14" y2="14" />
     </svg>
   ),
   vacation: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-6 h-6">
-      <circle cx="12" cy="12" r="4" />
-      <line x1="12" y1="2" x2="12" y2="4" />
-      <line x1="12" y1="20" x2="12" y2="22" />
-      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
-      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
-      <line x1="2" y1="12" x2="4" y2="12" />
-      <line x1="20" y1="12" x2="22" y2="12" />
-      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
-      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+      <circle cx="12" cy="12" r="4"/>
+      <line x1="12" y1="2" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="22"/>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+      <line x1="2" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="22" y2="12"/>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
     </svg>
   ),
-  maternity: (
+  special_personal: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-6 h-6">
-      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+    </svg>
+  ),
+  other: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-6 h-6">
+      <circle cx="12" cy="12" r="10"/>
+      <line x1="12" y1="8" x2="12" y2="12"/>
+      <line x1="12" y1="16" x2="12.01" y2="16"/>
     </svg>
   ),
 };
 
 const LEAVE_TYPES: { id: LeaveType; label: string; desc: string }[] = [
-  { id: "sick",      label: "ลาป่วย",    desc: "เจ็บป่วยหรือต้องพบแพทย์" },
-  { id: "personal",  label: "ลากิจ",    desc: "ธุระส่วนตัว" },
-  { id: "vacation",  label: "ลาพักร้อน", desc: "วันหยุดพักผ่อน" },
-  { id: "maternity", label: "ลาคลอด",   desc: "ลาคลอดบุตร" },
+  { id: "sick",             label: "ลาป่วย",      desc: "เจ็บป่วยหรือต้องพบแพทย์" },
+  { id: "personal",         label: "ลากิจ",       desc: "ธุระส่วนตัว"              },
+  { id: "vacation",         label: "ลาพักร้อน",   desc: "วันหยุดพักผ่อน"           },
+  { id: "special_personal", label: "ลากิจพิเศษ",  desc: "กิจธุระพิเศษ"             },
+  { id: "other",            label: "ลาอื่นๆ",     desc: "ระบุในเหตุผล"             },
 ];
 
 const OT_REASON_PRESETS = [
@@ -173,7 +174,7 @@ function OTForm() {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
- 
+
   const hours = calcHours(form.startTime, form.endTime);
   const isValid =
     form.date && form.startTime && form.endTime && form.reason.trim() && hours > 0;
@@ -504,7 +505,6 @@ function OTForm() {
 }
 
 // ─── Leave Form ───────────────────────────────────────────────────────────────
-// ─── Leave Form ───────────────────────────────────────────────────────────────
 function LeaveForm() {
   const today = getLocalToday();
   const [userId, setUserId] = useState<string | null>(null);
@@ -522,15 +522,49 @@ function LeaveForm() {
   const [submitted,  setSubmitted]  = useState(false);
   const [error,      setError]      = useState<string | null>(null);
 
-  const days    = calcDays(form.startDate, form.endDate);
+  // ── Leave balance ──
+  const [balanceMap, setBalanceMap] = useState<Record<string, {
+    remaining: number; total: number; used: number; pending: number;
+  }>>({});
+  const [balanceLoading, setBalanceLoading] = useState(false);
+
+  // ── Computed ──────────────────────────────────────────────────────────────
+  const days    = calcDays(form.startDate, form.endDate);    // ← ต้องอยู่ก่อน
   const isValid = form.leaveType && form.startDate && form.endDate && form.reason.trim() && days > 0;
 
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user) setUserId(user.id);
-    });
-  }, []);
+  const currentBalance = form.leaveType ? balanceMap[form.leaveType] : null;
+  const isOverBalance  = currentBalance != null && days > 0 && days > currentBalance.remaining;
 
+  useEffect(() => {
+  supabase.auth.getUser().then(({ data: { user } }) => {
+    if (!user) return;
+    setUserId(user.id);
+    setBalanceLoading(true);
+    const year = new Date().getFullYear();
+    supabase
+      .from("leave_balances_with_policy")
+      .select("leave_type, remaining_days, total_days, used_days, pending_days")
+      .eq("user_id", user.id)
+      .eq("year", year)
+      .then(({ data, error }) => {
+        console.log("balance data:", data);
+        console.log("balance error:", error);
+        if (data) {
+          const map: Record<string, { remaining: number; total: number; used: number; pending: number }> = {};
+          data.forEach((b) => {
+            map[b.leave_type] = {
+              remaining: Number(b.remaining_days),
+              total:     Number(b.total_days),
+              used:      Number(b.used_days),
+              pending:   Number(b.pending_days),
+            };
+          });
+          setBalanceMap(map);
+        }
+        setBalanceLoading(false);
+      });
+  });
+}, []);
   const getPeriodLabel = () => {
     if (!PERIOD_LEAVE_TYPES.includes(form.leaveType as LeaveType)) return null;
     if (form.period === "custom") return `${form.customStart} – ${form.customEnd}`;
@@ -600,15 +634,12 @@ function LeaveForm() {
                     : "border-gray-100 bg-gray-50 hover:border-gray-200 hover:bg-white"
                 }`}
               >
-                <span className={`mb-2 ${form.leaveType === lt.id ? "text-white" : "text-gray-400"}`}>
-                  {LeaveIcons[lt.id]}
-                </span>
                 <p className={`text-sm font-black ${form.leaveType === lt.id ? "text-white" : "text-gray-800"}`}>
-                  {lt.label}
-                </p>
-                <p className={`text-[11px] mt-0.5 ${form.leaveType === lt.id ? "text-gray-400" : "text-gray-400"}`}>
-                  {lt.desc}
-                </p>
+  {lt.label}
+</p>
+<p className={`text-[11px] mt-0.5 ${form.leaveType === lt.id ? "text-gray-400" : "text-gray-400"}`}>
+  {lt.desc}
+</p>
                 {form.leaveType === lt.id && (
                   <span className="absolute top-3 right-3 w-5 h-5 rounded-full bg-white flex items-center justify-center shadow-sm">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="w-3 h-3 text-slate-900">
@@ -621,6 +652,90 @@ function LeaveForm() {
           </div>
         </div>
       </div>
+      
+      {/* ── Balance Card ───────────────────────────────────────────────────────── */}
+{form.leaveType && (
+  <div className={`rounded-2xl border px-4 py-3.5 transition-all duration-300 ${
+    isOverBalance
+      ? "bg-rose-50 border-rose-200"
+      : "bg-white border-gray-100"
+  }`}>
+    {balanceLoading ? (
+      <div className="flex items-center gap-3">
+        <div className="h-3 w-24 bg-gray-100 rounded-full animate-pulse" />
+        <div className="h-3 w-16 bg-gray-100 rounded-full animate-pulse" />
+      </div>
+    ) : currentBalance ? (
+      <div className="space-y-2.5">
+        {/* top row */}
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-semibold text-gray-500">
+            สิทธิ์คงเหลือ — {LEAVE_TYPES.find(l => l.id === form.leaveType)?.label}
+          </p>
+          {isOverBalance && (
+            <span className="text-[10px] font-bold bg-rose-100 text-rose-600 border border-rose-200 px-2 py-0.5 rounded-full">
+              เกินสิทธิ์
+            </span>
+          )}
+        </div>
+
+        {/* numbers */}
+        <div className="flex items-end gap-1">
+          <span className={`text-2xl font-black leading-none ${
+            isOverBalance ? "text-rose-500" : "text-gray-900"
+          }`}>
+            {currentBalance.remaining}
+          </span>
+          <span className="text-sm text-gray-400 mb-0.5">
+            / {currentBalance.total} วัน
+          </span>
+          {days > 0 && (
+            <span className={`ml-auto text-sm font-bold ${
+              isOverBalance ? "text-rose-500" : "text-indigo-500"
+            }`}>
+              ใช้ {days} วัน
+            </span>
+          )}
+        </div>
+
+        {/* progress bar */}
+        <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+          <div
+            className={`h-full rounded-full transition-all duration-500 ${
+              isOverBalance ? "bg-rose-400" :
+              currentBalance.used / currentBalance.total > 0.8 ? "bg-amber-400" :
+              "bg-emerald-400"
+            }`}
+            style={{
+              width: `${Math.min(
+                ((currentBalance.used + (days > 0 ? days : 0)) / currentBalance.total) * 100,
+                100
+              )}%`
+            }}
+          />
+        </div>
+
+        {/* detail row */}
+        <div className="flex items-center gap-3 text-[11px] text-gray-400">
+          <span>ใช้แล้ว <strong className="text-gray-600">{currentBalance.used}</strong> วัน</span>
+          {currentBalance.pending > 0 && (
+            <span className="flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+              รออนุมัติ <strong className="text-amber-600">{currentBalance.pending}</strong> วัน
+            </span>
+          )}
+          {isOverBalance && (
+            <span className="text-rose-500 font-semibold ml-auto">
+              เกิน {days - currentBalance.remaining} วัน
+            </span>
+          )}
+        </div>
+      </div>
+    ) : (
+      <p className="text-xs text-gray-400">ไม่พบข้อมูลสิทธิ์วันลา</p>
+    )}
+  </div>
+)}
 
       {/* ── Card 2: วันที่ลา ────────────────────────────────────────────────── */}
       <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
@@ -766,50 +881,60 @@ function LeaveForm() {
         </div>
       </div>
 
-      {/* ── Error ─────────────────────────────────────────────────────────────── */}
-      {error && (
-        <div className="flex items-center gap-2.5 px-4 py-3 bg-red-50 border border-red-100 rounded-2xl">
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            className="w-4 h-4 text-red-400 flex-shrink-0"
-          >
-            <circle cx="12" cy="12" r="9" />
-            <line x1="12" y1="8" x2="12" y2="12" />
-            <line x1="12" y1="16" x2="12.01" y2="16" />
-          </svg>
-          <span className="text-[13px] text-red-500">{error}</span>
-        </div>
-      )}
+      {/* ── Error ── */}
+{error && (
+  <div className="flex items-center gap-2.5 px-4 py-3 bg-red-50 border border-red-100 rounded-2xl">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 text-red-400 flex-shrink-0">
+      <circle cx="12" cy="12" r="9"/>
+      <line x1="12" y1="8" x2="12" y2="12"/>
+      <line x1="12" y1="16" x2="12.01" y2="16"/>
+    </svg>
+    <span className="text-[13px] text-red-500">{error}</span>
+  </div>
+)}
 
-      {/* ── Submit Button ──────────────────────────────────────────────────────── */}
-      <button
-        onClick={handleSubmit}
-        disabled={!isValid || submitting}
-        className={`w-full py-4 rounded-2xl text-[15px] font-semibold flex items-center justify-center gap-2 transition-all active:scale-[0.98] ${
-          isValid && !submitting
-            ? "bg-slate-900 text-white shadow-md shadow-slate-900/15 hover:bg-slate-800"
-            : "bg-gray-100 text-gray-300 cursor-not-allowed"
-        }`}
-      >
-        {submitting ? (
-          <>
-            <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
-            </svg>
-            กำลังส่ง...
-          </>
-        ) : (
-          <>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4">
-              <path d="M22 2L11 13" /><path d="M22 2L15 22l-4-9-9-4 20-7z" />
-            </svg>
-            ยื่นใบลา{days > 0 ? ` (${days} วัน)` : ""}
-          </>
-        )}
-      </button>
+{/* ── Over balance warning ── */}
+{isOverBalance && (
+  <div className="flex items-start gap-2.5 px-4 py-3 bg-amber-50 border border-amber-200 rounded-2xl">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5">
+      <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+      <line x1="12" y1="9" x2="12" y2="13"/>
+      <line x1="12" y1="17" x2="12.01" y2="17"/>
+    </svg>
+    <p className="text-xs text-amber-700 leading-relaxed">
+      วันลาที่ขอเกินสิทธิ์คงเหลือ — ยังสามารถยื่นได้ แต่ต้องรอการอนุมัติจากหัวหน้าเเผนก
+    </p>
+  </div>
+)}
+
+{/* ── Submit Button ── */}
+<button
+  onClick={handleSubmit}
+  disabled={!isValid || submitting}
+  className={`w-full py-4 rounded-2xl text-[15px] font-semibold flex items-center justify-center gap-2 transition-all active:scale-[0.98] ${
+    isValid && !submitting
+      ? isOverBalance
+        ? "bg-amber-500 text-white shadow-md shadow-amber-500/20 hover:bg-amber-600"
+        : "bg-slate-900 text-white shadow-md shadow-slate-900/15 hover:bg-slate-800"
+      : "bg-gray-100 text-gray-300 cursor-not-allowed"
+  }`}
+>
+  {submitting ? (
+    <>
+      <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+      </svg>
+      กำลังส่ง...
+    </>
+  ) : (
+    <>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4">
+        <path d="M22 2L11 13"/><path d="M22 2L15 22l-4-9-9-4 20-7z"/>
+      </svg>
+      ยื่นใบลา{days > 0 ? ` (${days} วัน)` : ""}
+    </>
+  )}
+</button>
     </div>
   );
 }

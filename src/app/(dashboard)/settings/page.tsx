@@ -2,7 +2,9 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/lib/supabase";
-
+import type { LeavePolicy } from "@/types/leave";
+import type { LeaveBalanceWithPolicy } from "@/types/leave";
+import { LEAVE_TYPE_CONFIG } from "@/types/leave";
 // ─── Sub-nav config ───────────────────────────────────────────────────────────
 const SETTINGS_TABS = [
   {
@@ -58,6 +60,31 @@ const SETTINGS_TABS = [
       </svg>
     ),
   },
+  {
+    id: "leave",
+    label: "วันลา",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+        <rect x="3" y="4" width="18" height="18" rx="2"/>
+        <line x1="16" y1="2" x2="16" y2="6"/>
+        <line x1="8" y1="2" x2="8" y2="6"/>
+        <line x1="3" y1="10" x2="21" y2="10"/>
+        <path d="M8 14h.01M12 14h.01M8 18h.01M12 18h.01M16 14h.01"/>
+      </svg>
+    ),
+  },
+  {
+  id: "leave_balance",
+  label: "วันลาพนักงาน",
+  icon: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+      <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
+      <circle cx="9" cy="7" r="4"/>
+      <path d="M23 21v-2a4 4 0 00-3-3.87"/>
+      <path d="M16 3.13a4 4 0 010 7.75"/>
+    </svg>
+  ),
+},
 ];
 
 // ─── Reusable UI ──────────────────────────────────────────────────────────────
@@ -1980,11 +2007,510 @@ function HolidaysSection() {
   );
 }
 
+// ─── Leave Policy Section ─────────────────────────────────────────────────────
+
+const LEAVE_ICON: Record<string, string> = {
+  vacation:         "🌴",
+  sick:             "🤒",
+  personal:         "📋",
+  special_personal: "⭐",
+  other:            "📝",
+};
+
+function LeavePolicySection() {
+  const [policies, setPolicies] = useState<LeavePolicy[]>([]);
+  const [loading, setLoading]   = useState(true);
+  const [saving, setSaving]     = useState<string | null>(null); // id ที่กำลัง save
+  const [saved, setSaved]       = useState<string | null>(null); // id ที่ save สำเร็จ
+
+  useEffect(() => {
+    supabase
+      .from("leave_policies")
+      .select("*")
+      .order("days_per_year", { ascending: false })
+      .then(({ data }) => {
+        if (data) setPolicies(data as LeavePolicy[]);
+        setLoading(false);
+      });
+  }, []);
+
+  const handleSave = async (policy: LeavePolicy) => {
+    setSaving(policy.id);
+    await supabase
+      .from("leave_policies")
+      .update({
+        days_per_year:   policy.days_per_year,
+        max_carry_over:  policy.max_carry_over,
+        sick_paid_limit: policy.sick_paid_limit,
+        allow_hourly:    policy.allow_hourly,
+        is_active:       policy.is_active,
+        updated_at:      new Date().toISOString(),
+      })
+      .eq("id", policy.id);
+    setSaving(null);
+    setSaved(policy.id);
+    setTimeout(() => setSaved(null), 2000);
+  };
+
+  const update = (id: string, field: keyof LeavePolicy, value: unknown) => {
+    setPolicies((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, [field]: value } : p))
+    );
+  };
+
+  if (loading) {
+    return (
+      <div className="space-y-3">
+        {[...Array(5)].map((_, i) => (
+          <div key={i} className="bg-white rounded-2xl border border-gray-100 h-32 animate-pulse" />
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* header note */}
+      <div className="flex items-start gap-2.5 px-4 py-3 bg-sky-50 border border-sky-100 rounded-2xl">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 text-sky-500 mt-0.5 flex-shrink-0">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        <p className="text-xs text-sky-700 leading-relaxed">
+          การแก้ไขจะมีผลกับพนักงานที่สมัครใหม่ในปีถัดไป · พนักงานที่มี balance อยู่แล้วจะไม่ถูกกระทบ
+        </p>
+      </div>
+
+      {policies.map((policy) => {
+        const isSaving = saving === policy.id;
+        const isSaved  = saved  === policy.id;
+        return (
+          <div key={policy.id} className={`bg-white rounded-2xl border shadow-sm overflow-hidden transition-all ${policy.is_active ? "border-gray-100" : "border-gray-100 opacity-60"}`}>
+            {/* card header */}
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-50">
+              <div className="flex items-center gap-2.5">
+                <span className="text-lg">{LEAVE_ICON[policy.leave_type] ?? "📅"}</span>
+                <div>
+                  <p className="text-sm font-bold text-gray-700">{policy.label_th}</p>
+                  <p className="text-[11px] text-gray-400 font-mono">{policy.leave_type}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                {/* active toggle */}
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <span className="text-xs text-gray-400">เปิดใช้</span>
+                  <div
+                    onClick={() => update(policy.id, "is_active", !policy.is_active)}
+                    className={`relative w-9 h-5 rounded-full transition-colors cursor-pointer ${policy.is_active ? "bg-sky-500" : "bg-gray-200"}`}
+                  >
+                    <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${policy.is_active ? "left-4" : "left-0.5"}`} />
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            {/* fields */}
+            <div className="px-5 py-4 grid grid-cols-2 md:grid-cols-4 gap-4">
+              {/* days_per_year */}
+              <div>
+                <p className="text-[11px] font-bold text-gray-400 mb-1.5">วัน/ปี</p>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="number"
+                    min={0}
+                    max={365}
+                    value={policy.days_per_year}
+                    onChange={(e) => update(policy.id, "days_per_year", Number(e.target.value))}
+                    className="w-full px-3 py-2 text-sm font-semibold text-gray-700 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-sky-300 focus:ring-2 focus:ring-sky-50 transition-colors"
+                  />
+                  <span className="text-xs text-gray-400 flex-shrink-0">วัน</span>
+                </div>
+                {policy.days_per_year === 0 && (
+                  <p className="text-[10px] text-amber-500 mt-1">0 = ไม่จำกัด</p>
+                )}
+              </div>
+
+              {/* max_carry_over */}
+              <div>
+                <p className="text-[11px] font-bold text-gray-400 mb-1.5">สะสมสูงสุด</p>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="number"
+                    min={0}
+                    max={365}
+                    value={policy.max_carry_over}
+                    onChange={(e) => update(policy.id, "max_carry_over", Number(e.target.value))}
+                    className="w-full px-3 py-2 text-sm font-semibold text-gray-700 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-sky-300 focus:ring-2 focus:ring-sky-50 transition-colors"
+                  />
+                  <span className="text-xs text-gray-400 flex-shrink-0">วัน</span>
+                </div>
+                {policy.max_carry_over === 0 && (
+                  <p className="text-[10px] text-gray-400 mt-1">0 = ไม่สะสม</p>
+                )}
+              </div>
+
+              {/* sick_paid_limit — แสดงเฉพาะ sick */}
+              <div className={policy.leave_type === "sick" ? "" : "opacity-30 pointer-events-none"}>
+                <p className="text-[11px] font-bold text-gray-400 mb-1.5">วันที่ได้รับเงิน</p>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="number"
+                    min={0}
+                    max={365}
+                    value={policy.sick_paid_limit}
+                    onChange={(e) => update(policy.id, "sick_paid_limit", Number(e.target.value))}
+                    disabled={policy.leave_type !== "sick"}
+                    className="w-full px-3 py-2 text-sm font-semibold text-gray-700 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-sky-300 focus:ring-2 focus:ring-sky-50 transition-colors disabled:cursor-not-allowed"
+                  />
+                  <span className="text-xs text-gray-400 flex-shrink-0">วัน</span>
+                </div>
+                {policy.leave_type !== "sick" && (
+                  <p className="text-[10px] text-gray-300 mt-1">เฉพาะลาป่วย</p>
+                )}
+              </div>
+
+              {/* allow_hourly */}
+              <div className="flex flex-col justify-between">
+                <p className="text-[11px] font-bold text-gray-400 mb-1.5">ลาเป็นชั่วโมง</p>
+                <div
+                  onClick={() => update(policy.id, "allow_hourly", !policy.allow_hourly)}
+                  className={`relative w-9 h-5 rounded-full transition-colors cursor-pointer ${policy.allow_hourly ? "bg-sky-500" : "bg-gray-200"}`}
+                >
+                  <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${policy.allow_hourly ? "left-4" : "left-0.5"}`} />
+                </div>
+              </div>
+            </div>
+
+            {/* save button */}
+            <div className="px-5 pb-4 flex justify-end">
+              <button
+                onClick={() => handleSave(policy)}
+                disabled={isSaving}
+                className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl transition-all ${
+                  isSaved
+                    ? "bg-emerald-50 text-emerald-600 border border-emerald-200"
+                    : "bg-sky-500 text-white hover:bg-sky-600 disabled:opacity-50"
+                }`}
+              >
+                {isSaving ? (
+                  <>
+                    <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" opacity=".25"/><path d="M21 12a9 9 0 00-9-9"/>
+                    </svg>
+                    กำลังบันทึก...
+                  </>
+                ) : isSaved ? (
+                  <>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3.5 h-3.5">
+                      <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                    บันทึกแล้ว
+                  </>
+                ) : (
+                  "บันทึก"
+                )}
+              </button>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── Leave Balance Admin Section ──────────────────────────────────────────────
+
+interface UserWithBalances {
+  id: string;
+  first_name: string;
+  last_name: string;
+  department: string;
+  avatar_url: string | null;
+  balances: LeaveBalanceWithPolicy[];
+}
+
+const LEAVE_ORDER = ["vacation", "sick", "personal", "special_personal", "other"];
+
+function LeaveBalanceAdminSection() {
+  const currentYear = new Date().getFullYear();
+  const [users,        setUsers]        = useState<UserWithBalances[]>([]);
+  const [loading,      setLoading]      = useState(true);
+  const [selectedUser, setSelectedUser] = useState<UserWithBalances | null>(null);
+  const [editValues,   setEditValues]   = useState<Record<string, { used_days: number; entitled_days: number }>>({});
+  const [saving,       setSaving]       = useState(false);
+  const [saved,        setSaved]        = useState(false);
+  const [search,       setSearch]       = useState("");
+
+  // ── โหลด users + balances ───────────────────────────────────────────────────
+  useEffect(() => {
+    (async () => {
+      const [{ data: profiles }, { data: balances }] = await Promise.all([
+        supabase
+          .from("profiles_with_avatar")
+          .select("id, first_name, last_name, department, avatar_url")
+          .order("first_name"),
+        supabase
+          .from("leave_balances_with_policy")
+          .select("*")
+          .eq("year", currentYear),
+      ]);
+
+      if (!profiles) return;
+
+      const balanceMap = new Map<string, LeaveBalanceWithPolicy[]>();
+      (balances ?? []).forEach((b) => {
+        const list = balanceMap.get(b.user_id) ?? [];
+        list.push(b as LeaveBalanceWithPolicy);
+        balanceMap.set(b.user_id, list);
+      });
+
+      const result: UserWithBalances[] = profiles.map((p) => ({
+        ...p,
+        balances: (balanceMap.get(p.id) ?? []).sort(
+          (a, b) => LEAVE_ORDER.indexOf(a.leave_type) - LEAVE_ORDER.indexOf(b.leave_type)
+        ),
+      }));
+
+      setUsers(result);
+      setLoading(false);
+    })();
+  }, []);
+
+  // ── เปิด drawer แก้ไขพนักงาน ────────────────────────────────────────────────
+  const openEdit = (user: UserWithBalances) => {
+    setSelectedUser(user);
+    const init: Record<string, { used_days: number; entitled_days: number }> = {};
+    user.balances.forEach((b) => {
+      init[b.leave_type] = {
+        used_days:     Number(b.used_days),
+        entitled_days: Number(b.entitled_days),
+      };
+    });
+    setEditValues(init);
+    setSaved(false);
+  };
+
+  // ── บันทึก ───────────────────────────────────────────────────────────────────
+  const handleSave = async () => {
+    if (!selectedUser) return;
+    setSaving(true);
+
+    const updates = selectedUser.balances.map((b) => {
+      const v = editValues[b.leave_type];
+      return supabase
+        .from("leave_balances")
+        .update({
+          used_days:     v?.used_days     ?? b.used_days,
+          entitled_days: v?.entitled_days ?? b.entitled_days,
+          updated_at:    new Date().toISOString(),
+        })
+        .eq("id", b.id);
+    });
+
+    await Promise.all(updates);
+
+    // อัปเดต local state
+    setUsers((prev) =>
+      prev.map((u) =>
+        u.id !== selectedUser.id ? u : {
+          ...u,
+          balances: u.balances.map((b) => ({
+            ...b,
+            used_days:     editValues[b.leave_type]?.used_days     ?? b.used_days,
+            entitled_days: editValues[b.leave_type]?.entitled_days ?? b.entitled_days,
+          })),
+        }
+      )
+    );
+
+    setSaving(false);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
+
+  const filtered = users.filter((u) => {
+    const name = `${u.first_name} ${u.last_name}`.toLowerCase();
+    return name.includes(search.toLowerCase()) || (u.department ?? "").toLowerCase().includes(search.toLowerCase());
+  });
+
+  // ─── Render ─────────────────────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <div className="space-y-3">
+        {[...Array(4)].map((_, i) => (
+          <div key={i} className="bg-white rounded-2xl border border-gray-100 h-20 animate-pulse" />
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* search */}
+      <div className="relative">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400">
+          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+        </svg>
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="ค้นหาพนักงาน..."
+          className="w-full pl-10 pr-4 py-2.5 text-sm bg-white border border-gray-200 rounded-xl outline-none focus:border-sky-300 focus:ring-2 focus:ring-sky-50 transition-colors"
+        />
+      </div>
+
+      {/* user list */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-gray-50">
+          <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest">
+            พนักงานทั้งหมด ({filtered.length} คน) · ปี {currentYear}
+          </h3>
+        </div>
+        <div className="divide-y divide-gray-50">
+          {filtered.map((u) => {
+            const name = `${u.first_name ?? ""} ${u.last_name ?? ""}`.trim() || "ไม่ระบุชื่อ";
+            const initial = name.charAt(0);
+            const totalUsed = u.balances.reduce((s, b) => s + Number(b.used_days), 0);
+            const totalDays = u.balances.reduce((s, b) => s + Number(b.total_days), 0);
+            const isSelected = selectedUser?.id === u.id;
+
+            return (
+              <div key={u.id}>
+                {/* row */}
+                <button
+                  onClick={() => isSelected ? setSelectedUser(null) : openEdit(u)}
+                  className={`w-full flex items-center gap-4 px-5 py-4 text-left transition-colors ${isSelected ? "bg-sky-50/60" : "hover:bg-gray-50/50"}`}
+                >
+                  {u.avatar_url ? (
+                    <img src={u.avatar_url} referrerPolicy="no-referrer" className="w-9 h-9 rounded-xl object-cover flex-shrink-0" />
+                  ) : (
+                    <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-sky-400 to-blue-500 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                      {initial}
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-gray-700 truncate">{name}</p>
+                    <p className="text-xs text-gray-400">{u.department ?? "ไม่ระบุแผนก"}</p>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <p className="text-sm font-bold text-gray-700">{totalUsed} <span className="text-xs font-normal text-gray-400">/ {totalDays} วัน</span></p>
+                    <p className="text-[10px] text-gray-400">ใช้ไปแล้ว</p>
+                  </div>
+                  <svg
+                    viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                    className={`w-4 h-4 text-gray-300 transition-transform flex-shrink-0 ${isSelected ? "rotate-90" : ""}`}
+                  >
+                    <polyline points="9 18 15 12 9 6"/>
+                  </svg>
+                </button>
+
+                {/* inline edit panel */}
+                {isSelected && (
+                  <div className="px-5 pb-5 bg-sky-50/40 border-t border-sky-100">
+                    <p className="text-[11px] font-bold text-sky-600 uppercase tracking-widest py-3">
+                      แก้ไขสิทธิ์วันลา — {name}
+                    </p>
+
+                    <div className="space-y-3">
+                      {selectedUser.balances.map((b) => {
+                        const cfg = LEAVE_TYPE_CONFIG[b.leave_type as keyof typeof LEAVE_TYPE_CONFIG];
+                        const v   = editValues[b.leave_type];
+                        return (
+                          <div key={b.leave_type} className="bg-white rounded-xl border border-gray-100 px-4 py-3">
+                            <p className={`text-xs font-bold mb-3 ${cfg?.color ?? "text-gray-600"}`}>
+                              {b.label_th}
+                            </p>
+                            <div className="grid grid-cols-2 gap-3">
+                              {/* entitled_days */}
+                              <div>
+                                <p className="text-[11px] text-gray-400 mb-1.5">สิทธิ์ (วัน/ปี)</p>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  value={v?.entitled_days ?? 0}
+                                  onChange={(e) => setEditValues((prev) => ({
+                                    ...prev,
+                                    [b.leave_type]: { ...prev[b.leave_type], entitled_days: Number(e.target.value) },
+                                  }))}
+                                  className="w-full px-3 py-2 text-sm font-semibold text-gray-700 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-sky-300 focus:ring-2 focus:ring-sky-50 transition-colors"
+                                />
+                              </div>
+                              {/* used_days */}
+                              <div>
+                                <p className="text-[11px] text-gray-400 mb-1.5">ใช้ไปแล้ว (วัน)</p>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  value={v?.used_days ?? 0}
+                                  onChange={(e) => setEditValues((prev) => ({
+                                    ...prev,
+                                    [b.leave_type]: { ...prev[b.leave_type], used_days: Number(e.target.value) },
+                                  }))}
+                                  className="w-full px-3 py-2 text-sm font-semibold text-gray-700 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-sky-300 focus:ring-2 focus:ring-sky-50 transition-colors"
+                                />
+                              </div>
+                            </div>
+                            {/* remaining preview */}
+                            <p className="text-[11px] text-gray-400 mt-2">
+                              คงเหลือ:{" "}
+                              <span className="font-bold text-emerald-600">
+                                {Math.max(0, (v?.entitled_days ?? 0) + Number(b.carried_over_days) - (v?.used_days ?? 0))} วัน
+                              </span>
+                              {Number(b.carried_over_days) > 0 && (
+                                <span className="ml-1 text-violet-500">(รวมยกยอด {b.carried_over_days} วัน)</span>
+                              )}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* save button */}
+                    <div className="flex justify-end mt-4">
+                      <button
+                        onClick={handleSave}
+                        disabled={saving}
+                        className={`flex items-center gap-2 px-5 py-2.5 text-xs font-bold rounded-xl transition-all ${
+                          saved
+                            ? "bg-emerald-50 text-emerald-600 border border-emerald-200"
+                            : "bg-sky-500 text-white hover:bg-sky-600 disabled:opacity-50"
+                        }`}
+                      >
+                        {saving ? (
+                          <>
+                            <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" opacity=".25"/>
+                              <path d="M21 12a9 9 0 00-9-9"/>
+                            </svg>
+                            กำลังบันทึก...
+                          </>
+                        ) : saved ? (
+                          <>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3.5 h-3.5">
+                              <polyline points="20 6 9 17 4 12"/>
+                            </svg>
+                            บันทึกแล้ว
+                          </>
+                        ) : "บันทึก"}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Section map ──────────────────────────────────────────────────────────────
 const SECTION_COMPONENTS: Record<string, React.ReactNode> = {
   report_manage: <ReportManagementSection />,
   holidays: <HolidaysSection />,
   permissions:   <PermissionsSection />,
+  leave:         <LeavePolicySection />,
+  leave_balance: <LeaveBalanceAdminSection />,
 };
 
 export default function SettingsPage() {
