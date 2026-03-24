@@ -436,11 +436,6 @@ function LeaveQuotaSection({ userId }: { userId: string }) {
                       <span className={`text-xs font-bold ${cfg?.color ?? "text-gray-600"}`}>
                         {b.label_th}
                       </span>
-                      {Number(b.carried_over_days) > 0 && (
-                        <span className="text-[9px] font-bold bg-violet-50 text-violet-600 border border-violet-200 px-1.5 py-0.5 rounded-full">
-                          +{b.carried_over_days} ยกยอด
-                        </span>
-                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       {Number(b.pending_days) > 0 && (

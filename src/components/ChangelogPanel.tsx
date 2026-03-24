@@ -18,6 +18,13 @@ interface ChangelogEntry {
 const CHANGELOG: ChangelogEntry[] = [
   {
     version: "2.5.0",
+    date: "2026-03-24",
+    items: [
+      { tag: "feature",             text: "เพิ่มสิทธิ์วันลา" },
+    ],
+  },
+  {
+    version: "2.5.0",
     date: "2026-03-21",
     items: [
       { tag: "improvement",         text: "เเก้ไขให้สามารถสเเกน qr-code ได้ง่ายขึ้น" },
