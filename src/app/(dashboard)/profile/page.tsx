@@ -422,6 +422,9 @@ function LeaveQuotaSection({ userId }: { userId: string }) {
         ) : (
           <>
             {balances.map((b) => {
+              // ซ่อน other ถ้ายังไม่เคยใช้เลย
+              if (b.leave_type === "other" && Number(b.used_days) === 0) return null;
+
               const cfg      = LEAVE_TYPE_CONFIG[b.leave_type as keyof typeof LEAVE_TYPE_CONFIG];
               const barColor = LEAVE_BAR_COLOR[b.leave_type] ?? "bg-gray-400";
               const usedPct  = Number(b.used_pct);
@@ -446,8 +449,10 @@ function LeaveQuotaSection({ userId }: { userId: string }) {
                         </span>
                       )}
                       <span className="text-[10px] text-gray-400 font-medium">
-                        {b.used_days}/{b.total_days} วัน
-                      </span>
+  {Number(b.total_days) === 0
+    ? `${b.used_days} วัน`
+    : `${b.used_days}/${b.total_days} วัน`}
+</span>
                     </div>
                   </div>
                   <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
