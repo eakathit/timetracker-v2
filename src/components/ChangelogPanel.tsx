@@ -18,7 +18,7 @@ interface ChangelogEntry {
 const CHANGELOG: ChangelogEntry[] = [
   {
     version: "2.6.0",
-    date: "2026-03-24",
+    date: "2026-03-25",
     items: [
       { tag: "improvement",             text: "เเก้ไข layout หน้าจัดการวันหยุด" },
     ],

@@ -145,14 +145,14 @@ async function exportExcel(
     const totalHours = calcWorkHours(r); // ← คำนวณ
 
     return [
-    full, getFullName(p),
-    eu[r.end_user_id]?.name || "–",
-    pr?.project_no || "–",
-    detail[r.detail_id]?.title || "–",  // ✅ Work Type จาก work_details จริงๆ
-    getPeriodLabel(r),
-    startTime, endTime,
-    totalHours ?? "–",
-  ];
+      full, getFullName(p),
+      r.custom_end_user_text   || eu[r.end_user_id]?.name   || "–",
+      r.custom_project_no_text || pr?.project_no             || "–",
+      detail[r.detail_id]?.title || "–",
+      getPeriodLabel(r),
+      startTime, endTime,
+      totalHours ?? "–",
+    ];
 });
 
   const ws = utils.aoa_to_sheet([...header, ...data]);
