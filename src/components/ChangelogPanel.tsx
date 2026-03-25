@@ -17,7 +17,14 @@ interface ChangelogEntry {
 // ─── Changelog Data (Dev/Admin) ────────────
 const CHANGELOG: ChangelogEntry[] = [
   {
-    version: "2.5.0",
+    version: "2.6.0",
+    date: "2026-03-24",
+    items: [
+      { tag: "improvement",             text: "เเก้ไข layout หน้าจัดการวันหยุด" },
+    ],
+  },
+  {
+    version: "2.5.5",
     date: "2026-03-24",
     items: [
       { tag: "feature",             text: "เพิ่มสิทธิ์วันลา" },
