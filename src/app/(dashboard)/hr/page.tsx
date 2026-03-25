@@ -46,7 +46,7 @@ interface DayLog {
   otTotal: number;
   regHours: number | null;
   otTimeline: { start: string; end: string } | null;
-  otReq:      { start: string; end: string } | null;
+  otReqs: { start: string; end: string }[];
 }
 
 interface TimeLogRow {
@@ -334,7 +334,6 @@ function DrillDownPanel({
 
     const data = dailyLogs.map(log => {
       const workOT = log.otTimeline;
-      const reqOT  = log.otReq;
       return [
         log.date,
         DAYS_SHORT[log.dow],
@@ -344,8 +343,8 @@ function DrillDownPanel({
         log.checkOut,
         workOT?.start ?? "–",
         workOT?.end   ?? "–",
-        reqOT?.start  ?? "–",
-        reqOT?.end    ?? "–",
+        log.otReqs.map(r => r.start).join(" / ") || "–",
+        log.otReqs.map(r => r.end).join(" / ")   || "–",
         log.otTotal > 0 ? log.otTotal : "–",
       ];
     });
@@ -830,15 +829,16 @@ export default function HRAttendancePage() {
   }
 
   // ✅ สร้าง map: user_id → date → OT hours (จาก ot_requests)
-  const otByUserDate: Record<string, Record<string, number>> = {};
-  otRequests.forEach((r) => {
-    const h = r.hours != null && r.hours > 0
-      ? r.hours
-      : calcOTHours(r.start_time, r.end_time);
-    if (!otByUserDate[r.user_id]) otByUserDate[r.user_id] = {};
-    otByUserDate[r.user_id][r.request_date] =
-      (otByUserDate[r.user_id][r.request_date] ?? 0) + h;
+  const otByUserDate: Record<string, Record<string, { start: string; end: string }[]>> = {};
+otRequests.forEach((r) => {
+  if (!otByUserDate[r.user_id]) otByUserDate[r.user_id] = {};
+  if (!otByUserDate[r.user_id][r.request_date])
+    otByUserDate[r.user_id][r.request_date] = [];
+  otByUserDate[r.user_id][r.request_date].push({
+    start: r.start_time.slice(0, 5),
+    end:   r.end_time.slice(0, 5),
   });
+});
 
   employees.forEach((emp) => {
     const logs = timeLogs.filter((l) => l.user_id === emp.id);
@@ -883,19 +883,24 @@ export default function HRAttendancePage() {
       }
     });
 
-    const reqMap = otByUserDate[emp.id] ?? {};
-
-    const allDates = new Set([
-      ...Object.keys(logMap),
-      ...Object.keys(reqMap),
-    ]);
-
-    let otSum = 0;
-    allDates.forEach((date) => {
-      const fromLog = logMap[date] ?? 0;
-      const fromReq = reqMap[date] ?? 0;
-      otSum += fromLog > 0 ? fromLog : fromReq;
-    });
+    const reqPeriodsMap = otByUserDate[emp.id] ?? {};
+const allDates = new Set([...Object.keys(logMap), ...Object.keys(reqPeriodsMap)]);
+let otSum = 0;
+allDates.forEach((date) => {
+  const log = logs.find(l => l.log_date === date);
+  // ดึง timeline period
+  const events = log?.timeline_events ?? [];
+  const otStart = events.find(e => e.event === "ot_start");
+  const otEnd   = events.find(e => e.event === "ot_end");
+  const timelinePeriod = otStart && otEnd
+    ? [{ start: fmtOTTime(otStart.timestamp)!, end: fmtOTTime(otEnd.timestamp)! }]
+    : [];
+  const reqPeriods = reqPeriodsMap[date] ?? [];
+  const allPeriods = [...timelinePeriod, ...reqPeriods];
+  otSum += allPeriods.length > 0
+    ? calcTotalOT(allPeriods)
+    : (logMap[date] ?? 0);
+});
 
     const totalOT = Math.round(otSum * 100) / 100;
 
@@ -908,7 +913,16 @@ export default function HRAttendancePage() {
       late,
       absent,
       leave,
-      totalRegHours: (present + late) * 8,
+      totalRegHours: Math.round(
+  logs
+    .filter(l => l.status === "on_time" || l.status === "late")
+    .reduce((sum, l) => {
+      if (!l.first_check_in || !l.last_check_out) return sum;
+      const checkIn  = fmtTime(l.first_check_in);
+      const checkOut = fmtTime(l.last_check_out);
+      return sum + (calcRegHours(checkIn, checkOut) ?? 0);
+    }, 0) * 10
+) / 10,
       totalOT,
       avgIn:         calcAvgTime(inTimes),
       avgOut:        calcAvgTime(outTimes),
@@ -931,17 +945,16 @@ export default function HRAttendancePage() {
     const result: Record<string, DayLog[]> = {};
     const todayStr = new Date().toISOString().split("T")[0];
 
-    const otByUserDate: Record<
-      string,
-      Record<string, { start_time: string; end_time: string }>
-    > = {};
-    otRequests.forEach((r) => {
-      if (!otByUserDate[r.user_id]) otByUserDate[r.user_id] = {};
-      otByUserDate[r.user_id][r.request_date] = {
-        start_time: r.start_time,
-        end_time: r.end_time,
-      };
-    });
+    const otByUserDate: Record<string, Record<string, { start_time: string; end_time: string }[]>> = {};
+otRequests.forEach((r) => {
+  if (!otByUserDate[r.user_id]) otByUserDate[r.user_id] = {};
+  if (!otByUserDate[r.user_id][r.request_date])
+    otByUserDate[r.user_id][r.request_date] = [];
+  otByUserDate[r.user_id][r.request_date].push({
+    start_time: r.start_time,
+    end_time:   r.end_time,
+  });
+});
 
     employees.forEach((emp) => {
       const userLogs = timeLogs.filter((l) => l.user_id === emp.id);
@@ -978,7 +991,7 @@ export default function HRAttendancePage() {
             otPeriods: [],
             otTotal: 0,
             otTimeline: null,
-            otReq: null,
+            otReqs: [],
           });
           continue;
         }
@@ -997,7 +1010,7 @@ export default function HRAttendancePage() {
             otPeriods: [],
             otTotal: 0,
             otTimeline: null,
-            otReq: null,
+            otReqs: [],
           });
           continue;
         }
@@ -1015,7 +1028,7 @@ export default function HRAttendancePage() {
             otPeriods: [],
             otTotal: 0,
             otTimeline: null,
-            otReq: null,
+            otReqs: [],
           });
           continue;
         }
@@ -1037,20 +1050,28 @@ const timelineOT = (() => {
 })();
 
 // ── OT Request (approved) ──
-const otReq = otByUserDate[emp.id]?.[dateStr];
-const reqOT = otReq
-  ? { start: otReq.start_time.slice(0, 5), end: otReq.end_time.slice(0, 5) }
+const otReqs = otByUserDate[emp.id]?.[dateStr] ?? [];
+
+// สำหรับ display column "Req. Start OT / End OT" → ใช้ชุดแรก (เหมือนเดิม)
+const reqOT = otReqs.length > 0
+  ? { start: otReqs[0].start_time.slice(0, 5), end: otReqs[0].end_time.slice(0, 5) }
   : null;
 
-// periods[0] = timeline OT เสมอ | periods[1] = req OT เสมอ
-const periods: ({ start: string; end: string } | undefined)[] = [
-  timelineOT ?? undefined,
-  reqOT ?? undefined,
+// สำหรับคำนวณ otTotal → ใส่ทุกชุด
+const reqPeriods = otReqs.map(r => ({
+  start: r.start_time.slice(0, 5),
+  end:   r.end_time.slice(0, 5),
+}));
+
+const periods: { start: string; end: string }[] = [
+  ...(timelineOT ? [timelineOT] : []),
+  ...reqPeriods,
 ];
 
-const otTotal = log.ot_hours
-  ? Number(log.ot_hours)
-  : calcTotalOT(periods.filter((p): p is { start: string; end: string } => !!p));
+const validPeriods = periods.filter((p): p is {start:string;end:string} => !!p);
+const otTotal = validPeriods.length > 0
+  ? calcTotalOT(validPeriods)
+  : (log.ot_hours ? Number(log.ot_hours) : 0);
 
 
           days.push({
@@ -1069,7 +1090,7 @@ const otTotal = log.ot_hours
             otPeriods: periods.filter((p): p is { start: string; end: string } => p !== undefined),
             otTotal,
             otTimeline: timelineOT,
-            otReq: reqOT,
+            otReqs: reqPeriods,
           });
         } else {
           days.push({
@@ -1084,7 +1105,7 @@ const otTotal = log.ot_hours
             otPeriods: [],
             otTotal: 0,
             otTimeline: null,
-            otReq: null,
+            otReqs: [],
           });
         }
       }
@@ -1121,7 +1142,7 @@ const otTotal = log.ot_hours
       present: vals.reduce((s, a) => s + a.present, 0),
       late: vals.reduce((s, a) => s + a.late, 0),
       absent: vals.reduce((s, a) => s + a.absent, 0),
-      ot: Math.round(vals.reduce((s, a) => s + a.totalOT, 0) * 10) / 10,
+      ot: Math.round(vals.reduce((s, a) => s + a.totalOT, 0) * 100) / 100
     };
   }, [employees, attendances]);
 

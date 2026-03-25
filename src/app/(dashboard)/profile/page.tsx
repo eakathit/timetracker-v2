@@ -32,6 +32,7 @@ interface TimeLogRow {
   last_check_out: string | null;
   ot_hours: number;
   status: string;
+  timeline_events: { event: string; timestamp: string }[] | null;
 }
 
 // Row จาก ot_requests
@@ -106,6 +107,31 @@ function calcOTHours(startTime: string, endTime: string): number {
   };
   const diff = parseMin(endTime) - parseMin(startTime);
   return diff > 0 ? Math.round((diff / 60) * 100) / 100 : 0;
+}
+
+function calcTotalOT(periods: { start: string; end: string }[]): number {
+  if (!periods.length) return 0;
+  const toMins = (t: string) => {
+    const [h, m] = t.split(":").map(Number);
+    return h * 60 + m;
+  };
+  const sorted = [...periods].sort((a, b) => toMins(a.start) - toMins(b.start));
+  let total = 0;
+  let curStart = toMins(sorted[0].start);
+  let curEnd   = toMins(sorted[0].end);
+  for (let i = 1; i < sorted.length; i++) {
+    const s = toMins(sorted[i].start);
+    const e = toMins(sorted[i].end);
+    if (s <= curEnd) {
+      curEnd = Math.max(curEnd, e);
+    } else {
+      total += curEnd - curStart;
+      curStart = s;
+      curEnd   = e;
+    }
+  }
+  total += curEnd - curStart;
+  return Math.round((total / 60) * 100) / 100;
 }
 
 function pct(used: number, quota: number) {
@@ -543,8 +569,8 @@ const fetchMonthLogs = useCallback(async () => {
     const [timeRes, holidayRes, reportRes, otReqRes] = await Promise.all([
       // ── time logs ของ user เดือนนี้
       supabase
-        .from("daily_time_logs")
-        .select("log_date, work_type, first_check_in, last_check_out, ot_hours, status")
+      .from("daily_time_logs")
+      .select("log_date, work_type, first_check_in, last_check_out, ot_hours, status, timeline_events")
         .eq("user_id", userId)
         .gte("log_date", start)
         .lte("log_date", end),
@@ -595,13 +621,14 @@ const fetchMonthLogs = useCallback(async () => {
     const reportSet = new Set<string>((reportRes.data ?? []).map(r => r.report_date));
 
     // สร้าง map: request_date -> approved OT hours รวม
-    const otRequestMap: Record<string, number> = {};
-    ((otReqRes.data ?? []) as OTRequestRow[]).forEach(r => {
-      const h = (r.hours != null && r.hours > 0)
-        ? r.hours
-        : calcOTHours(r.start_time, r.end_time);
-      otRequestMap[r.request_date] = (otRequestMap[r.request_date] ?? 0) + h;
-    });
+    const otRequestMap: Record<string, { start: string; end: string }[]> = {};
+((otReqRes.data ?? []) as OTRequestRow[]).forEach(r => {
+  if (!otRequestMap[r.request_date]) otRequestMap[r.request_date] = [];
+  otRequestMap[r.request_date].push({
+    start: r.start_time.slice(0, 5),
+    end:   r.end_time.slice(0, 5),
+  });
+});
 
     // ── สร้าง DayLog ครบทุกวันในเดือน ───────────────────────────────────────
     const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
@@ -644,9 +671,28 @@ const fetchMonthLogs = useCallback(async () => {
       const checkIn  = timeLog?.first_check_in ? fmtTime(timeLog.first_check_in) : null;
       const checkOut = timeLog?.last_check_out  ? fmtTime(timeLog.last_check_out) : null;
 
-      const otFromLog  = timeLog?.ot_hours ?? 0;
-      const otFromReq  = otRequestMap[dateStr] ?? 0;
-      const combinedOT = otFromLog + otFromReq;
+      // ดึง timeline OT range จาก timeline_events
+const timelineOT = (() => {
+  const events = timeLog?.timeline_events ?? [];
+  const otStart = events.find(e => e.event === "ot_start");
+  const otEnd   = events.find(e => e.event === "ot_end");
+  if (!otStart || !otEnd) return null;
+  return {
+    start: fmtTime(otStart.timestamp),
+    end:   fmtTime(otEnd.timestamp),
+  };
+})();
+
+const reqPeriods = otRequestMap[dateStr] ?? [];
+
+const allPeriods = [
+  ...(timelineOT ? [timelineOT] : []),
+  ...reqPeriods,
+];
+
+const combinedOT = allPeriods.length > 0
+  ? calcTotalOT(allPeriods)
+  : (timeLog?.ot_hours ?? 0);
 
       // ── 3a. ขาดงาน ───────────────────────────────────────────────────────
       if (!checkIn && !isFuture) {
