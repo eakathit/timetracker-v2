@@ -47,6 +47,8 @@ interface DayLog {
   regHours: number | null;
   otTimeline: { start: string; end: string } | null;
   otReqs: { start: string; end: string }[];
+  workType: string | null;
+  dailyAllowance: boolean;
 }
 
 interface TimeLogRow {
@@ -57,6 +59,8 @@ interface TimeLogRow {
   last_check_out: string | null;
   ot_hours: number | null;
   timeline_events: { event: string; timestamp: string }[] | null;
+  work_type: string;
+  daily_allowance: boolean | null;
 }
 
 interface OTRequestRow {
@@ -126,6 +130,12 @@ const STATUS_LABEL: Record<string, string> = {
   leave: "ลา",
   holiday: "วันหยุด", // ← เพิ่ม
   weekend: "เสาร์-อา", // ← เพิ่ม
+};
+
+const WORK_TYPE_LABEL: Record<string, string> = {
+  in_factory: "โรงงาน",
+  on_site: "On-site",
+  mixed: "ผสม",
 };
 
 // ════════════════════════════════════════════════════════
@@ -199,8 +209,8 @@ function calcRegHours(checkIn: string, checkOut: string | null): number | null {
   const [ih, im] = checkIn.split(":").map(Number);
   const [oh, om] = checkOut.split(":").map(Number);
 
-  const inMin   = ih * 60 + im;
-  const outMin  = oh * 60 + om;
+  const inMin = ih * 60 + im;
+  const outMin = oh * 60 + om;
   const diffMin = outMin - inMin;
 
   if (diffMin <= 0) return null;
@@ -304,102 +314,136 @@ function DrillDownPanel({
   const [exporting, setExporting] = useState(false);
 
   const handleExportIndividual = async () => {
-  setExporting(true);
-  try {
-    const { utils, writeFile } = await import("xlsx");
-    const title = `${emp.first_name} ${emp.last_name} — ${MONTHS_TH[month]} ${year + 543}`;
+    setExporting(true);
+    try {
+      const { utils, writeFile } = await import("xlsx");
+      const title = `${emp.first_name} ${emp.last_name} — ${MONTHS_TH[month]} ${year + 543}`;
 
-    const header = [
-      [title],
-      [],
-      ["วันที่", "วัน", "ประเภทวัน", "สถานะ", "เข้างาน", "ออกงาน", "Start OT", "End OT", "Req. Start OT", "Req. End OT", "OT รวม (ชม.)"],
-    ];
-
-    // ── helper: กำหนด label ประเภทวัน ──────────────────────
-    const getDayTypeLabel = (log: DayLog): string => {
-      if (log.isWorkingSat) return "เสาร์ทำงาน";      // ← ไม่ใช่ "วันหยุด"
-      if (log.dow === 0 || log.dow === 6) return "วันหยุดประจำสัปดาห์";
-      if (log.status === "holiday") return "วันหยุด";
-      return "วันปกติ";
-    };
-
-    const STATUS_TEXT: Record<string, string> = {
-      present: "มาปกติ",
-      late:    "มาสาย",
-      absent:  "ขาดงาน",
-      leave:   "ลา",
-      holiday: "วันหยุด",
-      weekend: "เสาร์-อา",
-    };
-
-    const data = dailyLogs.map(log => {
-      const workOT = log.otTimeline;
-      return [
-        log.date,
-        DAYS_SHORT[log.dow],
-        getDayTypeLabel(log),              // ← Column C: ใช้ helper ใหม่
-        STATUS_TEXT[log.status] ?? log.status,
-        log.checkIn,
-        log.checkOut,
-        workOT?.start ?? "–",
-        workOT?.end   ?? "–",
-        log.otReqs.map(r => r.start).join(" / ") || "–",
-        log.otReqs.map(r => r.end).join(" / ")   || "–",
-        log.otTotal > 0 ? log.otTotal : "–",
+      const header = [
+        [title],
+        [],
+        [
+          "วันที่",
+          "วัน",
+          "ประเภทวัน",
+          "สถานะ",
+          "ประเภทงาน",
+          "เบี้ยเลี้ยง",
+          "เข้างาน",
+          "ออกงาน",
+          "Start OT",
+          "End OT",
+          "Req. Start OT",
+          "Req. End OT",
+          "OT รวม (ชม.)",
+        ],
       ];
-    });
 
-    // ── Summary แยก วันปกติ vs วันหยุดจริง ──────────────────
-    // working_sat = นับเป็นวันปกติ ✅
-    const workdayLogs = dailyLogs.filter(
-      l => (l.status === "present" || l.status === "late") &&
-           (l.dow !== 0 && (l.dow !== 6 || l.isWorkingSat))  // จ-ศ + เสาร์ทำงาน
-    );
+      // ── helper: กำหนด label ประเภทวัน ──────────────────────
+      const getDayTypeLabel = (log: DayLog): string => {
+        if (log.isWorkingSat) return "เสาร์ทำงาน"; // ← ไม่ใช่ "วันหยุด"
+        if (log.dow === 0 || log.dow === 6) return "วันหยุดประจำสัปดาห์";
+        if (log.status === "holiday") return "วันหยุด";
+        return "วันปกติ";
+      };
 
-    const holidayLogs = dailyLogs.filter(
-  l => (l.status === "present" || l.status === "late") &&
-       !l.isWorkingSat &&
-       (l.dow === 0 || l.dow === 6)
-);
+      const STATUS_TEXT: Record<string, string> = {
+        present: "มาปกติ",
+        late: "มาสาย",
+        absent: "ขาดงาน",
+        leave: "ลา",
+        holiday: "วันหยุด",
+        weekend: "เสาร์-อา",
+      };
 
-    const workdayRegHours = Math.round(
-      workdayLogs.reduce((s, l) => s + (l.regHours ?? 0), 0) * 10
-    ) / 10;
-    const holidayRegHours = Math.round(
-      holidayLogs.reduce((s, l) => s + (l.regHours ?? 0), 0) * 10
-    ) / 10;
-    const workdayOT       = Math.round(workdayLogs.reduce((s, l) => s + l.otTotal, 0) * 10) / 10;
-    const holidayOT       = Math.round(holidayLogs.reduce((s, l) => s + l.otTotal, 0) * 10) / 10;
+      const data = dailyLogs.map((log) => {
+        const workOT = log.otTimeline;
+        return [
+          log.date,
+          DAYS_SHORT[log.dow],
+          getDayTypeLabel(log),
+          STATUS_TEXT[log.status] ?? log.status,
+          log.workType ? (WORK_TYPE_LABEL[log.workType] ?? log.workType) : "–", // ← ประเภทงาน
+          log.dailyAllowance ? "50" : "–", // ← เบี้ยเลี้ยง
+          log.checkIn,
+          log.checkOut,
+          workOT?.start ?? "–",
+          workOT?.end ?? "–",
+          log.otReqs.map((r) => r.start).join(" / ") || "–",
+          log.otReqs.map((r) => r.end).join(" / ") || "–",
+          log.otTotal > 0 ? log.otTotal : "–",
+        ];
+      });
+      // ── Summary แยก วันปกติ vs วันหยุดจริง ──────────────────
+      // working_sat = นับเป็นวันปกติ ✅
+      const workdayLogs = dailyLogs.filter(
+        (l) =>
+          (l.status === "present" || l.status === "late") &&
+          l.dow !== 0 &&
+          (l.dow !== 6 || l.isWorkingSat), // จ-ศ + เสาร์ทำงาน
+      );
 
-    const summary = [
-      [],
-      ["สรุป"],
-      ["วันมาทำงาน",  "", att.present],
-      ["มาสาย",       "", att.late],
-      ["ขาดงาน",      "", att.absent],
-      ["ลา",          "", att.leave],
-      [],
-      ["—— วันปกติ ——"],
-      ["ชั่วโมงทำงาน (วันปกติ)",  "", workdayRegHours, "ชม."],
-      ["OT รวม (วันปกติ)",        "", workdayOT,       "ชม."],
-      [],
-      ["—— วันหยุด ——"],
-      ["ชั่วโมงทำงาน (วันหยุด)", "", holidayRegHours, "ชม."],
-      ["OT รวม (วันหยุด)",       "", holidayOT,       "ชม."],
-    ];
+      const holidayLogs = dailyLogs.filter(
+        (l) =>
+          (l.status === "present" || l.status === "late") &&
+          !l.isWorkingSat &&
+          (l.dow === 0 || l.dow === 6),
+      );
 
-    const ws = utils.aoa_to_sheet([...header, ...data, ...summary]);
-    ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 5 } }];
-    ws["!cols"] = [12, 6, 16, 10, 10, 10, 10, 10, 12, 12, 10].map(w => ({ wch: w }));
+      const workdayRegHours =
+        Math.round(
+          workdayLogs.reduce((s, l) => s + (l.regHours ?? 0), 0) * 10,
+        ) / 10;
+      const holidayRegHours =
+        Math.round(
+          holidayLogs.reduce((s, l) => s + (l.regHours ?? 0), 0) * 10,
+        ) / 10;
+      const workdayOT =
+        Math.round(workdayLogs.reduce((s, l) => s + l.otTotal, 0) * 100) / 100;
+      const holidayOT =
+        Math.round(holidayLogs.reduce((s, l) => s + l.otTotal, 0) * 10) / 10;
+      
+      const allowanceDays  = dailyLogs.filter(l => l.dailyAllowance).length;
+      const allowanceTotal = allowanceDays * 50;
 
-    const wb = utils.book_new();
-    const sheetName = `${emp.first_name}_${MONTHS_TH[month].slice(0, 3)}`;
-    utils.book_append_sheet(wb, ws, sheetName);
-    writeFile(wb, `attendance_${emp.first_name}_${emp.last_name}_${year}_${String(month + 1).padStart(2, "0")}.xlsx`);
-  } finally {
-    setExporting(false);
-  }
-};
+      const summary = [
+  [],
+  ["สรุป"],
+  ["วันมาทำงาน",  "", att.present],
+  ["มาสาย",       "", att.late],
+  ["ขาดงาน",      "", att.absent],
+  ["ลา",          "", att.leave],
+  [],
+  ["—— วันปกติ ——"],
+  ["ชั่วโมงทำงาน (วันปกติ)",  "", workdayRegHours, "ชม."],
+  ["OT รวม (วันปกติ)",        "", workdayOT,        "ชม."],
+  [],
+  ["—— วันหยุด ——"],
+  ["ชั่วโมงทำงาน (วันหยุด)", "", holidayRegHours, "ชม."],
+  ["OT รวม (วันหยุด)",       "", holidayOT,        "ชม."],
+  [],                                                
+  ["—— เบี้ยเลี้ยง ——"],                               
+  ["เบี้ยเลี้ยง On-site", "", allowanceDays,  "วัน"], 
+  ["รวมเบี้ยเลี้ยง",      "", allowanceTotal, "บาท"],  
+];
+
+      const ws = utils.aoa_to_sheet([...header, ...data, ...summary]);
+      ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 5 } }];
+      ws["!cols"] = [12, 6, 16, 10, 10, 10, 10, 10, 10, 10, 12, 12, 10].map(
+        (w) => ({ wch: w }),
+      );
+
+      const wb = utils.book_new();
+      const sheetName = `${emp.first_name}_${MONTHS_TH[month].slice(0, 3)}`;
+      utils.book_append_sheet(wb, ws, sheetName);
+      writeFile(
+        wb,
+        `attendance_${emp.first_name}_${emp.last_name}_${year}_${String(month + 1).padStart(2, "0")}.xlsx`,
+      );
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const counts = useMemo(
     () =>
@@ -590,7 +634,7 @@ function DrillDownPanel({
 async function exportHRExcel(
   employees: Employee[],
   attendances: Record<string, AttendanceStat>,
-  dailyLogsPerUser: Record<string, DayLog[]>,  // ← เพิ่ม parameter
+  dailyLogsPerUser: Record<string, DayLog[]>, // ← เพิ่ม parameter
   year: number,
   month: number,
 ) {
@@ -602,30 +646,53 @@ async function exportHRExcel(
     [title],
     [],
     [
-      "ชื่อ-นามสกุล", "แผนก",
-      "วันทำงาน", "มาทำงาน", "มาสาย", "ขาดงาน", "ลา",
-      "ชม.ปกติ", "ชม.วันหยุด", "OT ปกติ (ชม.)", "OT วันหยุด (ชม.)",
-    ],
+  "ชื่อ-นามสกุล", "แผนก",
+  "วันทำงาน", "มาทำงาน", "มาสาย", "ขาดงาน", "ลา",
+  "ชม.ปกติ", "ชม.วันหยุด", "OT ปกติ (ชม.)", "OT วันหยุด (ชม.)",
+  "เบี้ยเลี้ยง On-site (บาท)",
+]
   ];
 
   // ↓ วางตรงนี้ แทนที่ const data เดิม
-  const data = employees.map(emp => {
-    const att      = attendances[emp.id];
-    const dayLogs  = dailyLogsPerUser[emp.id] ?? [];
+  const data = employees.map((emp) => {
+    const att = attendances[emp.id];
+    const dayLogs = dailyLogsPerUser[emp.id] ?? [];
 
-    const workedLogs        = dayLogs.filter(l => l.checkIn !== "–");
-    const holidayWorkedLogs = workedLogs.filter(l => l.holidayName);
-    const normalWorkedLogs  = workedLogs.filter(l => !l.holidayName);
+    const workedLogs = dayLogs.filter((l) => l.checkIn !== "–");
+    const holidayWorkedLogs = workedLogs.filter(
+      (l) =>
+        !l.isWorkingSat &&
+        (l.dow === 0 || l.dow === 6 || l.status === "holiday"),
+    );
+    const normalWorkedLogs = workedLogs.filter(
+      (l) =>
+        l.isWorkingSat ||
+        (l.dow !== 0 && l.dow !== 6 && l.status !== "holiday"),
+    );
 
-    const normalWorkHours   = Math.round(normalWorkedLogs.length * 8 * 10) / 10;
-    const holidayWorkHours  = Math.round(holidayWorkedLogs.length * 8 * 10) / 10;
-    const normalOT          = Math.round(normalWorkedLogs.reduce((s, l) => s + l.otTotal, 0) * 10) / 10;
-    const holidayOT         = Math.round(holidayWorkedLogs.reduce((s, l) => s + l.otTotal, 0) * 10) / 10;
+    const normalWorkHours =
+      Math.round(
+        normalWorkedLogs.reduce((s, l) => s + (l.regHours ?? 0), 0) * 10,
+      ) / 10;
+
+    const normalOT =
+      Math.round(normalWorkedLogs.reduce((s, l) => s + l.otTotal, 0) * 100) /
+      100;
+    const holidayWorkHours =
+      Math.round(
+        holidayWorkedLogs.reduce((s, l) => s + (l.regHours ?? 0), 0) * 10,
+      ) / 10;
+    const holidayOT =
+      Math.round(holidayWorkedLogs.reduce((s, l) => s + l.otTotal, 0) * 100) /
+      100;
+
+    const allowanceTotal = dayLogs.filter(l => l.dailyAllowance).length * 50;
 
     if (!att) return [
-      `${emp.first_name} ${emp.last_name}`, emp.department,
-      0, 0, 0, 0, 0, 0, 0, 0, 0,
-    ];
+    `${emp.first_name} ${emp.last_name}`, emp.department,
+    0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0,
+  ];
 
     return [
       `${emp.first_name} ${emp.last_name}`,
@@ -639,17 +706,25 @@ async function exportHRExcel(
       holidayWorkHours,
       normalOT,
       holidayOT,
+      allowanceTotal,
     ];
   });
 
   const ws = utils.aoa_to_sheet([...header, ...data]);
 
   ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 10 } }];
-  ws["!cols"] = [20, 14, 9, 9, 9, 9, 6, 9, 10, 13, 14].map(w => ({ wch: w }));
+  ws["!cols"] = [20, 14, 9, 9, 9, 9, 6, 9, 10, 13, 14].map((w) => ({ wch: w }));
 
   const wb = utils.book_new();
-  utils.book_append_sheet(wb, ws, `${MONTHS_TH[month].slice(0, 3)}_${year + 543}`);
-  writeFile(wb, `hr_attendance_${year}_${String(month + 1).padStart(2, "0")}.xlsx`);
+  utils.book_append_sheet(
+    wb,
+    ws,
+    `${MONTHS_TH[month].slice(0, 3)}_${year + 543}`,
+  );
+  writeFile(
+    wb,
+    `hr_attendance_${year}_${String(month + 1).padStart(2, "0")}.xlsx`,
+  );
 }
 
 export default function HRAttendancePage() {
@@ -714,8 +789,9 @@ export default function HRAttendancePage() {
         supabase
           .from("daily_time_logs")
           .select(
-    "user_id, log_date, status, first_check_in, last_check_out, ot_hours, timeline_events",
-  )
+            "user_id, log_date, status, first_check_in, last_check_out, ot_hours, timeline_events, work_type, daily_allowance",
+          )
+
           .in("user_id", userIds)
           .gte("log_date", start)
           .lte("log_date", end),
@@ -810,151 +886,183 @@ export default function HRAttendancePage() {
     return map;
   }, [leaveRequests]);
 
+  const workdayEnded = new Date().getHours() >= 18;
+
   // ── สร้าง AttendanceStat ต่อ user ───────────────────
   const attendances = useMemo(() => {
-  const result: Record<string, AttendanceStat> = {};
-  const todayStr = new Date().toISOString().split("T")[0];
+    const result: Record<string, AttendanceStat> = {};
+    const todayStr = new Date().toISOString().split("T")[0];
 
-  // ── คำนวณ expectedWorkdays จากปฏิทิน (ไม่รวมอนาคต) ──
-  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
-  let expectedWorkdays = 0;
-  for (let d = 1; d <= daysInMonth; d++) {
-    const dateStr = `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-    if (dateStr > todayStr) break;
-    const dow = new Date(viewYear, viewMonth, d).getDay();
-    if (dow === 0) continue;
-    if (dow === 6 && !workingSats.has(dateStr)) continue;
-    if (holidays.has(dateStr)) continue;
-    expectedWorkdays++;
-  }
+    // ── คำนวณ expectedWorkdays จากปฏิทิน (ไม่รวมอนาคต) ──
+    const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+    let expectedWorkdays = 0;
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dateStr = `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+      if (workdayEnded ? dateStr > todayStr : dateStr >= todayStr) break;
+      const dow = new Date(viewYear, viewMonth, d).getDay();
+      if (dow === 0) continue;
+      if (dow === 6 && !workingSats.has(dateStr)) continue;
+      if (holidays.has(dateStr)) continue;
+      expectedWorkdays++;
+    }
 
-  // ✅ สร้าง map: user_id → date → OT hours (จาก ot_requests)
-  const otByUserDate: Record<string, Record<string, { start: string; end: string }[]>> = {};
-otRequests.forEach((r) => {
-  if (!otByUserDate[r.user_id]) otByUserDate[r.user_id] = {};
-  if (!otByUserDate[r.user_id][r.request_date])
-    otByUserDate[r.user_id][r.request_date] = [];
-  otByUserDate[r.user_id][r.request_date].push({
-    start: r.start_time.slice(0, 5),
-    end:   r.end_time.slice(0, 5),
-  });
-});
+    // ✅ สร้าง map: user_id → date → OT hours (จาก ot_requests)
+    const otByUserDate: Record<
+      string,
+      Record<string, { start: string; end: string }[]>
+    > = {};
+    otRequests.forEach((r) => {
+      if (!otByUserDate[r.user_id]) otByUserDate[r.user_id] = {};
+      if (!otByUserDate[r.user_id][r.request_date])
+        otByUserDate[r.user_id][r.request_date] = [];
+      otByUserDate[r.user_id][r.request_date].push({
+        start: r.start_time.slice(0, 5),
+        end: r.end_time.slice(0, 5),
+      });
+    });
 
-  employees.forEach((emp) => {
-    const logs = timeLogs.filter((l) => l.user_id === emp.id);
+    employees.forEach((emp) => {
+      const logs = timeLogs.filter((l) => l.user_id === emp.id);
 
-    const present = logs.filter((l) => l.status === "on_time").length;
-    const late    = logs.filter((l) => l.status === "late").length;
-    const leave   = logs.filter((l) => {
-      if (l.status !== "leave") return false;
-      const dow    = new Date(l.log_date).getDay();
-      const isWsat = workingSats.has(l.log_date);
-      const isHol  = holidays.has(l.log_date);
-      if (dow === 0) return false;
-      if (dow === 6 && !isWsat) return false;
-      if (isHol) return false;
-      return true;
-    }).length;
+      const present = logs.filter((l) => l.status === "on_time").length;
+      const late = logs.filter((l) => l.status === "late").length;
+      const leave = logs.filter((l) => {
+        if (l.status !== "leave") return false;
+        const dow = new Date(l.log_date).getDay();
+        const isWsat = workingSats.has(l.log_date);
+        const isHol = holidays.has(l.log_date);
+        if (dow === 0) return false;
+        if (dow === 6 && !isWsat) return false;
+        if (isHol) return false;
+        return true;
+      }).length;
 
-   const absent = Math.max(0, expectedWorkdays - present - late - leave);
+      const absent = Math.max(0, expectedWorkdays - present - late - leave);
 
-    // คำนวณ totalOT แบบ sum ต่อวัน + fallback จาก timeline_events
-    const logMap: Record<string, number> = {};
-    logs.forEach((l) => {
-      if (l.ot_hours != null && l.ot_hours > 0) {
-        // มี ot_hours ใน DB → ใช้เลย
-        logMap[l.log_date] = l.ot_hours;
-      } else if (l.timeline_events) {
-        // ไม่มี ot_hours → คำนวณจาก ot_start / ot_end ใน timeline
-        const events = l.timeline_events as { event: string; timestamp: string }[];
-        const otStart = events.find((e) => e.event === "ot_start");
-        const otEnd   = events.find((e) => e.event === "ot_end");
-        if (otStart && otEnd) {
-          const mins = (
-            new Date(otEnd.timestamp).getTime() -
-            new Date(otStart.timestamp).getTime()
-          ) / 60_000;
-          logMap[l.log_date] = Math.round((mins / 60) * 100) / 100;
+      // คำนวณ totalOT แบบ sum ต่อวัน + fallback จาก timeline_events
+      const logMap: Record<string, number> = {};
+      logs.forEach((l) => {
+        if (l.ot_hours != null && l.ot_hours > 0) {
+          // มี ot_hours ใน DB → ใช้เลย
+          logMap[l.log_date] = l.ot_hours;
+        } else if (l.timeline_events) {
+          // ไม่มี ot_hours → คำนวณจาก ot_start / ot_end ใน timeline
+          const events = l.timeline_events as {
+            event: string;
+            timestamp: string;
+          }[];
+          const otStart = events.find((e) => e.event === "ot_start");
+          const otEnd = events.find((e) => e.event === "ot_end");
+          if (otStart && otEnd) {
+            const mins =
+              (new Date(otEnd.timestamp).getTime() -
+                new Date(otStart.timestamp).getTime()) /
+              60_000;
+            logMap[l.log_date] = Math.round((mins / 60) * 100) / 100;
+          } else {
+            logMap[l.log_date] = 0;
+          }
         } else {
           logMap[l.log_date] = 0;
         }
-      } else {
-        logMap[l.log_date] = 0;
-      }
-    });
+      });
 
-    const reqPeriodsMap = otByUserDate[emp.id] ?? {};
-const allDates = new Set([...Object.keys(logMap), ...Object.keys(reqPeriodsMap)]);
-let otSum = 0;
-allDates.forEach((date) => {
-  const log = logs.find(l => l.log_date === date);
-  // ดึง timeline period
-  const events = log?.timeline_events ?? [];
-  const otStart = events.find(e => e.event === "ot_start");
-  const otEnd   = events.find(e => e.event === "ot_end");
-  const timelinePeriod = otStart && otEnd
-    ? [{ start: fmtOTTime(otStart.timestamp)!, end: fmtOTTime(otEnd.timestamp)! }]
-    : [];
-  const reqPeriods = reqPeriodsMap[date] ?? [];
-  const allPeriods = [...timelinePeriod, ...reqPeriods];
-  otSum += allPeriods.length > 0
-    ? calcTotalOT(allPeriods)
-    : (logMap[date] ?? 0);
+      const reqPeriodsMap = otByUserDate[emp.id] ?? {};
+      const allDates = new Set([
+        ...Object.keys(logMap),
+        ...Object.keys(reqPeriodsMap),
+      ]);
+      let otSum = 0;
+      allDates.forEach((date) => {
+        const log = logs.find((l) => l.log_date === date);
+        // ดึง timeline period
+        const events = log?.timeline_events ?? [];
+        const otStart = events.find((e) => e.event === "ot_start");
+        const otEnd = events.find((e) => e.event === "ot_end");
+        const timelinePeriod =
+          otStart && otEnd
+            ? [
+                {
+                  start: fmtTime(otStart.timestamp),
+                  end: fmtTime(otEnd.timestamp),
+                },
+              ]
+            : [];
+        const reqPeriods = reqPeriodsMap[date] ?? [];
+        const allPeriods = [...timelinePeriod, ...reqPeriods];
+        
+        const hasTimelineOT = !!(otStart && otEnd);
+otSum += (() => {
+  if (allPeriods.length === 0) return logMap[date] ?? 0;
+  const fromPeriods = calcTotalOT(allPeriods);
+  if (!hasTimelineOT && (logMap[date] ?? 0) > 0) {
+    return Math.round((fromPeriods + logMap[date]) * 100) / 100;
+  }
+  return fromPeriods;
+})();      // ← ต้องมี ); ปิด IIFE
 });
 
-    const totalOT = Math.round(otSum * 100) / 100;
+      const totalOT = Math.round(otSum * 100) / 100;
 
-    const inTimes  = logs.map((l) => l.first_check_in).filter(Boolean) as string[];
-    const outTimes = logs.map((l) => l.last_check_out).filter(Boolean) as string[];
+      const inTimes = logs
+        .map((l) => l.first_check_in)
+        .filter(Boolean) as string[];
+      const outTimes = logs
+        .map((l) => l.last_check_out)
+        .filter(Boolean) as string[];
 
-    result[emp.id] = {
-      workdays:      expectedWorkdays,
-      present:       present + late,
-      late,
-      absent,
-      leave,
-      totalRegHours: Math.round(
-  logs
-    .filter(l => l.status === "on_time" || l.status === "late")
-    .reduce((sum, l) => {
-      if (!l.first_check_in || !l.last_check_out) return sum;
-      const checkIn  = fmtTime(l.first_check_in);
-      const checkOut = fmtTime(l.last_check_out);
-      return sum + (calcRegHours(checkIn, checkOut) ?? 0);
-    }, 0) * 10
-) / 10,
-      totalOT,
-      avgIn:         calcAvgTime(inTimes),
-      avgOut:        calcAvgTime(outTimes),
-    };
-  });
+      result[emp.id] = {
+        workdays: expectedWorkdays,
+        present: present + late,
+        late,
+        absent,
+        leave,
+        totalRegHours:
+          Math.round(
+            logs
+              .filter((l) => l.status === "on_time" || l.status === "late")
+              .reduce((sum, l) => {
+                if (!l.first_check_in || !l.last_check_out) return sum;
+                const checkIn = fmtTime(l.first_check_in);
+                const checkOut = fmtTime(l.last_check_out);
+                return sum + (calcRegHours(checkIn, checkOut) ?? 0);
+              }, 0) * 10,
+          ) / 10,
+        totalOT,
+        avgIn: calcAvgTime(inTimes),
+        avgOut: calcAvgTime(outTimes),
+      };
+    });
 
-  return result;
-}, [
-  employees,
-  timeLogs,
-  otRequests,
-  viewYear,
-  viewMonth,
-  holidays,
-  workingSats,
-]);
+    return result;
+  }, [
+    employees,
+    timeLogs,
+    otRequests,
+    viewYear,
+    viewMonth,
+    holidays,
+    workingSats,
+  ]);
 
   // ── สร้าง DayLog รายวัน ต่อ user (สำหรับ DrillDownPanel) ──
   const dailyLogsPerUser = useMemo(() => {
     const result: Record<string, DayLog[]> = {};
     const todayStr = new Date().toISOString().split("T")[0];
 
-    const otByUserDate: Record<string, Record<string, { start_time: string; end_time: string }[]>> = {};
-otRequests.forEach((r) => {
-  if (!otByUserDate[r.user_id]) otByUserDate[r.user_id] = {};
-  if (!otByUserDate[r.user_id][r.request_date])
-    otByUserDate[r.user_id][r.request_date] = [];
-  otByUserDate[r.user_id][r.request_date].push({
-    start_time: r.start_time,
-    end_time:   r.end_time,
-  });
-});
+    const otByUserDate: Record<
+      string,
+      Record<string, { start_time: string; end_time: string }[]>
+    > = {};
+    otRequests.forEach((r) => {
+      if (!otByUserDate[r.user_id]) otByUserDate[r.user_id] = {};
+      if (!otByUserDate[r.user_id][r.request_date])
+        otByUserDate[r.user_id][r.request_date] = [];
+      otByUserDate[r.user_id][r.request_date].push({
+        start_time: r.start_time,
+        end_time: r.end_time,
+      });
+    });
 
     employees.forEach((emp) => {
       const userLogs = timeLogs.filter((l) => l.user_id === emp.id);
@@ -976,7 +1084,7 @@ otRequests.forEach((r) => {
         const isHoliday = holidays.has(dateStr);
         const log = logMap[dateStr];
 
-        if (dateStr === todayStr && !log) continue;
+        if (dateStr === todayStr && !log && !workdayEnded) continue;
 
         if (log?.status === "leave") {
           days.push({
@@ -992,6 +1100,8 @@ otRequests.forEach((r) => {
             otTotal: 0,
             otTimeline: null,
             otReqs: [],
+            workType: null,
+            dailyAllowance: false,
           });
           continue;
         }
@@ -1011,6 +1121,8 @@ otRequests.forEach((r) => {
             otTotal: 0,
             otTimeline: null,
             otReqs: [],
+            workType: null,
+            dailyAllowance: false,
           });
           continue;
         }
@@ -1029,6 +1141,8 @@ otRequests.forEach((r) => {
             otTotal: 0,
             otTimeline: null,
             otReqs: [],
+            workType: null,
+            dailyAllowance: false,
           });
           continue;
         }
@@ -1040,39 +1154,60 @@ otRequests.forEach((r) => {
           else if (log.status === "late") status = "late";
 
           // ── Timeline OT (จาก ot_start / ot_end) ──
-const timelineOT = (() => {
-  const events = log.timeline_events as { event: string; timestamp: string }[] | null;
-  if (!events) return null;
-  const otStart = events.find(e => e.event === "ot_start");
-  const otEnd   = events.find(e => e.event === "ot_end");
-  if (!otStart || !otEnd) return null;
-  return { start: fmtTime(otStart.timestamp), end: fmtTime(otEnd.timestamp) };
-})();
+          const timelineOT = (() => {
+            const events = log.timeline_events as
+              | { event: string; timestamp: string }[]
+              | null;
+            if (!events) return null;
+            const otStart = events.find((e) => e.event === "ot_start");
+            const otEnd = events.find((e) => e.event === "ot_end");
+            if (!otStart || !otEnd) return null;
+            return {
+              start: fmtTime(otStart.timestamp),
+              end: fmtTime(otEnd.timestamp),
+            };
+          })();
 
-// ── OT Request (approved) ──
-const otReqs = otByUserDate[emp.id]?.[dateStr] ?? [];
+          // ── OT Request (approved) ──
+          const otReqs = otByUserDate[emp.id]?.[dateStr] ?? [];
 
-// สำหรับ display column "Req. Start OT / End OT" → ใช้ชุดแรก (เหมือนเดิม)
-const reqOT = otReqs.length > 0
-  ? { start: otReqs[0].start_time.slice(0, 5), end: otReqs[0].end_time.slice(0, 5) }
-  : null;
+          // สำหรับ display column "Req. Start OT / End OT" → ใช้ชุดแรก (เหมือนเดิม)
+          const reqOT =
+            otReqs.length > 0
+              ? {
+                  start: otReqs[0].start_time.slice(0, 5),
+                  end: otReqs[0].end_time.slice(0, 5),
+                }
+              : null;
 
-// สำหรับคำนวณ otTotal → ใส่ทุกชุด
-const reqPeriods = otReqs.map(r => ({
-  start: r.start_time.slice(0, 5),
-  end:   r.end_time.slice(0, 5),
-}));
+          // สำหรับคำนวณ otTotal → ใส่ทุกชุด
+          const reqPeriods = otReqs.map((r) => ({
+            start: r.start_time.slice(0, 5),
+            end: r.end_time.slice(0, 5),
+          }));
 
-const periods: { start: string; end: string }[] = [
-  ...(timelineOT ? [timelineOT] : []),
-  ...reqPeriods,
-];
+          const periods: { start: string; end: string }[] = [
+            ...(timelineOT ? [timelineOT] : []),
+            ...reqPeriods,
+          ];
 
-const validPeriods = periods.filter((p): p is {start:string;end:string} => !!p);
-const otTotal = validPeriods.length > 0
-  ? calcTotalOT(validPeriods)
-  : (log.ot_hours ? Number(log.ot_hours) : 0);
-
+          const validPeriods = periods.filter(
+            (p): p is { start: string; end: string } => !!p,
+          );
+          // — on_site ไม่มี timeline OT ต้องบวก ot_hours เข้าไปด้วย
+          const hasTimelineOT = !!timelineOT;
+          const otTotal = (() => {
+            if (validPeriods.length === 0)
+              return log.ot_hours ? Number(log.ot_hours) : 0;
+            const fromPeriods = calcTotalOT(validPeriods);
+            // ถ้าไม่มี timeline OT (on_site) แต่มี ot_hours → บวกเพิ่ม
+            if (!hasTimelineOT && log.ot_hours && log.ot_hours > 0) {
+              return (
+                Math.round((fromPeriods + Number(log.ot_hours)) * 100) / 100
+              );
+            }
+            return fromPeriods;
+          })();
 
           days.push({
             day: d,
@@ -1084,13 +1219,17 @@ const otTotal = validPeriods.length > 0
             checkIn: fmtTime(log.first_check_in),
             checkOut: fmtTime(log.last_check_out),
             regHours: calcRegHours(
-            fmtTime(log.first_check_in),
-            fmtTime(log.last_check_out)
-          ),  
-            otPeriods: periods.filter((p): p is { start: string; end: string } => p !== undefined),
+              fmtTime(log.first_check_in),
+              fmtTime(log.last_check_out),
+            ),
+            otPeriods: periods.filter(
+              (p): p is { start: string; end: string } => p !== undefined,
+            ),
             otTotal,
             otTimeline: timelineOT,
             otReqs: reqPeriods,
+            workType: log.work_type ?? null,
+            dailyAllowance: log.daily_allowance ?? false,
           });
         } else {
           days.push({
@@ -1106,6 +1245,8 @@ const otTotal = validPeriods.length > 0
             otTotal: 0,
             otTimeline: null,
             otReqs: [],
+            workType: null,
+            dailyAllowance: false,
           });
         }
       }
@@ -1142,7 +1283,7 @@ const otTotal = validPeriods.length > 0
       present: vals.reduce((s, a) => s + a.present, 0),
       late: vals.reduce((s, a) => s + a.late, 0),
       absent: vals.reduce((s, a) => s + a.absent, 0),
-      ot: Math.round(vals.reduce((s, a) => s + a.totalOT, 0) * 100) / 100
+      ot: Math.round(vals.reduce((s, a) => s + a.totalOT, 0) * 100) / 100,
     };
   }, [employees, attendances]);
 
@@ -1180,14 +1321,20 @@ const otTotal = validPeriods.length > 0
     } else setViewMonth((m) => m + 1);
   };
   const handleExport = async () => {
-  if (employees.length === 0) return;
-  setExporting(true);
-  try {
-    await exportHRExcel(filtered, attendances, dailyLogsPerUser, viewYear, viewMonth);
-  } finally {
-    setExporting(false);
-  }
-};
+    if (employees.length === 0) return;
+    setExporting(true);
+    try {
+      await exportHRExcel(
+        filtered,
+        attendances,
+        dailyLogsPerUser,
+        viewYear,
+        viewMonth,
+      );
+    } finally {
+      setExporting(false);
+    }
+  };
   const selectedEmp = selectedId
     ? (employees.find((e) => e.id === selectedId) ?? null)
     : null;

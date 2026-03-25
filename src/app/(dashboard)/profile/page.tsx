@@ -22,6 +22,7 @@ interface DayLog {
   status: "on_time" | "late" | "absent" | "holiday" | "leave";
   isReportSent: boolean;
   otHours: number;             // รวม OT จาก daily_time_logs + ot_requests ที่อนุมัติ
+  dailyAllowance: boolean;
 }
 
 // Row จาก daily_time_logs
@@ -33,6 +34,7 @@ interface TimeLogRow {
   ot_hours: number;
   status: string;
   timeline_events: { event: string; timestamp: string }[] | null;
+  daily_allowance: boolean | null;
 }
 
 // Row จาก ot_requests
@@ -369,6 +371,9 @@ function ListView({ logs }: { logs: DayLog[] }) {
               {log.otHours > 0 && (
                 <span className="ml-2 text-amber-500 font-bold">+{log.otHours}h OT</span>
               )}
+              {log.dailyAllowance && (
+  <span className="ml-2 text-emerald-600 font-bold">+50฿</span>
+)}
             </p>
           </div>
           <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg ${
@@ -570,7 +575,7 @@ const fetchMonthLogs = useCallback(async () => {
       // ── time logs ของ user เดือนนี้
       supabase
       .from("daily_time_logs")
-      .select("log_date, work_type, first_check_in, last_check_out, ot_hours, status, timeline_events")
+      .select("log_date, work_type, first_check_in, last_check_out, ot_hours, status, timeline_events, daily_allowance")
         .eq("user_id", userId)
         .gte("log_date", start)
         .lte("log_date", end),
@@ -651,6 +656,7 @@ const fetchMonthLogs = useCallback(async () => {
           status: "leave",
           isReportSent: reportSet.has(dateStr),
           otHours: 0,
+          dailyAllowance: false,
         });
         continue;
       }
@@ -663,6 +669,7 @@ const fetchMonthLogs = useCallback(async () => {
           status: "holiday",
           isReportSent: false,
           otHours: 0,
+          dailyAllowance: false,
         });
         continue;
       }
@@ -690,9 +697,15 @@ const allPeriods = [
   ...reqPeriods,
 ];
 
-const combinedOT = allPeriods.length > 0
-  ? calcTotalOT(allPeriods)
-  : (timeLog?.ot_hours ?? 0);
+const hasTimelineOT = !!timelineOT;
+const combinedOT = (() => {
+  if (allPeriods.length === 0) return timeLog?.ot_hours ?? 0;
+  const fromPeriods = calcTotalOT(allPeriods);
+  if (!hasTimelineOT && timeLog?.ot_hours && timeLog.ot_hours > 0) {
+    return Math.round((fromPeriods + timeLog.ot_hours) * 100) / 100;
+  }
+  return fromPeriods;
+})();
 
       // ── 3a. ขาดงาน ───────────────────────────────────────────────────────
       if (!checkIn && !isFuture) {
@@ -702,6 +715,7 @@ const combinedOT = allPeriods.length > 0
           status: "absent",
           isReportSent: false,
           otHours: 0,
+          dailyAllowance: false,
         });
         continue;
       }
@@ -718,6 +732,7 @@ const combinedOT = allPeriods.length > 0
         status: classifyStatus(timeLog?.first_check_in ?? null, timeLog, isFuture),
         isReportSent: reportSet.has(dateStr),
         otHours: combinedOT,
+        dailyAllowance: timeLog?.daily_allowance ?? false,
       });
     }
 
@@ -772,7 +787,10 @@ const combinedOT = allPeriods.length > 0
   const reportTotal = useMemo(() =>
     logs.filter(l => l.checkIn !== null && l.status !== "leave" && l.status !== "holiday"),
   [logs]);
-  const otTotal = useMemo(() => logs.reduce((s, l) => s + l.otHours, 0), [logs]);
+  const otTotal = useMemo(
+  () => Math.round(logs.reduce((s, l) => s + l.otHours, 0) * 100) / 100,
+  [logs]
+);
 
   const lateCount = useMemo(() => logs.filter(l => l.status === "late").length, [logs]);
 
@@ -932,7 +950,7 @@ const combinedOT = allPeriods.length > 0
             <div className="text-center px-2">
               {/* OT total รวมจาก ot_requests ที่อนุมัติ + daily_time_logs */}
               <p className="text-lg font-extrabold text-amber-600">
-                {logsLoading ? "..." : otTotal.toFixed(1)}
+                {logsLoading ? "..." : otTotal.toFixed(2)}
               </p>
               <p className="text-[10px] text-gray-400 font-medium">OT เดือนนี้ (ชม.)</p>
             </div>
