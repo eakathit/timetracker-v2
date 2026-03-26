@@ -114,91 +114,131 @@ function TimelineBar({
 
   return (
     <div className="relative">
-      {/* Hour ticks */}
-      <div className="flex justify-between mb-1 px-0">
-        {[7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19].map((h) => (
-          <span key={h} className="text-[9px] text-slate-300 font-mono" style={{ width: "7.69%" }}>
-            {String(h).padStart(2, "0")}
-          </span>
-        ))}
-      </div>
+      {/* Hour ticks — หลัง (absolute position ตรงกับ pct() จริง) */}
+<div className="relative h-4 mb-1">
+  {[7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19].map((h) => (
+    <span
+      key={h}
+      className="absolute text-[9px] text-slate-300 font-mono -translate-x-1/2"
+      style={{ left: `${pct(h * 60)}%` }}
+    >
+      {String(h).padStart(2, "0")}
+    </span>
+  ))}
+</div>
 
       {/* Main bar background */}
-      <div className="relative h-7 bg-slate-100 rounded-lg overflow-hidden">
-        {/* Work window background */}
-        <div
-          className="absolute top-0 h-full bg-slate-200 rounded"
-          style={{ left: `${workStartPct}%`, width: `${workWidthPct}%` }}
-        />
+<div className="relative h-7 bg-slate-100 rounded-lg overflow-hidden">
 
-        {/* Gap zones (red) */}
-        {record.gaps.map((gap, i) => {
-          const gFrom = toMins(gap.from);
-          const gTo   = toMins(gap.to);
-          const l = pct(gFrom);
-          const w = pct(gTo) - l;
-          return (
-            <div
-              key={i}
-              className="absolute top-0 h-full bg-red-300/60"
-              style={{ left: `${l}%`, width: `${w}%` }}
-              title={`Gap: ${gap.from}–${gap.to} (${gap.minutes}น.)`}
-            />
-          );
-        })}
+  {/* Work window background */}
+  <div
+    className="absolute top-0 h-full bg-slate-200 rounded"
+    style={{ left: `${workStartPct}%`, width: `${workWidthPct}%` }}
+  />
 
-        {/* Covered zones (green) */}
-        {merged.map((seg, i) => {
-          const l = pct(seg.start);
-          const w = pct(seg.end) - l;
-          return (
-            <div
-              key={i}
-              className="absolute top-0 h-full bg-emerald-400/70"
-              style={{ left: `${l}%`, width: `${w}%` }}
-              title={`Covered: ${String(Math.floor(seg.start / 60)).padStart(2, "0")}:${String(seg.start % 60).padStart(2, "0")}–${String(Math.floor(seg.end / 60)).padStart(2, "0")}:${String(seg.end % 60).padStart(2, "0")}`}
-            />
-          );
-        })}
+  {/* Gap zones (red) */}
+  {record.gaps.map((gap, i) => {
+    const gFrom = toMins(gap.from);
+    const gTo   = toMins(gap.to);
+    const l = pct(gFrom);
+    const w = pct(gTo) - l;
+    return (
+      <div
+        key={i}
+        className="absolute top-0 h-full bg-red-300/60"
+        style={{ left: `${l}%`, width: `${w}%` }}
+        title={`Gap: ${gap.from}–${gap.to} (${gap.minutes}น.)`}
+      />
+    );
+  })}
 
-        {/* Check-in marker */}
-        {workStart >= TIMELINE_START && workStart <= TIMELINE_END && (
-          <div
-            className="absolute top-0 h-full w-0.5 bg-sky-500 z-10"
-            style={{ left: `${workStartPct}%` }}
-          />
-        )}
+  {/* Covered zones (green) */}
+  {merged.map((seg, i) => {
+    const l = pct(seg.start);
+    const w = pct(seg.end) - l;
+    return (
+      <div
+        key={i}
+        className="absolute top-0 h-full bg-emerald-400/70"
+        style={{ left: `${l}%`, width: `${w}%` }}
+      />
+    );
+  })}
 
-        {/* Check-out marker */}
-        {workEnd >= TIMELINE_START && workEnd <= TIMELINE_END && (
-          <div
-            className={`absolute top-0 h-full w-0.5 z-10 ${record.isAutoCheckout ? "bg-orange-400" : "bg-sky-500"}`}
-            style={{ left: `${workEndPct}%` }}
-          />
-        )}
-      </div>
+  {/* ──────────────────────────────────────────────────────── */}
+  {/* Lunch break overlay — แสดงเฉพาะถ้าเวลาทำงานคร่อมช่วงพัก */}
+  {(() => {
+    const LUNCH_START = 12 * 60; // 720
+    const LUNCH_END   = 13 * 60; // 780
+    const spansLunch  = workStart < LUNCH_END && workEnd > LUNCH_START;
+    if (!spansLunch) return null;
+    const clampedStart = Math.max(LUNCH_START, workStart);
+    const clampedEnd   = Math.min(LUNCH_END,   workEnd);
+    const l = pct(clampedStart);
+    const w = pct(clampedEnd) - l;
+    return (
+      <div
+        className="absolute top-0 h-full z-[5]"
+        style={{
+          left: `${l}%`,
+          width: `${w}%`,
+          background: "repeating-linear-gradient(45deg, transparent, transparent 3px, rgba(148,163,184,0.35) 3px, rgba(148,163,184,0.35) 6px)",
+        }}
+        title="พักเที่ยง 12:00–13:00 (ไม่นับในการคำนวณ)"
+      />
+    );
+  })()}
+  {/* ──────────────────────────────────────────────────────── */}
+
+  {/* Check-in marker */}
+  {workStart >= TIMELINE_START && workStart <= TIMELINE_END && (
+    <div
+      className="absolute top-0 h-full w-0.5 bg-sky-500 z-10"
+      style={{ left: `${workStartPct}%` }}
+    />
+  )}
+
+  {/* Check-out marker */}
+  {workEnd >= TIMELINE_START && workEnd <= TIMELINE_END && (
+    <div
+      className={`absolute top-0 h-full w-0.5 z-10 ${record.isAutoCheckout ? "bg-orange-400" : "bg-sky-500"}`}
+      style={{ left: `${workEndPct}%` }}
+    />
+  )}
+</div>
 
       {/* Legend */}
-      <div className="flex items-center gap-3 mt-1.5">
-        <div className="flex items-center gap-1">
-          <div className="w-3 h-2 rounded-sm bg-emerald-400/70" />
-          <span className="text-[10px] text-slate-500">มี Report</span>
-        </div>
-        <div className="flex items-center gap-1">
-          <div className="w-3 h-2 rounded-sm bg-red-300/60" />
-          <span className="text-[10px] text-slate-500">ช่วงขาด</span>
-        </div>
-        <div className="flex items-center gap-1">
-          <div className="w-3 h-2 rounded-sm bg-slate-200" />
-          <span className="text-[10px] text-slate-500">ทำงาน</span>
-        </div>
-        {record.isAutoCheckout && (
-          <div className="flex items-center gap-1 ml-auto">
-            <div className="w-0.5 h-3 bg-orange-400" />
-            <span className="text-[10px] text-orange-500">Auto Checkout</span>
-          </div>
-        )}
-      </div>
+<div className="flex items-center gap-3 mt-1.5">
+  <div className="flex items-center gap-1">
+    <div className="w-3 h-2 rounded-sm bg-emerald-400/70" />
+    <span className="text-[10px] text-slate-500">มี Report</span>
+  </div>
+  <div className="flex items-center gap-1">
+    <div className="w-3 h-2 rounded-sm bg-red-300/60" />
+    <span className="text-[10px] text-slate-500">ช่วงขาด</span>
+  </div>
+  <div className="flex items-center gap-1">
+    <div className="w-3 h-2 rounded-sm bg-slate-200" />
+    <span className="text-[10px] text-slate-500">ทำงาน</span>
+  </div>
+  {/* ── เพิ่มตรงนี้ ── */}
+  <div className="flex items-center gap-1">
+    <div
+      className="w-3 h-2 rounded-sm"
+      style={{
+        background: "repeating-linear-gradient(45deg, transparent, transparent 2px, rgba(148,163,184,0.5) 2px, rgba(148,163,184,0.5) 4px)",
+      }}
+    />
+    <span className="text-[10px] text-slate-500">พักเที่ยง</span>
+  </div>
+  {record.isAutoCheckout && (
+    <div className="flex items-center gap-1 ml-auto">
+      <div className="w-0.5 h-3 bg-orange-400" />
+      <span className="text-[10px] text-orange-500">Auto Checkout</span>
+    </div>
+  )}
+</div>
+
     </div>
   );
 }
@@ -419,15 +459,19 @@ function EmployeeCard({ record }: { record: EmployeeSyncRecord }) {
 
 // ─── Summary Card ──────────────────────────────────────────────────────────────
 function SummaryCard({
-  label, value, subLabel, color, bg, active, onClick,
+  label, value, subLabel, color, bg, ring, active, onClick,
 }: {
   label: string; value: number; subLabel?: string;
-  color: string; bg: string; active: boolean; onClick: () => void;
+  color: string; bg: string; ring: string; active: boolean; onClick: () => void;
 }) {
   return (
     <button
       onClick={onClick}
-      className={`flex-1 rounded-2xl border p-3 text-left transition-all shadow-sm ${active ? `${bg} border-current ${color} ring-2 ring-current ring-offset-1` : "bg-white border-slate-100 hover:bg-slate-50"}`}
+      className={`flex-1 rounded-2xl border p-3 text-left transition-all ${
+        active
+          ? `${bg} border-transparent ${color} ring-2 ${ring} ring-offset-2 shadow-md`
+          : "bg-white border-slate-100 hover:bg-slate-50 shadow-sm"
+      }`}
     >
       <p className={`text-2xl font-black ${active ? color : "text-slate-800"}`}>{value}</p>
       <p className={`text-[11px] font-semibold mt-0.5 ${active ? color : "text-slate-500"}`}>{label}</p>
@@ -548,24 +592,28 @@ export default function TimeSyncClient({
         </div>
 
         {/* Summary cards */}
-        <div className="flex gap-2 px-4 pb-3 overflow-x-auto [&::-webkit-scrollbar]:hidden">
-          <SummaryCard
-            label="ทั้งหมด" value={summary.total} color="text-slate-700"
-            bg="bg-slate-50" active={filterTab === "all"} onClick={() => setFilterTab("all")}
-          />
-          <SummaryCard
-            label="ตรงกัน" value={summary.synced} subLabel="≥90%" color="text-emerald-600"
-            bg="bg-emerald-50" active={filterTab === "synced"} onClick={() => setFilterTab("synced")}
-          />
-          <SummaryCard
-            label="ไม่ครบ" value={summary.partial} color="text-amber-600"
-            bg="bg-amber-50" active={filterTab === "partial"} onClick={() => setFilterTab("partial")}
-          />
-          <SummaryCard
-            label="ไม่กรอก" value={summary.noReport} color="text-red-600"
-            bg="bg-red-50" active={filterTab === "no_report"} onClick={() => setFilterTab("no_report")}
-          />
-        </div>
+<div className="flex gap-2 px-4 pt-3 pb-4 overflow-x-auto [&::-webkit-scrollbar]:hidden">
+  <SummaryCard
+    label="ทั้งหมด" value={summary.total} color="text-slate-700"
+    bg="bg-slate-100" ring="ring-slate-400"
+    active={filterTab === "all"} onClick={() => setFilterTab("all")}
+  />
+  <SummaryCard
+    label="ตรงกัน" value={summary.synced} subLabel="≥90%" color="text-emerald-700"
+    bg="bg-emerald-50" ring="ring-emerald-400"
+    active={filterTab === "synced"} onClick={() => setFilterTab("synced")}
+  />
+  <SummaryCard
+    label="ไม่ครบ" value={summary.partial} color="text-amber-700"
+    bg="bg-amber-50" ring="ring-amber-400"
+    active={filterTab === "partial"} onClick={() => setFilterTab("partial")}
+  />
+  <SummaryCard
+    label="ไม่กรอก" value={summary.noReport} color="text-red-700"
+    bg="bg-red-50" ring="ring-red-400"
+    active={filterTab === "no_report"} onClick={() => setFilterTab("no_report")}
+  />
+</div>
       </div>
 
       {/* ── Search ────────────────────────────────────────────────────────────── */}

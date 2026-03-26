@@ -91,6 +91,11 @@ function extractPeriodTimes(item: {
  * Compute uncovered gaps within [workStart, workEnd]
  * given a list of covered [start, end] intervals.
  */
+
+// ── Lunch break exclusion window (auto-forgiven) ───────────────────────────
+const LUNCH_START = 12 * 60; // 12:00
+const LUNCH_END   = 13 * 60; // 13:00
+
 function computeGaps(
   workStartMins: number,
   workEndMins: number,
@@ -98,8 +103,14 @@ function computeGaps(
 ): TimeGap[] {
   if (workEndMins <= workStartMins) return [];
 
+  // Auto-inject lunch break as "covered" if work window spans across it
+  const periodsWithLunch = [...coveredPeriods];
+  if (workStartMins < LUNCH_END && workEndMins > LUNCH_START) {
+    periodsWithLunch.push({ start: LUNCH_START, end: LUNCH_END });
+  }
+
   // Clamp periods to work window
-  const clamped = coveredPeriods
+  const clamped = periodsWithLunch
     .map((p) => ({
       start: Math.max(p.start, workStartMins),
       end: Math.min(p.end, workEndMins),
