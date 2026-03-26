@@ -98,7 +98,7 @@ export default async function AuditPage({
       .eq("report_date", auditDate),
 
     supabase
-      .from("ot_requests")
+      .from("ot_requests_with_profile") 
       .select("id, user_id, start_time, end_time, status, hours, reason, actioned_by_name")
       .eq("request_date", auditDate),
   ]);
