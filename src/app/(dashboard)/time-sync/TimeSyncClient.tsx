@@ -267,6 +267,43 @@ function TimelineBar({ record }: { record: EmployeeSyncRecord }) {
             />
           );
         })()}
+
+        {/* Pre-OT break 17:30–18:00 — แสดงเฉพาะวันที่มี OT */}
+{record.otStart && record.otEnd && (() => {
+  const PRE_OT_START = 17 * 60 + 30; // 17:30
+  const PRE_OT_END   = 18 * 60;      // 18:00
+  const spansBreak   = workEnd > PRE_OT_START;
+  if (!spansBreak) return null;
+  const l = pct(PRE_OT_START);
+  const w = pct(PRE_OT_END) - l;
+  return (
+    <div
+      className="absolute top-0 h-full z-[5]"
+      style={{
+        left: `${l}%`,
+        width: `${w}%`,
+        background: "repeating-linear-gradient(45deg, transparent, transparent 3px, rgba(148,163,184,0.35) 3px, rgba(148,163,184,0.35) 6px)",
+      }}
+      title="พักก่อน OT 17:30–18:00 (ไม่นับในการคำนวณ)"
+    />
+  );
+})()}
+
+        {/* ── OT window (amber) — เพิ่มตรงนี้ ────────────────────────── */}
+        {record.otStart && record.otEnd && (() => {
+          const otS = toMins(record.otStart);
+          const otE = toMins(record.otEnd);
+          const l = pct(otS);
+          const w = pct(otE) - l;
+          return (
+            <div
+              className="absolute top-0 h-full bg-amber-300/60 z-[3]"
+              style={{ left: `${l}%`, width: `${w}%` }}
+              title={`OT: ${record.otStart}–${record.otEnd} (ไม่นับในการตรวจสอบ)`}
+            />
+          );
+        })()}
+
         {/* ──────────────────────────────────────────────────────── */}
 
         {/* Check-in marker */}
@@ -311,6 +348,14 @@ function TimelineBar({ record }: { record: EmployeeSyncRecord }) {
           />
           <span className="text-[10px] text-slate-500">พักเที่ยง</span>
         </div>
+        
+        {/* ── เพิ่มตรงนี้ ──────────────────────────────────────────────── */}
+        {record.otStart && record.otEnd && (
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-2 rounded-sm bg-amber-300/60" />
+            <span className="text-[10px] text-slate-500">OT</span>
+          </div>
+        )}
 
         {/* ── เพิ่มตรงนี้ ──────────────────────────────────────── */}
         {record.overclaimedMinutes > 15 && (
@@ -706,22 +751,34 @@ export default function TimeSyncClient({
   const router = useRouter();
   const [filterTab, setFilterTab] = useState<FilterTab>("all");
   const [search, setSearch] = useState("");
+  const [filterDept, setFilterDept] = useState<string>("all"); 
 
-  const today = todayBangkok();
+  // departments list (derive จาก records)
+const departments = useMemo(() => {
+  const depts = Array.from(new Set(records.map((r) => r.department)))
+    .filter(Boolean)
+    .sort();
+  return ["all", ...depts];
+}, [records]);
+
+  const today = todayBangkok(); 
   const isToday = syncDate === today;
 
   // ── Filtered list ────────────────────────────────────────────────────────────
   const filtered = useMemo(() => {
-    return records.filter((r) => {
-      const matchSearch =
-        !search ||
-        `${r.firstName} ${r.lastName} ${r.department}`
-          .toLowerCase()
-          .includes(search.toLowerCase());
-      const matchTab = filterTab === "all" || r.syncStatus === filterTab;
-      return matchSearch && matchTab;
-    });
-  }, [records, search, filterTab]);
+  return records.filter((r) => {
+    const matchSearch =
+      !search ||
+      `${r.firstName} ${r.lastName} ${r.department}`
+        .toLowerCase()
+        .includes(search.toLowerCase());
+    const matchTab =
+      filterTab === "all" || r.syncStatus === filterTab;
+    const matchDept =                                    // ← เพิ่ม
+      filterDept === "all" || r.department === filterDept;
+    return matchSearch && matchTab && matchDept;
+  });
+}, [records, search, filterTab, filterDept]);
 
   // Sort: issues first (partial, no_report), then synced
   const sorted = useMemo(() => {
@@ -882,6 +939,36 @@ export default function TimeSyncClient({
           />
         </div>
       </div>
+      
+      {/* ── Department filter ─────────────────────────────────────────────────── */}
+      {departments.length > 1 && (  // แสดงเฉพาะถ้ามีมากกว่า 1 แผนก
+        <div className="px-4 pb-3 flex gap-2 overflow-x-auto [&::-webkit-scrollbar]:hidden">
+          {departments.map((dept) => {
+            const isActive = filterDept === dept;
+            const count = dept === "all"
+              ? records.length
+              : records.filter((r) => r.department === dept).length;
+            return (
+              <button
+                key={dept}
+                onClick={() => setFilterDept(dept)}
+                className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                  isActive
+                    ? "bg-sky-600 text-white border-sky-600 shadow-sm"
+                    : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
+                }`}
+              >
+                {dept === "all" ? "ทุกแผนก" : dept}
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${
+                  isActive ? "bg-white/20 text-white" : "bg-slate-100 text-slate-500"
+                }`}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* ── Legend bar ────────────────────────────────────────────────────────── */}
       <div className="px-4 mb-2">

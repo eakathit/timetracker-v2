@@ -192,7 +192,7 @@ export default async function TimeSyncPage({
     supabase
       .from("daily_time_logs")
       .select(
-        "user_id, first_check_in, last_check_out, status, auto_checked_out"
+        "user_id, first_check_in, last_check_out, status, auto_checked_out, timeline_events"
       )
       .eq("log_date", syncDate),
 
@@ -261,6 +261,13 @@ export default async function TimeSyncPage({
         } satisfies SyncPeriod;
       })
       .filter(Boolean) as SyncPeriod[];
+    
+      // ── Extract OT window from timeline_events ───────────────────────────────  ← เพิ่มตรงนี้
+    const timelineEvents = (log.timeline_events ?? []) as { event: string; timestamp: string }[];
+    const otStartEvent = timelineEvents.find((e) => e.event === "ot_start");
+    const otEndEvent   = timelineEvents.find((e) => e.event === "ot_end");
+    const otStart = otStartEvent ? isoToHHMM(otStartEvent.timestamp) : null;
+    const otEnd   = otEndEvent   ? isoToHHMM(otEndEvent.timestamp)   : null;
 
     // ── Compute coverage & gaps ──────────────────────────────────────────────
     let coveredMinutes = 0;
@@ -272,7 +279,16 @@ export default async function TimeSyncPage({
         start: toMins(rp.periodStart),
         end: toMins(rp.periodEnd),
       }));
-      gaps = computeGaps(workStartMins, workEndMins, coveredIntervals);
+
+      const coveredIntervalsWithOT = [...coveredIntervals];
+      if (otStart && otEnd) {
+        coveredIntervalsWithOT.push({
+          start: toMins(otStart),
+          end:   toMins(otEnd),
+        });
+      }
+
+      gaps = computeGaps(workStartMins, workEndMins, coveredIntervalsWithOT);
       const uncovered = gaps.reduce((acc, g) => acc + g.minutes, 0);
       coveredMinutes = Math.max(0, workMinutes - uncovered);
       coveragePercent =
@@ -325,6 +341,8 @@ export default async function TimeSyncPage({
       gaps,
       uncoveredMinutes,
       overclaimedMinutes,
+      otStart,
+      otEnd,
     };
   });
 

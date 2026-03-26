@@ -29,6 +29,8 @@ export interface EmployeeSyncRecord {
   hasLog: boolean;
   checkIn: string | null;   // HH:mm Bangkok
   checkOut: string | null;  // HH:mm Bangkok
+  otStart: string | null;  // HH:mm
+  otEnd:   string | null;  // HH:mm
   workMinutes: number;
   isAutoCheckout: boolean;
 
