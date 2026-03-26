@@ -23,12 +23,12 @@ async function getSupabase() {
         setAll: (toSet) => {
           try {
             toSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
+              cookieStore.set(name, value, options),
             );
           } catch {}
         },
       },
-    }
+    },
   );
 }
 
@@ -81,7 +81,7 @@ function extractPeriodTimes(item: {
   }
   // Parse from label: "ALL (08:30 – 17:30)" or "HALF DAY (13:00 – 17:30)"
   const match = (item.period_label ?? "").match(
-    /\((\d{2}:\d{2})\s*[–\-]\s*(\d{2}:\d{2})\)/
+    /\((\d{2}:\d{2})\s*[–\-]\s*(\d{2}:\d{2})\)/,
   );
   if (match) return { start: match[1], end: match[2] };
   return null;
@@ -94,12 +94,12 @@ function extractPeriodTimes(item: {
 
 // ── Lunch break exclusion window (auto-forgiven) ───────────────────────────
 const LUNCH_START = 12 * 60; // 12:00
-const LUNCH_END   = 13 * 60; // 13:00
+const LUNCH_END = 13 * 60; // 13:00
 
 function computeGaps(
   workStartMins: number,
   workEndMins: number,
-  coveredPeriods: Array<{ start: number; end: number }>
+  coveredPeriods: Array<{ start: number; end: number }>,
 ): TimeGap[] {
   if (workEndMins <= workStartMins) return [];
 
@@ -126,7 +126,7 @@ function computeGaps(
     } else {
       merged[merged.length - 1].end = Math.max(
         merged[merged.length - 1].end,
-        p.end
+        p.end,
       );
     }
   }
@@ -192,7 +192,7 @@ export default async function TimeSyncPage({
     supabase
       .from("daily_time_logs")
       .select(
-        "user_id, first_check_in, last_check_out, status, auto_checked_out, timeline_events"
+        "user_id, first_check_in, last_check_out, status, auto_checked_out, timeline_events",
       )
       .eq("log_date", syncDate),
 
@@ -205,7 +205,7 @@ export default async function TimeSyncPage({
            end_users ( name ),
            projects ( project_no, name ),
            work_details ( title )
-         )`
+         )`,
       )
       .eq("report_date", syncDate),
   ]);
@@ -261,13 +261,16 @@ export default async function TimeSyncPage({
         } satisfies SyncPeriod;
       })
       .filter(Boolean) as SyncPeriod[];
-    
-      // ── Extract OT window from timeline_events ───────────────────────────────  ← เพิ่มตรงนี้
-    const timelineEvents = (log.timeline_events ?? []) as { event: string; timestamp: string }[];
+
+    // ── Extract OT window from timeline_events ───────────────────────────────  ← เพิ่มตรงนี้
+    const timelineEvents = (log.timeline_events ?? []) as {
+      event: string;
+      timestamp: string;
+    }[];
     const otStartEvent = timelineEvents.find((e) => e.event === "ot_start");
-    const otEndEvent   = timelineEvents.find((e) => e.event === "ot_end");
+    const otEndEvent = timelineEvents.find((e) => e.event === "ot_end");
     const otStart = otStartEvent ? isoToHHMM(otStartEvent.timestamp) : null;
-    const otEnd   = otEndEvent   ? isoToHHMM(otEndEvent.timestamp)   : null;
+    const otEnd = otEndEvent ? isoToHHMM(otEndEvent.timestamp) : null;
 
     // ── Compute coverage & gaps ──────────────────────────────────────────────
     let coveredMinutes = 0;
@@ -281,10 +284,22 @@ export default async function TimeSyncPage({
       }));
 
       const coveredIntervalsWithOT = [...coveredIntervals];
+
+      // Auto-exclude lunch break 12:00–13:00
+      if (workStartMins < 13 * 60 && workEndMins > 12 * 60) {
+        coveredIntervalsWithOT.push({ start: 12 * 60, end: 13 * 60 });
+      }
+
+      // Auto-exclude pre-OT break 17:30–18:00 (เฉพาะวันที่มี OT)
+      if (otStart && workEndMins > 17 * 60 + 30) {
+        coveredIntervalsWithOT.push({ start: 17 * 60 + 30, end: 18 * 60 });
+      }
+
+      // Auto-exclude OT window
       if (otStart && otEnd) {
         coveredIntervalsWithOT.push({
           start: toMins(otStart),
-          end:   toMins(otEnd),
+          end: toMins(otEnd),
         });
       }
 
@@ -292,9 +307,7 @@ export default async function TimeSyncPage({
       const uncovered = gaps.reduce((acc, g) => acc + g.minutes, 0);
       coveredMinutes = Math.max(0, workMinutes - uncovered);
       coveragePercent =
-        workMinutes > 0
-          ? Math.round((coveredMinutes / workMinutes) * 100)
-          : 0;
+        workMinutes > 0 ? Math.round((coveredMinutes / workMinutes) * 100) : 0;
     }
 
     const uncoveredMinutes = gaps.reduce((acc, g) => acc + g.minutes, 0);
@@ -304,9 +317,10 @@ export default async function TimeSyncPage({
     if (workStartMins != null && workEndMins != null) {
       for (const rp of reportPeriods) {
         const rpStart = toMins(rp.periodStart);
-        const rpEnd   = toMins(rp.periodEnd);
-        if (rpStart < workStartMins) overclaimedMinutes += workStartMins - rpStart;
-        if (rpEnd   > workEndMins)   overclaimedMinutes += rpEnd - workEndMins;
+        const rpEnd = toMins(rp.periodEnd);
+        if (rpStart < workStartMins)
+          overclaimedMinutes += workStartMins - rpStart;
+        if (rpEnd > workEndMins) overclaimedMinutes += rpEnd - workEndMins;
       }
     }
 
@@ -356,10 +370,6 @@ export default async function TimeSyncPage({
   };
 
   return (
-    <TimeSyncClient
-      records={records}
-      summary={summary}
-      syncDate={syncDate}
-    />
+    <TimeSyncClient records={records} summary={summary} syncDate={syncDate} />
   );
 }
