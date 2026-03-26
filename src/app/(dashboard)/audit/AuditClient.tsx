@@ -543,29 +543,57 @@ function EmployeeCard({ emp }: { emp: AuditEmployee }) {
           </div>
 
           {/* OT Request badge */}
-{emp.otRequest && (
-  <div className="mx-4 mt-3 bg-orange-50 border border-orange-100 rounded-xl px-3 py-2 text-xs flex items-center gap-2 flex-wrap">
-    <span className="font-semibold text-orange-700">📋 OT Request</span>
-    <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${
-      emp.otRequest.status === "approved" ? "bg-emerald-100 text-emerald-700"
-      : emp.otRequest.status === "pending" ? "bg-amber-100 text-amber-700"
-      : "bg-red-100 text-red-600"
-    }`}>
-      {emp.otRequest.status === "approved" ? "✓ Approved"
-        : emp.otRequest.status === "pending" ? "⏳ Pending" : "✗ Rejected"}
-    </span>
-    <span className="font-mono text-orange-600">{emp.otRequest.startTime} – {emp.otRequest.endTime}</span>
-    {emp.otRequest.hours && <span className="text-orange-700 font-semibold">{emp.otRequest.hours}h</span>}
-    {emp.otRequest.reason && <span className="text-slate-500 w-full mt-0.5">{emp.otRequest.reason}</span>}
+{emp.otRequest && (() => {
+  const status = emp.otRequest.status;
+  const bgColor    = status === "approved" ? "bg-emerald-50 border-emerald-200"
+                   : status === "pending"  ? "bg-amber-50 border-amber-200"
+                   : "bg-red-50 border-red-200";
+  const labelColor = status === "approved" ? "bg-emerald-100 text-emerald-700"
+                   : status === "pending"  ? "bg-amber-100 text-amber-700"
+                   : "bg-red-100 text-red-600";
+  const dotColor   = status === "approved" ? "bg-emerald-500"
+                   : status === "pending"  ? "bg-amber-400"
+                   : "bg-red-400";
+  const headerColor = status === "approved" ? "text-emerald-700"
+                    : status === "pending"  ? "text-amber-600"
+                    : "text-red-600";
+  const hoursColor  = status === "approved" ? "text-emerald-700" : "text-slate-600";
+  const labelText   = status === "approved" ? "อนุมัติแล้ว"
+                    : status === "pending"  ? "รอพิจารณา" : "ไม่อนุมัติ";
 
-    {/* ← เพิ่มตรงนี้ */}
-    {emp.otRequest.status === "approved" && emp.otRequest.actionedByName && (
-      <span className="text-[10px] text-slate-400 w-full">
-        อนุมัติโดย: <span className="font-semibold text-emerald-600">{emp.otRequest.actionedByName}</span>
-      </span>
-    )}
-  </div>
-)}
+  return (
+    <div className={`mx-4 mt-3 rounded-xl px-3 py-2.5 text-xs border ${bgColor}`}>
+      {/* Row 1: label + status + เวลา + ชั่วโมง */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className={`text-[10px] font-bold uppercase tracking-wide ${headerColor}`}>
+          OT Request
+        </span>
+        <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${labelColor}`}>
+          <span className={`w-1.5 h-1.5 rounded-full inline-block ${dotColor}`} />
+          {labelText}
+        </span>
+        <span className="font-mono text-slate-600 text-[11px]">
+          {emp.otRequest.startTime} – {emp.otRequest.endTime}
+        </span>
+        {emp.otRequest.hours && (
+          <span className={`font-bold text-[11px] ${hoursColor}`}>
+            {emp.otRequest.hours}h
+          </span>
+        )}
+      </div>
+      {/* Row 2: reason */}
+      {emp.otRequest.reason && (
+        <p className="text-slate-500 mt-1.5 text-[11px]">{emp.otRequest.reason}</p>
+      )}
+      {/* Row 3: approved by */}
+      {status === "approved" && emp.otRequest.actionedByName && (
+        <p className="text-[10px] text-slate-400 mt-1">
+          อนุมัติโดย: <span className="font-semibold text-emerald-600">{emp.otRequest.actionedByName}</span>
+        </p>
+      )}
+    </div>
+  );
+})()}
 
           {/* Tabs */}
           <div className="flex mt-3 border-b border-slate-100">
