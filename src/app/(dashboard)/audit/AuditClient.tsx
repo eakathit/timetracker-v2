@@ -380,13 +380,8 @@ function EmployeeCard({ emp }: { emp: AuditEmployee }) {
 
           {/* Avatar */}
           <div className="relative">
-            <Avatar name={fullName} url={emp.avatarUrl} />
-            {workCfg && (
-              <span className="absolute -bottom-0.5 -right-0.5 text-sm leading-none" title={workCfg.label}>
-                {workCfg.icon}
-              </span>
-            )}
-          </div>
+  <Avatar name={fullName} url={emp.avatarUrl} />
+</div>
 
           {/* Info */}
           <div className="flex-1 min-w-0">
@@ -407,39 +402,56 @@ function EmployeeCard({ emp }: { emp: AuditEmployee }) {
             </div>
 
             {/* Row 3: Meta chips */}
-            <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-              {(() => {
-                const cfg = ROLE_CONFIG[emp.role] ?? ROLE_CONFIG.user;
-                return (
-                  <span className={`inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-semibold border ${cfg.color}`}>
-                    {cfg.label}
-                  </span>
-                );
-              })()}
-              {workCfg && (
-                <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold border border-slate-200 bg-slate-50 ${workCfg.color}`}>
-                  {workCfg.icon} {workCfg.label}
-                </span>
-              )}
-              {emp.dayType !== "workday" && (() => {
-                const dtCfg = DAY_TYPE_CONFIG[emp.dayType];
-                return dtCfg ? (
-                  <span className={`inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-semibold border ${dtCfg.color}`}>
-                    🎌 {emp.holidayName ?? dtCfg.label}
-                  </span>
-                ) : null;
-              })()}
-              {emp.payMultiplier > 1.0 && (
-                <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold border bg-orange-50 text-orange-600 border-orange-200">
-                  ×{emp.payMultiplier.toFixed(1)}
-                </span>
-              )}
-              {emp.dailyAllowance && (
-                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[10px] font-semibold border bg-emerald-50 text-emerald-600 border-emerald-200">
-                  💰 เบี้ยเลี้ยง
-                </span>
-              )}
-            </div>
+<div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+
+  {/* Role — แสดงเฉพาะ admin/manager */}
+  {(() => {
+    const cfg = ROLE_CONFIG[emp.role] ?? ROLE_CONFIG.user;
+    if (emp.role === "employee" || emp.role === "user") return null;
+    return (
+      <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold border ${cfg.color}`}>
+        <span className="w-1.5 h-1.5 rounded-full bg-current inline-block opacity-60" />
+        {cfg.label}
+      </span>
+    );
+  })()}
+
+  {/* Work type — ลบ icon ออก */}
+  {workCfg && (
+    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold border border-slate-200 bg-slate-50 ${workCfg.color}`}>
+      <span className="w-1.5 h-1.5 rounded-full bg-current inline-block opacity-50" />
+      {workCfg.label}
+    </span>
+  )}
+
+  {/* Holiday — เปลี่ยน 🎌 เป็น dot */}
+  {emp.dayType !== "workday" && (() => {
+    const dtCfg = DAY_TYPE_CONFIG[emp.dayType];
+    return dtCfg ? (
+      <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold border ${dtCfg.color}`}>
+        <span className="w-1.5 h-1.5 rounded-full bg-current inline-block opacity-60" />
+        {emp.holidayName ?? dtCfg.label}
+      </span>
+    ) : null;
+  })()}
+
+  {/* Pay multiplier */}
+  {emp.payMultiplier > 1.0 && (
+    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-bold border bg-orange-50 text-orange-600 border-orange-200">
+      <span className="w-1.5 h-1.5 rounded-full bg-orange-400 inline-block" />
+      ×{emp.payMultiplier.toFixed(1)}
+    </span>
+  )}
+
+  {/* Daily Allowance — เปลี่ยน 💰 เป็น dot */}
+  {emp.dailyAllowance && (
+    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold border bg-emerald-50 text-emerald-600 border-emerald-200">
+      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
+      เบี้ยเลี้ยง (On-site)
+    </span>
+  )}
+
+</div>
 
             {/* Row 4: Time row */}
             {!isAbsent && emp.attendanceStatus !== "leave" && (
@@ -551,11 +563,11 @@ function EmployeeCard({ emp }: { emp: AuditEmployee }) {
           {/* Tabs */}
           <div className="flex mt-3 border-b border-slate-100">
             {(["timeline", "report", ...(hasOnsite ? ["onsite"] : []), "admin"] as const).map((tab) => {
-              const TAB_META: Record<string, { icon: string; label: string }> = {
-                timeline: { icon: "", label: "Timeline" },
-                report:   { icon: "", label: "Report"   },
-                onsite:   { icon: "", label: "On-site"  },
-                admin:    { icon: "", label: "Admin"    },
+              const TAB_META: Record<string, { dot: string; label: string }> = {
+                timeline: { dot: "bg-sky-400",     label: "Timeline" },
+                report:   { dot: "bg-emerald-400", label: "Report"   },
+                onsite:   { dot: "bg-blue-400",    label: "On-site"  },
+                admin:    { dot: "bg-rose-400",    label: "Admin"    },
               };
               const meta     = TAB_META[tab];
               const isActive = activeTab === tab;
@@ -571,7 +583,7 @@ function EmployeeCard({ emp }: { emp: AuditEmployee }) {
                       : "text-slate-400 hover:text-slate-600 hover:bg-slate-50"
                   }`}
                 >
-                  <span>{meta.icon}</span>
+                  <span className={`w-1.5 h-1.5 rounded-full ${meta.dot} ${isActive ? "opacity-100" : "opacity-40"}`} />
                   <span>{meta.label}</span>
                   {tab === "report" && (
                     <span className={`ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold ${hasReport ? "bg-emerald-100 text-emerald-600" : "bg-slate-100 text-slate-400"}`}>
@@ -651,34 +663,6 @@ function EmployeeCard({ emp }: { emp: AuditEmployee }) {
               />
             )}
 
-            {/* Pay/Allowance footer chips */}
-            {activeTab !== "admin" && (
-              <div className="mt-3 pt-3 border-t border-slate-50 flex gap-2 flex-wrap">
-                {emp.dailyAllowance && (
-                  <span className="text-[11px] bg-emerald-50 text-emerald-700 border border-emerald-100 px-2 py-0.5 rounded-full">💰 Daily Allowance</span>
-                )}
-                {emp.payMultiplier > 1 && (
-                  <span className="text-[11px] bg-amber-50 text-amber-700 border border-amber-100 px-2 py-0.5 rounded-full">
-                    ✕{emp.payMultiplier} Pay{emp.holidayName ? ` (${emp.holidayName})` : ""}
-                  </span>
-                )}
-                {emp.autoCheckedOut && (
-                  <span className="text-[11px] bg-orange-50 text-orange-600 border border-orange-100 px-2 py-0.5 rounded-full">🤖 Auto Checked-out</span>
-                )}
-                {emp.regularHours > 0 && (
-  <span className="inline-flex items-center gap-1 text-[11px] bg-slate-50 text-slate-600 border border-slate-200 px-2 py-0.5 rounded-full">
-    <span className="w-1.5 h-1.5 rounded-full bg-slate-400 inline-block" />
-    ชม.ปกติ {emp.regularHours}h
-  </span>
-)}
-{emp.otHours > 0 && (
-  <span className="inline-flex items-center gap-1 text-[11px] bg-orange-50 text-orange-700 border border-orange-100 px-2 py-0.5 rounded-full">
-    <span className="w-1.5 h-1.5 rounded-full bg-orange-400 inline-block" />
-    OT {emp.otHours}h
-  </span>
-)}
-              </div>
-            )}
           </div>
         </div>
       )}
