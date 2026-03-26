@@ -330,7 +330,7 @@ export async function groupCheckIn(sessionId: string): Promise<ActionResult> {
 // ─────────────────────────────────────────────────────────────────────────────
 export async function groupCheckOut(
   sessionId: string,
-  breakMinutes: number = 0   // ✅ เพิ่ม param นี้
+  breakMinutes: number = 0
 ): Promise<ActionResult> {
 
   try {
@@ -372,41 +372,49 @@ export async function groupCheckOut(
       .eq("id", sessionId);
 
     if (pendingUids.length > 0) {
-      const checkoutEvent: OnsiteTimelineEvent = {
-        event: "onsite_checkout", timestamp: now,
-        session_id: sessionId, checkout_type: "group",
+
+      // ── คำนวณ OT ก่อน checkoutEvent ──────────────────────────
+      const rawOT    = calcOnsiteOTHours(now);
+      const adjHours = Math.max(0, rawOT - breakMinutes / 60);
+      const otHours  = Math.round(adjHours * 100) / 100;
+
+      const checkoutEvent = {
+        event:          "onsite_checkout",
+        timestamp:      now,
+        session_id:     sessionId,
+        checkout_type:  "group" as const,
+        break_minutes:  breakMinutes,
+        raw_ot_hours:   rawOT,
+        net_ot_hours:   otHours,
+        ot_starts_from: "17:30",
       };
 
       const { data: existingLogs } = await supabase
-  .from("daily_time_logs")
-  .select("user_id, timeline_events, first_check_in") // ✅ เพิ่ม first_check_in
-  .in("user_id", pendingUids)
-  .eq("log_date", today);
+        .from("daily_time_logs")
+        .select("user_id, timeline_events, first_check_in")
+        .in("user_id", pendingUids)
+        .eq("log_date", today);
 
-const existingMap = new Map(
-  (existingLogs ?? []).map((l) => [l.user_id, l])
-);
-
-  const rawOT   = calcOnsiteOTHours(now);
-  const adjHours = Math.max(0, rawOT - breakMinutes / 60);
-  const otHours  = Math.round(adjHours * 100) / 100;
+      const existingMap = new Map(
+        (existingLogs ?? []).map((l) => [l.user_id, l])
+      );
 
       await supabase
-    .from("daily_time_logs")
-    .upsert(
-      pendingUids.map((uid) => {
-        const existing = existingMap.get(uid);
-        return {
-          user_id:         uid,
-          log_date:        today,
-          work_type:       "on_site",
-          last_check_out:  now,
-          ot_hours:        otHours,   // ✅ OT หลังหักเบรค
-          timeline_events: [...(existing?.timeline_events ?? []), checkoutEvent],
-        };
-      }),
-      { onConflict: "user_id,log_date" }
-    );
+        .from("daily_time_logs")
+        .upsert(
+          pendingUids.map((uid) => {
+            const existing = existingMap.get(uid);
+            return {
+              user_id:         uid,
+              log_date:        today,
+              work_type:       "on_site",
+              last_check_out:  now,
+              ot_hours:        otHours,
+              timeline_events: [...(existing?.timeline_events ?? []), checkoutEvent],
+            };
+          }),
+          { onConflict: "user_id,log_date" }
+        );
     }
 
     return { success: true };
@@ -441,36 +449,51 @@ export async function earlyLeave(sessionId: string, note: string): Promise<Actio
     if (memberErr) return { success: false, error: memberErr.message };
 
     const { data: existingRows } = await supabase
-      .from("daily_time_logs")
-      .select("timeline_events")
-      .eq("user_id", user.id)
-      .eq("log_date", today)
-      .limit(1);
+  .from("daily_time_logs")
+  .select("timeline_events")
+  .eq("user_id", user.id)
+  .eq("log_date", today)
+  .limit(1);
 
-    const existing = existingRows && existingRows.length > 0 ? existingRows[0] : null;
+const existing = existingRows && existingRows.length > 0 ? existingRows[0] : null;
 
-    const timeline = [
-      ...(existing?.timeline_events ?? []),
-      { event: "onsite_early_leave", timestamp: now, session_id: sessionId, note: note.trim() || null } as OnsiteTimelineEvent,
-      { event: "onsite_checkout", timestamp: now, session_id: sessionId, checkout_type: "early" } as OnsiteTimelineEvent,
-    ];
+// ── เปลี่ยนจาก otHours → rawOtHours ──────────────────────────
+const rawOtHours = calcOnsiteOTHours(now); // นับจาก 17:30
 
-    const otHours = calcOnsiteOTHours(now); // นับจาก 17:30
+const timeline = [
+  ...(existing?.timeline_events ?? []),
+  {
+    event:      "onsite_early_leave",
+    timestamp:  now,
+    session_id: sessionId,
+    note:       note.trim() || null,
+  },
+  {
+    event:          "onsite_checkout",
+    timestamp:      now,
+    session_id:     sessionId,
+    checkout_type:  "early" as const,
+    break_minutes:  0,            // early leave ไม่มีเบรค
+    raw_ot_hours:   rawOtHours,
+    net_ot_hours:   rawOtHours,   // ไม่หักเบรค
+    ot_starts_from: "17:30",
+  },
+];
 
 await supabase
   .from("daily_time_logs")
   .update({
     last_check_out:  now,
-    ot_hours:        otHours,
+    ot_hours:        rawOtHours,  // ← เปลี่ยนจาก otHours
     timeline_events: timeline,
   })
   .eq("user_id", user.id)
   .eq("log_date", today);
 
-    return { success: true };
-  } catch (err) {
-    return { success: false, error: String(err) };
-  }
+  return { success: true };
+} catch (err) {
+  return { success: false, error: String(err) };
+}
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

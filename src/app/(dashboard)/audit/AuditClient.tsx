@@ -33,7 +33,7 @@ const WORK_TYPE_CONFIG: Record<
 > = {
   in_factory: { label: "Factory", icon: "🏭", color: "text-slate-600" },
   on_site:    { label: "On-site", icon: "🚗", color: "text-blue-600"  },
-  mixed:      { label: "Mixed",   icon: "🔀", color: "text-purple-600"},
+  mixed:      { label: "Factory + On-site", icon: "🔀", color: "text-purple-600" },
 };
 
 const ANOMALY_CONFIG: Record<string, { label: string; color: string }> = {
@@ -159,25 +159,58 @@ function Timeline({ events }: { events: TimelineEvent[] }) {
         const time = new Date(ev.timestamp).toLocaleTimeString("th-TH", {
           hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: "Asia/Bangkok",
         });
+
+        // ── Cast เพื่อเข้าถึง OT fields ──────────────────────────
+        const evAny = ev as any;
+        const hasOTDetail = ev.event === "onsite_checkout" &&
+          typeof evAny.net_ot_hours === "number";
+
         return (
           <div key={i} className="flex items-start gap-2 relative">
-            {/* Dot */}
             <div className={`absolute -left-[21px] mt-1 w-[9px] h-[9px] rounded-full border-2 border-white flex-shrink-0 ${cfg.dot}`} />
-            {/* Content */}
             <div>
               <div className={`flex items-center gap-1.5 text-xs font-semibold ${cfg.color}`}>
                 <span>{cfg.icon}</span>
                 <span>{cfg.label}</span>
               </div>
               <p className="text-[11px] text-slate-400 font-mono mt-0.5">{time}</p>
-              {ev.method && <p className="text-[10px] text-slate-300 mt-0.5">via {ev.method}</p>}
-              {ev.note && <p className="text-[10px] text-rose-400 mt-0.5 italic">{ev.note}</p>}
+              {ev.method    && <p className="text-[10px] text-slate-300 mt-0.5">via {ev.method}</p>}
+              {ev.note      && <p className="text-[10px] text-rose-400 mt-0.5 italic">{ev.note}</p>}
               {ev.site_name && <p className="text-[10px] text-blue-400 mt-0.5">📍 {ev.site_name}</p>}
               {ev.checkout_type && ev.checkout_type !== "pending" && (
                 <p className="text-[10px] text-slate-400 mt-0.5">
                   {ev.checkout_type === "group" ? "Group Checkout" : "Early Leave"}
                 </p>
               )}
+
+              {/* ── OT Breakdown (แสดงเฉพาะ onsite_checkout ที่มีข้อมูล) ── */}
+              {hasOTDetail && (
+                <div className="flex flex-wrap gap-1 mt-1.5">
+                  <span className="text-[10px] bg-slate-50 text-slate-500 border border-slate-200 px-2 py-0.5 rounded-full">
+                    ⏰ OT นับจาก {evAny.ot_starts_from}
+                  </span>
+                  {evAny.raw_ot_hours > 0 ? (
+                    <>
+                      <span className="text-[10px] bg-amber-50 text-amber-600 border border-amber-100 px-2 py-0.5 rounded-full">
+                        ⚡ OT รวม {evAny.raw_ot_hours}h
+                      </span>
+                      {evAny.break_minutes > 0 && (
+                        <span className="text-[10px] bg-sky-50 text-sky-500 border border-sky-100 px-2 py-0.5 rounded-full">
+                          ☕ เบรค {evAny.break_minutes} นาที
+                        </span>
+                      )}
+                      <span className="text-[10px] bg-emerald-50 text-emerald-600 border border-emerald-100 px-2 py-0.5 rounded-full font-bold">
+                        ✅ OT จริง {evAny.net_ot_hours}h
+                      </span>
+                    </>
+                  ) : (
+                    <span className="text-[10px] bg-slate-50 text-slate-400 border border-slate-200 px-2 py-0.5 rounded-full">
+                      ไม่มี OT
+                    </span>
+                  )}
+                </div>
+              )}
+
             </div>
           </div>
         );

@@ -89,11 +89,15 @@ export type OnsiteTimelineEvent =
       note:            string | null;
     }
   | {
-      event:           "onsite_checkout";
-      timestamp:       string;
-      session_id:      string;
-      checkout_type:   "group" | "early";
-    }
+    event:          "onsite_checkout";
+    timestamp:      string;
+    session_id:     string;
+    checkout_type:  "group" | "early";
+    break_minutes:  number;        // ← เพิ่ม
+    raw_ot_hours:   number;        // ← เพิ่ม (OT ก่อนหักเบรค)
+    net_ot_hours:   number;        // ← เพิ่ม (OT หลังหักเบรค)
+    ot_starts_from: string;        // ← เพิ่ม เช่น "17:30"
+  }
   | {
       event:      "transit_start";   // เริ่มเดินทางกลับ (ไม่นับ OT)
       timestamp:  string;

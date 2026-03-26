@@ -168,13 +168,15 @@ const elapsedStr = (isoStart: string | null): string => {
 function CheckoutConfirmModal({
   isOpen,
   checkInIso,
+  openOnsiteSession,
   onConfirm,
   onCancel,
 }: {
-  isOpen:      boolean;
-  checkInIso:  string | null;
-  onConfirm:   () => void;
-  onCancel:    () => void;
+  isOpen:            boolean;
+  checkInIso:        string | null;
+  openOnsiteSession: { id: string; site_name: string } | null;
+  onConfirm:         () => void;
+  onCancel:          () => void;
 }) {
   const [visible, setVisible] = useState(false);
 
@@ -185,7 +187,6 @@ function CheckoutConfirmModal({
 
   if (!isOpen) return null;
 
-  // คำนวณเวลาทำงานสะสม
   const workedDisplay = (() => {
     if (!checkInIso) return null;
     const totalMin = Math.floor(
@@ -219,7 +220,7 @@ function CheckoutConfirmModal({
           <div className="w-10 h-1 bg-gray-200 rounded-full" />
         </div>
 
-        <div className="px-6 pb-8 pt-2 space-y-5">
+        <div className="px-6 pb-8 pt-2 space-y-4">
 
           {/* Header */}
           <div className="text-center space-y-1">
@@ -235,6 +236,24 @@ function CheckoutConfirmModal({
             <h2 className="text-lg font-extrabold text-gray-800">ยืนยัน Check-out?</h2>
             <p className="text-sm text-gray-400">กรุณาตรวจสอบก่อนยืนยัน</p>
           </div>
+
+          {/* ── WARNING: มี On-site Session ค้างอยู่ ── */}
+          {openOnsiteSession && (
+            <div className="flex items-start gap-3 bg-rose-50 border border-rose-200 rounded-2xl px-4 py-3">
+              <span className="text-lg mt-0.5">⚠️</span>
+              <div>
+                <p className="text-sm font-bold text-rose-700">
+                  ยังอยู่ใน Session On-site!
+                </p>
+                <p className="text-xs text-rose-500 mt-0.5">
+                  📍 {openOnsiteSession.site_name}
+                </p>
+                <p className="text-xs text-rose-400 mt-1">
+                  กรุณา Check-out ที่หน้า On-site ก่อน
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Auto-checkout notice */}
           <div className="flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
@@ -256,9 +275,13 @@ function CheckoutConfirmModal({
             </button>
             <button
               onClick={onConfirm}
-              className="flex-1 py-3.5 rounded-2xl bg-rose-500 text-white text-sm font-extrabold hover:bg-rose-600 active:scale-95 transition-all shadow-sm shadow-rose-200"
+              className={`flex-1 py-3.5 rounded-2xl text-sm font-extrabold active:scale-95 transition-all shadow-sm ${
+                openOnsiteSession
+                  ? "bg-rose-300 text-white shadow-rose-100"
+                  : "bg-rose-500 text-white hover:bg-rose-600 shadow-rose-200"
+              }`}
             >
-              ✓ ยืนยัน Check-out
+              {openOnsiteSession ? "⚠️ ยืนยัน (ไม่แนะนำ)" : "✓ ยืนยัน Check-out"}
             </button>
           </div>
 
@@ -294,6 +317,10 @@ export default function DashboardUI({
   >(null);
   const [showHolidayCheckout, setShowHolidayCheckout] = useState(false);
   const [showCheckoutConfirm, setShowCheckoutConfirm] = useState(false);
+  const [openOnsiteSession, setOpenOnsiteSession] = useState<{
+  id: string;
+  site_name: string;
+} | null>(null);
 
   const [pendingCheckoutIso, setPendingCheckoutIso] = useState<string | null>(
     null,
@@ -317,9 +344,10 @@ export default function DashboardUI({
   const [otTimeReady, setOtTimeReady] = useState(new Date().getHours() >= 18);
 
   /* ── Work-type / location ── */
-  const [workType, setWorkType] = useState<"in_factory" | "on_site">(
-    "in_factory",
-  );
+  const [workType, setWorkType] = useState<"in_factory" | "on_site" | "mixed">(
+  "in_factory",
+);
+
   const [onSiteRole, setOnSiteRole] = useState<"member" | "leader">("member");
   const [locationStatus, setLocationStatus] = useState<
     "checking" | "in_range" | "out_of_range" | "error"
@@ -588,19 +616,21 @@ export default function DashboardUI({
 
   // ── Location guard ────────────────────────────────────────────────────────
   const validateLocation = useCallback((): boolean => {
-    if (workType === "on_site") return true;
-    if (locationStatus === "checking") {
-      alert("ระบบกำลังตรวจสอบพิกัด GPS โปรดรอสักครู่...");
-      return false;
-    }
-    if (locationStatus !== "in_range") {
-      alert(
-        "ไม่สามารถ Check-in / Check-out ได้ เนื่องจากคุณอยู่นอกพื้นที่โรงงาน",
-      );
-      return false;
-    }
-    return true;
-  }, [workType, locationStatus]);
+  // on_site และ mixed → ไม่บังคับ GPS โรงงาน
+  if (workType === "on_site" || workType === "mixed") return true;
+
+  if (locationStatus === "checking") {
+    alert("ระบบกำลังตรวจสอบพิกัด GPS โปรดรอสักครู่...");
+    return false;
+  }
+  if (locationStatus !== "in_range") {
+    alert(
+      "ไม่สามารถ Check-in / Check-out ได้ เนื่องจากคุณอยู่นอกพื้นที่โรงงาน",
+    );
+    return false;
+  }
+  return true;
+}, [workType, locationStatus]);
 
   // ── OT Location guard (one-time GPS check) ── เพิ่มใหม่ ──────────────────
   const validateLocationForOT = useCallback((): Promise<boolean> => {
@@ -737,9 +767,6 @@ export default function DashboardUI({
 
   const handleCheckOut = async () => {
   if (!userId) return;
-
-  const locationOk = await validateLocationForOT();
-  if (!locationOk) return;
 
   const now   = new Date().toISOString();
   const today = getLocalToday();
@@ -994,7 +1021,29 @@ export default function DashboardUI({
 {workStatus === "working" && (
   <div className="flex flex-col items-center">
     <button
-      onClick={() => setShowCheckoutConfirm(true)}
+      onClick={async () => {
+  const today = getLocalToday();
+  const { data } = await supabase
+    .from("onsite_sessions")
+    .select("id, site_name")
+    .eq("session_date", today)
+    .in("status", ["open", "checked_in"])
+    .in(
+      "id",
+      // หา session ที่ user นี้เป็น member และยัง pending
+      (await supabase
+        .from("onsite_session_members")
+        .select("session_id")
+        .eq("user_id", userId)
+        .eq("checkout_type", "pending")
+        .then((r) => r.data?.map((m) => m.session_id) ?? [])
+      )
+    )
+    .maybeSingle();
+
+  setOpenOnsiteSession(data ?? null);
+  setShowCheckoutConfirm(true);
+}}
       disabled={isSubmitting || isInitializing}
       className={`w-48 h-48 rounded-full flex flex-col items-center justify-center mx-auto shadow-lg transition-all duration-300
         ${
@@ -1492,6 +1541,7 @@ export default function DashboardUI({
 <CheckoutConfirmModal
   isOpen={showCheckoutConfirm}
   checkInIso={rawCheckIn}
+  openOnsiteSession={openOnsiteSession}
   onConfirm={() => {
     setShowCheckoutConfirm(false);
     handleCheckOut();           // ← ไหลไป logic เดิมทั้งหมด (holiday check ฯลฯ)

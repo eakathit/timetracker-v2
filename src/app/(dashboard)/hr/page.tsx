@@ -135,7 +135,8 @@ const STATUS_LABEL: Record<string, string> = {
 const WORK_TYPE_LABEL: Record<string, string> = {
   in_factory: "โรงงาน",
   on_site: "On-site",
-  mixed: "ผสม",
+  mixed:   "Factory + On-site",
+  leave:      "ลา",
 };
 
 // ════════════════════════════════════════════════════════
