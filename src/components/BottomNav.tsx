@@ -145,14 +145,14 @@ export default function BottomNav() {
   return (
     <>
       {/* Safe area spacer — ป้องกัน content ถูกบังด้วย nav bar */}
-      <div className="md:hidden h-20" />
+      <div className="md:hidden h-[calc(56px+env(safe-area-inset-bottom,0px))]" />
 
       <nav className="
         md:hidden fixed bottom-0 left-0 right-0 z-40
         bg-white/95 backdrop-blur-xl border-t border-gray-100
         shadow-[0_-4px_24px_rgba(0,0,0,0.08)]
       ">
-        <div className="flex items-end justify-around px-2 pt-2 pb-[env(safe-area-inset-bottom,16px)]">
+        <div className="flex items-end justify-around px-2 pt-2 pb-[max(env(safe-area-inset-bottom),8px)]">
           {BOTTOM_NAV.map((item) => {
             const isActive = pathname === item.href;
 
