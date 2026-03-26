@@ -185,31 +185,36 @@ function Timeline({ events }: { events: TimelineEvent[] }) {
 
               {/* ── OT Breakdown (แสดงเฉพาะ onsite_checkout ที่มีข้อมูล) ── */}
               {hasOTDetail && (
-                <div className="flex flex-wrap gap-1 mt-1.5">
-                  <span className="text-[10px] bg-slate-50 text-slate-500 border border-slate-200 px-2 py-0.5 rounded-full">
-                    ⏰ OT นับจาก {evAny.ot_starts_from}
-                  </span>
-                  {evAny.raw_ot_hours > 0 ? (
-                    <>
-                      <span className="text-[10px] bg-amber-50 text-amber-600 border border-amber-100 px-2 py-0.5 rounded-full">
-                        ⚡ OT รวม {evAny.raw_ot_hours}h
-                      </span>
-                      {evAny.break_minutes > 0 && (
-                        <span className="text-[10px] bg-sky-50 text-sky-500 border border-sky-100 px-2 py-0.5 rounded-full">
-                          ☕ เบรค {evAny.break_minutes} นาที
-                        </span>
-                      )}
-                      <span className="text-[10px] bg-emerald-50 text-emerald-600 border border-emerald-100 px-2 py-0.5 rounded-full font-bold">
-                        ✅ OT จริง {evAny.net_ot_hours}h
-                      </span>
-                    </>
-                  ) : (
-                    <span className="text-[10px] bg-slate-50 text-slate-400 border border-slate-200 px-2 py-0.5 rounded-full">
-                      ไม่มี OT
-                    </span>
-                  )}
-                </div>
-              )}
+  <div className="flex flex-wrap gap-1 mt-1.5">
+    <span className="inline-flex items-center gap-1 text-[10px] bg-slate-50 text-slate-500 border border-slate-200 px-2 py-0.5 rounded-full">
+      <span className="w-1.5 h-1.5 rounded-full bg-slate-400 inline-block" />
+      OT นับจาก {evAny.ot_starts_from}
+    </span>
+    {evAny.raw_ot_hours > 0 ? (
+      <>
+        <span className="inline-flex items-center gap-1 text-[10px] bg-amber-50 text-amber-700 border border-amber-100 px-2 py-0.5 rounded-full">
+          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
+          OT รวม {evAny.raw_ot_hours}h
+        </span>
+        {evAny.break_minutes > 0 && (
+          <span className="inline-flex items-center gap-1 text-[10px] bg-sky-50 text-sky-600 border border-sky-100 px-2 py-0.5 rounded-full">
+            <span className="w-1.5 h-1.5 rounded-full bg-sky-300 inline-block" />
+            พักเบรค {evAny.break_minutes} นาที
+          </span>
+        )}
+        <span className="inline-flex items-center gap-1 text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-100 px-2 py-0.5 rounded-full font-semibold">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
+          OT สุทธิ {evAny.net_ot_hours}h
+        </span>
+      </>
+    ) : (
+      <span className="inline-flex items-center gap-1 text-[10px] bg-slate-50 text-slate-400 border border-slate-200 px-2 py-0.5 rounded-full">
+        <span className="w-1.5 h-1.5 rounded-full bg-slate-300 inline-block" />
+        ไม่มี OT
+      </span>
+    )}
+  </div>
+)}
 
             </div>
           </div>
@@ -452,9 +457,10 @@ function EmployeeCard({ emp }: { emp: AuditEmployee }) {
                   const start = new Date(emp.rawCheckIn).getTime();
                   const end   = emp.rawCheckOut ? new Date(emp.rawCheckOut).getTime() : Date.now();
                   const mins  = Math.floor((end - start) / 60000);
-                  if (mins < 0) return null;
-                  const h = Math.floor(mins / 60);
-                  const m = mins % 60;
+                  if (mins < 0) return null;                      // ← คงไว้ เช็ค mins ก่อน
+                  const netMins = mins > 300 ? mins - 60 : mins;
+                  const h = Math.floor(netMins / 60);
+                  const m = netMins % 60;
                   return (
                     <div className="flex items-center gap-1 text-xs bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-full">
                       <span className="text-slate-400">⏱</span>
@@ -660,11 +666,17 @@ function EmployeeCard({ emp }: { emp: AuditEmployee }) {
                   <span className="text-[11px] bg-orange-50 text-orange-600 border border-orange-100 px-2 py-0.5 rounded-full">🤖 Auto Checked-out</span>
                 )}
                 {emp.regularHours > 0 && (
-                  <span className="text-[11px] bg-slate-100 text-slate-600 border border-slate-200 px-2 py-0.5 rounded-full">⏱ {emp.regularHours}h ปกติ</span>
-                )}
-                {emp.otHours > 0 && (
-                  <span className="text-[11px] bg-orange-50 text-orange-700 border border-orange-100 px-2 py-0.5 rounded-full">⚡ {emp.otHours}h OT</span>
-                )}
+  <span className="inline-flex items-center gap-1 text-[11px] bg-slate-50 text-slate-600 border border-slate-200 px-2 py-0.5 rounded-full">
+    <span className="w-1.5 h-1.5 rounded-full bg-slate-400 inline-block" />
+    ชม.ปกติ {emp.regularHours}h
+  </span>
+)}
+{emp.otHours > 0 && (
+  <span className="inline-flex items-center gap-1 text-[11px] bg-orange-50 text-orange-700 border border-orange-100 px-2 py-0.5 rounded-full">
+    <span className="w-1.5 h-1.5 rounded-full bg-orange-400 inline-block" />
+    OT {emp.otHours}h
+  </span>
+)}
               </div>
             )}
           </div>
