@@ -238,7 +238,7 @@ function TimelineBar({ record }: { record: EmployeeSyncRecord }) {
                 left: `${pct(z.from)}%`,
                 width: `${pct(z.to) - pct(z.from)}%`,
               }}
-              title={`Report อ้างเกินจริง: ${String(Math.floor(z.from / 60)).padStart(2, "0")}:${String(z.from % 60).padStart(2, "0")}–${String(Math.floor(z.to / 60)).padStart(2, "0")}:${String(z.to % 60).padStart(2, "0")}`}
+             title={`เวลาไม่ตรง: ${String(Math.floor(z.from / 60)).padStart(2, "0")}:${String(z.from % 60).padStart(2, "0")}–${String(Math.floor(z.to / 60)).padStart(2, "0")}:${String(z.to % 60).padStart(2, "0")}`}
             />
           ));
         })}
@@ -316,7 +316,7 @@ function TimelineBar({ record }: { record: EmployeeSyncRecord }) {
         {record.overclaimedMinutes > 15 && (
           <div className="flex items-center gap-1">
             <div className="w-3 h-2 rounded-sm bg-violet-300/50" />
-            <span className="text-[10px] text-slate-500">อ้างเกินจริง</span>
+            <span className="text-[10px] text-slate-500">เวลาไม่ตรง</span>
           </div>
         )}
         {/* ──────────────────────────────────────────────────────── */}
@@ -523,16 +523,43 @@ function EmployeeCard({ record }: { record: EmployeeSyncRecord }) {
 
           {/* ── Over-claimed warning ── เพิ่มตรงนี้ ────────────────── */}
           {record.overclaimedMinutes > 15 && (
-            <div className="flex items-center gap-2 px-3 py-2 bg-violet-50 border border-violet-200 rounded-xl">
-              <span className="text-violet-500 text-sm flex-shrink-0">⚠️</span>
-              <p className="text-xs text-violet-700 font-semibold">
-                Report อ้างเวลาเกินจริง {fmtDuration(record.overclaimedMinutes)}
-                <span className="font-normal text-violet-500 ml-1">
-                  (กรอกก่อน Check-in หรือหลัง Check-out)
-                </span>
-              </p>
-            </div>
-          )}
+  <div className="flex items-center gap-2 px-3 py-2 bg-violet-50 border border-violet-200 rounded-xl">
+    <span className="text-violet-500 text-sm flex-shrink-0">⚠️</span>
+    <p className="text-xs text-violet-700">
+      {(() => {
+        const wStart = toMins(record.checkIn!);
+        const wEnd   = toMins(record.checkOut!);
+        const earlyMins = record.reportPeriods.reduce((acc, rp) => {
+          const diff = wStart - toMins(rp.periodStart);
+          return acc + (diff > 0 ? diff : 0);
+        }, 0);
+        const lateMins = record.reportPeriods.reduce((acc, rp) => {
+          const diff = toMins(rp.periodEnd) - wEnd;
+          return acc + (diff > 0 ? diff : 0);
+        }, 0);
+
+        if (earlyMins > 15 && lateMins > 15) return (
+          <span>
+            <span className="font-bold">เวลาใน Report ไม่ตรงกับเวลาจริง </span>
+            <span className="text-violet-500">— ระบุเริ่มงานเร็วกว่า Check-in {fmtDuration(earlyMins)} และสิ้นสุดหลัง Check-out {fmtDuration(lateMins)}</span>
+          </span>
+        );
+        if (earlyMins > 15) return (
+          <span>
+            <span className="font-bold">เวลาใน Report เร็วกว่า Check-in จริง {fmtDuration(earlyMins)} </span>
+            <span className="text-violet-500">— Check-in จริงคือ {record.checkIn}</span>
+          </span>
+        );
+        return (
+          <span>
+            <span className="font-bold">เวลาใน Report เลยหลัง Check-out จริง {fmtDuration(lateMins)} </span>
+            <span className="text-violet-500">— Check-out จริงคือ {record.checkOut}</span>
+          </span>
+        );
+      })()}
+    </p>
+  </div>
+)}
 
           {/* Gaps */}
           {record.gaps.length > 0 && (
