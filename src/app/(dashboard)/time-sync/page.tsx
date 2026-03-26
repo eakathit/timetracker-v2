@@ -283,6 +283,17 @@ export default async function TimeSyncPage({
 
     const uncoveredMinutes = gaps.reduce((acc, g) => acc + g.minutes, 0);
 
+    // ── คำนวณ over-claimed ──────────────────────────────────────────────────  ← เพิ่มตรงนี้
+    let overclaimedMinutes = 0;
+    if (workStartMins != null && workEndMins != null) {
+      for (const rp of reportPeriods) {
+        const rpStart = toMins(rp.periodStart);
+        const rpEnd   = toMins(rp.periodEnd);
+        if (rpStart < workStartMins) overclaimedMinutes += workStartMins - rpStart;
+        if (rpEnd   > workEndMins)   overclaimedMinutes += rpEnd - workEndMins;
+      }
+    }
+
     // ── Determine sync status ────────────────────────────────────────────────
     let syncStatus: SyncStatus;
     if (!hasLog) {
@@ -313,6 +324,7 @@ export default async function TimeSyncPage({
       coveragePercent,
       gaps,
       uncoveredMinutes,
+      overclaimedMinutes,
     };
   });
 

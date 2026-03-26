@@ -42,6 +42,7 @@ export interface EmployeeSyncRecord {
   coveragePercent: number; // 0–100
   gaps: TimeGap[];
   uncoveredMinutes: number;
+  overclaimedMinutes: number; // นาทีที่ report อ้างก่อน check-in หรือหลัง check-out
 }
 
 export interface SyncSummary {
