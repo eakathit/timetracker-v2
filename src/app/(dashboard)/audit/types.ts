@@ -7,6 +7,8 @@ export interface OnsiteSessionRow {
   group_check_in: string | null;
   group_check_out: string | null;
   session_code: string | null;
+  driver_to_id:   string | null;
+  driver_from_id: string | null;
   projects: {
     project_no: string;
     name: string | null;
@@ -38,6 +40,8 @@ export interface OnsiteInfo {
   projectNo: string | null;
   projectName: string | null;
   endUserName: string | null;
+  isDriverTo:   boolean;  
+  isDriverFrom: boolean;
 }
 
 export interface OTRequestInfo {

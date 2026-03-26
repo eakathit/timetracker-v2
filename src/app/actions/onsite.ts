@@ -730,3 +730,46 @@ export async function getAvailableEmployees(
     return { success: false, error: String(err) };
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 10. ตั้งคนขับรถ On-site (ขาไป / ขากลับ)
+// เฉพาะ Leader เท่านั้น, Session ยังไม่ปิด
+// ─────────────────────────────────────────────────────────────────────────────
+export async function setSessionDriver(
+  sessionId: string,
+  trip:       "to" | "from",
+  userId:     string | null,   // null = ล้างออก
+): Promise<ActionResult> {
+  try {
+    const supabase = await getSupabaseServer();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { success: false, error: "Unauthorized" };
+
+    // ตรวจสิทธิ์ — ต้องเป็น Leader และ Session ยังไม่ปิด
+    const { data: sessions } = await supabase
+      .from("onsite_sessions")
+      .select("leader_id, status")
+      .eq("id", sessionId)
+      .limit(1);
+
+    const session = sessions?.[0];
+    if (!session)             return { success: false, error: "ไม่พบ Session" };
+    if (session.leader_id !== user.id)
+                              return { success: false, error: "เฉพาะ Leader เท่านั้น" };
+    if (session.status === "closed")
+                              return { success: false, error: "Session ปิดแล้ว" };
+
+    const field = trip === "to" ? "driver_to_id" : "driver_from_id";
+
+    const { error } = await supabase
+      .from("onsite_sessions")
+      .update({ [field]: userId })
+      .eq("id", sessionId);
+
+    if (error) return { success: false, error: error.message };
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: String(err) };
+  }
+}
+

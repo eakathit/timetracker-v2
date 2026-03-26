@@ -674,6 +674,31 @@ function EmployeeCard({ emp }: { emp: AuditEmployee }) {
                     <p className="font-mono font-bold text-slate-600 text-sm">{emp.onsiteSession.groupCheckOut ?? "—"}</p>
                   </div>
                 </div>
+
+                {/* Driver badges */}
+{(emp.onsiteSession.isDriverTo || emp.onsiteSession.isDriverFrom) && (
+  <div className="flex gap-2 flex-wrap">
+    {emp.onsiteSession.isDriverTo && (
+      <div className="flex items-center gap-2 bg-sky-50 border border-sky-100 rounded-xl px-3 py-2">
+        <span className="text-base">🚗</span>
+        <div>
+          <p className="text-[10px] text-sky-500 font-semibold uppercase tracking-wide">คนขับ</p>
+          <p className="text-sm font-bold text-sky-700">ขาไป</p>
+        </div>
+      </div>
+    )}
+    {emp.onsiteSession.isDriverFrom && (
+      <div className="flex items-center gap-2 bg-violet-50 border border-violet-100 rounded-xl px-3 py-2">
+        <span className="text-base">🚙</span>
+        <div>
+          <p className="text-[10px] text-violet-500 font-semibold uppercase tracking-wide">คนขับ</p>
+          <p className="text-sm font-bold text-violet-700">ขากลับ</p>
+        </div>
+      </div>
+    )}
+  </div>
+)}
+
                 <a
                   href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(emp.onsiteSession.siteName)}`}
                   target="_blank" rel="noopener noreferrer"

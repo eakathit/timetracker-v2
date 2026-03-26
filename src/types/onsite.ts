@@ -24,6 +24,8 @@ export interface OnsiteSession {
   session_date:     string;          // "YYYY-MM-DD"
   created_at:       string;
   closed_at:        string | null;
+  driver_to_id:   string | null;
+  driver_from_id: string | null;
 }
 
 /** แถวใน onsite_session_members */

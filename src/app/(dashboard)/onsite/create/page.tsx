@@ -15,15 +15,29 @@ const getInitials = (p: MemberProfile) =>
   ((p.first_name?.[0] ?? "") + (p.last_name?.[0] ?? "")).toUpperCase() || "?";
 
 const AVATAR_COLORS = [
-  "bg-sky-500","bg-violet-500","bg-emerald-500","bg-amber-500",
-  "bg-rose-500","bg-indigo-500","bg-teal-500","bg-orange-500",
+  "bg-sky-500",
+  "bg-violet-500",
+  "bg-emerald-500",
+  "bg-amber-500",
+  "bg-rose-500",
+  "bg-indigo-500",
+  "bg-teal-500",
+  "bg-orange-500",
 ];
 const avatarColor = (id: string) =>
   AVATAR_COLORS[id.charCodeAt(0) % AVATAR_COLORS.length];
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
-interface EndUser { id: string; name: string; }
-interface Project { id: string; project_no: string; name: string | null; end_user_id: string; }
+interface EndUser {
+  id: string;
+  name: string;
+}
+interface Project {
+  id: string;
+  project_no: string;
+  name: string | null;
+  end_user_id: string;
+}
 
 // ─── Member Row ────────────────────────────────────────────────────────────────
 function MemberRow({
@@ -58,8 +72,12 @@ function MemberRow({
         </span>
       )}
       <div className="flex-1 min-w-0 text-left">
-        <p className="text-sm font-semibold text-gray-800 truncate">{getFullName(profile)}</p>
-        <p className="text-xs text-gray-400 truncate">{profile.department || "ไม่ระบุแผนก"}</p>
+        <p className="text-sm font-semibold text-gray-800 truncate">
+          {getFullName(profile)}
+        </p>
+        <p className="text-xs text-gray-400 truncate">
+          {profile.department || "ไม่ระบุแผนก"}
+        </p>
       </div>
       <span
         className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-all ${
@@ -67,7 +85,13 @@ function MemberRow({
         }`}
       >
         {selected && (
-          <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" className="w-3 h-3">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="white"
+            strokeWidth="3"
+            className="w-3 h-3"
+          >
             <polyline points="20 6 9 17 4 12" />
           </svg>
         )}
@@ -81,28 +105,28 @@ export default function CreateOnsiteSessionPage() {
   const router = useRouter();
 
   // ── Project / EndUser state ──────────────────────────────────────────────────
-  const [endUsers, setEndUsers]     = useState<EndUser[]>([]);
-  const [projects, setProjects]     = useState<Project[]>([]);
-  const [endUserId, setEndUserId]   = useState("");
-  const [projectId, setProjectId]   = useState("");
+  const [endUsers, setEndUsers] = useState<EndUser[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [endUserId, setEndUserId] = useState("");
+  const [projectId, setProjectId] = useState("");
   const [customEndUserName, setCustomEndUserName] = useState("");
-  const [customProjectNo, setCustomProjectNo]     = useState("");
+  const [customProjectNo, setCustomProjectNo] = useState("");
 
   const OTHER_EU_VALUE = "__other__";
   const isOtherEndUser = endUserId === OTHER_EU_VALUE;
 
   // ── Member state ─────────────────────────────────────────────────────────────
-  const [search, setSearch]             = useState("");
-  const [selectedIds, setSelectedIds]   = useState<Set<string>>(new Set());
-  const [employees, setEmployees]       = useState<MemberProfile[]>([]);
-  const [loadingEmps, setLoadingEmps]   = useState(true);
+  const [search, setSearch] = useState("");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [employees, setEmployees] = useState<MemberProfile[]>([]);
+  const [loadingEmps, setLoadingEmps] = useState(true);
   const [loadingMaster, setLoadingMaster] = useState(true);
 
   // ── Submission state ─────────────────────────────────────────────────────────
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError]               = useState<string | null>(null);
-  const [step, setStep]                 = useState<"form" | "success">("form");
-  const [sessionCode, setSessionCode]   = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [step, setStep] = useState<"form" | "success">("form");
+  const [sessionCode, setSessionCode] = useState("");
   const [createdSessionId, setCreatedSessionId] = useState("");
 
   // ─── โหลด Master data (EndUsers + Projects) ──────────────────────────────────
@@ -111,7 +135,10 @@ export default function CreateOnsiteSessionPage() {
       setLoadingMaster(true);
       const [uRes, pRes] = await Promise.all([
         supabase.from("end_users").select("id, name").order("name"),
-        supabase.from("projects").select("id, project_no, name, end_user_id").order("project_no"),
+        supabase
+          .from("projects")
+          .select("id, project_no, name, end_user_id")
+          .order("project_no"),
       ]);
       if (uRes.data) setEndUsers(uRes.data);
       if (pRes.data) setProjects(pRes.data);
@@ -123,7 +150,9 @@ export default function CreateOnsiteSessionPage() {
   useEffect(() => {
     const loadEmployees = async () => {
       setLoadingEmps(true);
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       const { data, error: err } = await supabase
         .from("profiles_with_avatar")
         .select("id, first_name, last_name, department, role, avatar_url")
@@ -142,8 +171,11 @@ export default function CreateOnsiteSessionPage() {
 
   // ─── Derived ─────────────────────────────────────────────────────────────────
   const filteredProjects = useMemo(
-    () => (endUserId ? projects.filter((p) => p.end_user_id === endUserId) : projects),
-    [projects, endUserId]
+    () =>
+      endUserId
+        ? projects.filter((p) => p.end_user_id === endUserId)
+        : projects,
+    [projects, endUserId],
   );
 
   const filteredEmps = useMemo(() => {
@@ -152,7 +184,7 @@ export default function CreateOnsiteSessionPage() {
     return employees.filter(
       (e) =>
         getFullName(e).toLowerCase().includes(q) ||
-        (e.department ?? "").toLowerCase().includes(q)
+        (e.department ?? "").toLowerCase().includes(q),
     );
   }, [employees, search]);
 
@@ -167,13 +199,12 @@ export default function CreateOnsiteSessionPage() {
   // ─── Submit ───────────────────────────────────────────────────────────────────
   const handleSubmit = async () => {
     if (isOtherEndUser) {
-  if (!customEndUserName.trim()) { setError("กรุณากรอกชื่อ End User"); return; }
-} else if (!projectId) {
-  setError("กรุณาเลือกโปรเจกต์");
-  return;
-}
-    if (selectedIds.size === 0) {
-      setError("กรุณาเลือกสมาชิกอย่างน้อย 1 คน");
+      if (!customEndUserName.trim()) {
+        setError("กรุณากรอกชื่อ End User");
+        return;
+      }
+    } else if (!projectId) {
+      setError("กรุณาเลือกโปรเจกต์");
       return;
     }
 
@@ -181,19 +212,23 @@ export default function CreateOnsiteSessionPage() {
     const selectedEndUser = endUsers.find((u) => u.id === endUserId);
     const selectedProject = projects.find((p) => p.id === projectId);
     const siteName = isOtherEndUser
-  ? customEndUserName.trim()
-  : [selectedEndUser?.name, selectedProject ? `#${selectedProject.project_no}` : null]
-      .filter(Boolean).join(" · ");
+      ? customEndUserName.trim()
+      : [
+          selectedEndUser?.name,
+          selectedProject ? `#${selectedProject.project_no}` : null,
+        ]
+          .filter(Boolean)
+          .join(" · ");
 
     setError(null);
     setIsSubmitting(true);
 
     try {
       const input: CreateSessionInput = {
-  site_name:  siteName,
-  project_id: isOtherEndUser ? null : projectId,
-  member_ids: Array.from(selectedIds),
-};
+        site_name: siteName,
+        project_id: isOtherEndUser ? null : projectId,
+        member_ids: Array.from(selectedIds),
+      };
 
       const res = await createOnsiteSession(input);
 
@@ -212,50 +247,75 @@ export default function CreateOnsiteSessionPage() {
   };
 
   const canSubmit =
-  (isOtherEndUser
-    ? customEndUserName.trim().length > 0
-    : !!projectId) &&
-  selectedIds.size > 0 &&
-  !isSubmitting;
+    (isOtherEndUser ? customEndUserName.trim().length > 0 : !!projectId) &&
+    !isSubmitting;
 
   // ─── Success Screen ───────────────────────────────────────────────────────────
   if (step === "success") {
     const selectedProject = projects.find((p) => p.id === projectId);
     const selectedEndUser = endUsers.find((u) => u.id === endUserId);
     const displaySite = isOtherEndUser
-  ? customEndUserName
-  : [selectedEndUser?.name, selectedProject ? `#${selectedProject.project_no}` : null]
-      .filter(Boolean).join(" · ");
+      ? customEndUserName
+      : [
+          selectedEndUser?.name,
+          selectedProject ? `#${selectedProject.project_no}` : null,
+        ]
+          .filter(Boolean)
+          .join(" · ");
 
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-6 py-10">
         <div className="w-full max-w-sm bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden">
           <div className="bg-gradient-to-br from-emerald-400 to-teal-500 px-6 pt-8 pb-6 text-center">
             <div className="w-16 h-16 bg-white/20 backdrop-blur rounded-2xl flex items-center justify-center mx-auto mb-3">
-              <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" className="w-8 h-8">
-                <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/>
-                <polyline points="22 4 12 14.01 9 11.01"/>
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="white"
+                strokeWidth="2"
+                className="w-8 h-8"
+              >
+                <path d="M22 11.08V12a10 10 0 11-5.93-9.14" />
+                <polyline points="22 4 12 14.01 9 11.01" />
               </svg>
             </div>
-            <h2 className="text-xl font-extrabold text-white">สร้าง Session สำเร็จ!</h2>
-            <p className="text-emerald-100 text-sm mt-1">ห้อง On-site พร้อมใช้งาน</p>
+            <h2 className="text-xl font-extrabold text-white">
+              สร้าง Session สำเร็จ!
+            </h2>
+            <p className="text-emerald-100 text-sm mt-1">
+              ห้อง On-site พร้อมใช้งาน
+            </p>
           </div>
           <div className="px-6 py-6 space-y-4">
             <div className="flex items-center gap-2 text-sm text-gray-600">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 text-sky-500">
-                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/>
-                <circle cx="12" cy="10" r="3"/>
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                className="w-4 h-4 text-sky-500"
+              >
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" />
+                <circle cx="12" cy="10" r="3" />
               </svg>
               <span className="truncate font-medium">{displaySite}</span>
             </div>
             <div className="flex items-center gap-2 text-sm text-gray-600">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 text-sky-500">
-                <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
-                <circle cx="9" cy="7" r="4"/>
-                <path d="M23 21v-2a4 4 0 00-3-3.87"/>
-                <path d="M16 3.13a4 4 0 010 7.75"/>
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                className="w-4 h-4 text-sky-500"
+              >
+                <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <path d="M23 21v-2a4 4 0 00-3-3.87" />
+                <path d="M16 3.13a4 4 0 010 7.75" />
               </svg>
-              <span>สมาชิก <strong>{selectedIds.size + 1}</strong> คน (รวม Leader)</span>
+              <span>
+                สมาชิก <strong>{selectedIds.size + 1}</strong> คน (รวม Leader)
+              </span>
             </div>
             <button
               onClick={() => router.push(`/onsite/${createdSessionId}`)}
@@ -278,18 +338,25 @@ export default function CreateOnsiteSessionPage() {
           onClick={() => router.back()}
           className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center"
         >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4">
-            <polyline points="15 18 9 12 15 6"/>
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            className="w-4 h-4"
+          >
+            <polyline points="15 18 9 12 15 6" />
           </svg>
         </button>
         <div>
-          <h1 className="text-base font-extrabold text-gray-800">สร้างห้อง On-site</h1>
+          <h1 className="text-base font-extrabold text-gray-800">
+            สร้างห้อง On-site
+          </h1>
           <p className="text-xs text-gray-400">เลือกโปรเจกต์และสมาชิกทีม</p>
         </div>
       </header>
 
       <div className="flex-1 overflow-y-auto px-4 py-5 space-y-5 pb-52 md:pb-36">
-
         {/* ── EndUser + Project ──────────────────────────────────────────────── */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 space-y-3">
           <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block">
@@ -305,72 +372,103 @@ export default function CreateOnsiteSessionPage() {
                 <select
                   value={endUserId}
                   onChange={(e) => {
-  setEndUserId(e.target.value);
-  setProjectId("");
-  setCustomProjectNo("");
-  setCustomEndUserName("");
-  setError(null);
-}}
+                    setEndUserId(e.target.value);
+                    setProjectId("");
+                    setCustomProjectNo("");
+                    setCustomEndUserName("");
+                    setError(null);
+                  }}
                   className="w-full appearance-none px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-800 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100 transition pr-9"
                 >
                   <option value="">Select End User...</option>
                   {endUsers.map((u) => (
-    <option key={u.id} value={u.id}>{u.name}</option>
-  ))}
-  <option value="__other__">Other</option>
-</select>
+                    <option key={u.id} value={u.id}>
+                      {u.name}
+                    </option>
+                  ))}
+                  <option value="__other__">Other</option>
+                </select>
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3.5 h-3.5">
-                    <polyline points="6 9 12 15 18 9"/>
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    className="w-3.5 h-3.5"
+                  >
+                    <polyline points="6 9 12 15 18 9" />
                   </svg>
                 </span>
               </div>
 
               {/* Custom End User Name (แสดงเฉพาะตอนเลือก Other) */}
-{isOtherEndUser && (
-  <input
-    type="text"
-    value={customEndUserName}
-    onChange={(e) => { setCustomEndUserName(e.target.value); setError(null); }}
-    placeholder="กรอกชื่อ End User"
-    className="w-full px-4 py-3 bg-gray-50 border border-sky-300 rounded-xl text-sm font-medium text-gray-800 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100 transition placeholder-gray-400"
-  />
-)}
+              {isOtherEndUser && (
+                <input
+                  type="text"
+                  value={customEndUserName}
+                  onChange={(e) => {
+                    setCustomEndUserName(e.target.value);
+                    setError(null);
+                  }}
+                  placeholder="กรอกชื่อ End User"
+                  className="w-full px-4 py-3 bg-gray-50 border border-sky-300 rounded-xl text-sm font-medium text-gray-800 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100 transition placeholder-gray-400"
+                />
+              )}
 
-{/* Project No. */}
-{!isOtherEndUser && (
-  <div className="relative">
-    <select
-      value={projectId}
-      onChange={(e) => { setProjectId(e.target.value); setError(null); }}
-      disabled={!endUserId || filteredProjects.length === 0}
-      className="w-full appearance-none px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-800 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100 transition pr-9 disabled:opacity-50 disabled:cursor-not-allowed"
-    >
-      <option value="">Select Project No....</option>
-      {filteredProjects.map((p) => (
-        <option key={p.id} value={p.id}>
-          #{p.project_no}{p.name ? ` — ${p.name}` : ""}
-        </option>
-      ))}
-    </select>
-    <span className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3.5 h-3.5">
-        <polyline points="6 9 12 15 18 9"/>
-      </svg>
-    </span>
-  </div>
-)}
+              {/* Project No. */}
+              {!isOtherEndUser && (
+                <div className="relative">
+                  <select
+                    value={projectId}
+                    onChange={(e) => {
+                      setProjectId(e.target.value);
+                      setError(null);
+                    }}
+                    disabled={!endUserId || filteredProjects.length === 0}
+                    className="w-full appearance-none px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-800 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100 transition pr-9 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <option value="">Select Project No....</option>
+                    {filteredProjects.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        #{p.project_no}
+                        {p.name ? ` — ${p.name}` : ""}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      className="w-3.5 h-3.5"
+                    >
+                      <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                  </span>
+                </div>
+              )}
 
               {/* Preview badge */}
               {projectId && (
                 <div className="flex items-center gap-2 px-3 py-2 bg-sky-50 border border-sky-100 rounded-xl">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 text-sky-500 flex-shrink-0">
-                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/>
-                    <circle cx="12" cy="10" r="3"/>
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    className="w-4 h-4 text-sky-500 flex-shrink-0"
+                  >
+                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" />
+                    <circle cx="12" cy="10" r="3" />
                   </svg>
                   <span className="text-xs font-semibold text-sky-700 truncate">
-                    {[endUsers.find((u) => u.id === endUserId)?.name, `#${projects.find((p) => p.id === projectId)?.project_no}`]
-                      .filter(Boolean).join(" · ")}
+                    {[
+                      endUsers.find((u) => u.id === endUserId)?.name,
+                      `#${projects.find((p) => p.id === projectId)?.project_no}`,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
                   </span>
                 </div>
               )}
@@ -392,9 +490,15 @@ export default function CreateOnsiteSessionPage() {
               )}
             </div>
             <div className="relative">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-                className="w-4 h-4 text-gray-300 absolute left-3 top-1/2 -translate-y-1/2">
-                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                className="w-4 h-4 text-gray-300 absolute left-3 top-1/2 -translate-y-1/2"
+              >
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
               </svg>
               <input
                 type="text"
@@ -407,9 +511,13 @@ export default function CreateOnsiteSessionPage() {
           </div>
 
           {loadingEmps ? (
-            <div className="px-4 py-8 text-center text-sm text-gray-400 animate-pulse">โหลดรายชื่อ...</div>
+            <div className="px-4 py-8 text-center text-sm text-gray-400 animate-pulse">
+              โหลดรายชื่อ...
+            </div>
           ) : filteredEmps.length === 0 ? (
-            <div className="px-4 py-8 text-center text-sm text-gray-400">ไม่พบพนักงาน</div>
+            <div className="px-4 py-8 text-center text-sm text-gray-400">
+              ไม่พบพนักงาน
+            </div>
           ) : (
             <div className="divide-y divide-gray-50 max-h-72 overflow-y-auto">
               {filteredEmps.map((emp) => (
@@ -438,13 +546,21 @@ export default function CreateOnsiteSessionPage() {
           <span>
             โปรเจกต์:{" "}
             <strong className={projectId ? "text-sky-600" : "text-gray-400"}>
-              {projectId ? projects.find((p) => p.id === projectId)?.project_no ?? "—" : "ยังไม่เลือก"}
+              {projectId
+                ? (projects.find((p) => p.id === projectId)?.project_no ?? "—")
+                : "ยังไม่เลือก"}
             </strong>
           </span>
           <span>
             สมาชิก:{" "}
-            <strong className={selectedIds.size > 0 ? "text-sky-600" : "text-gray-400"}>
-              {selectedIds.size > 0 ? `${selectedIds.size + 1} คน` : "ยังไม่เลือก"}
+            <strong
+              className={
+                selectedIds.size > 0 ? "text-sky-600" : "text-gray-400"
+              }
+            >
+              {selectedIds.size > 0
+                ? `${selectedIds.size + 1} คน`
+                : "ยังไม่เลือก"}
             </strong>
           </span>
         </div>
@@ -465,21 +581,25 @@ export default function CreateOnsiteSessionPage() {
             </>
           ) : (
             <>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4">
-                <path d="M12 5v14M5 12h14"/>
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                className="w-4 h-4"
+              >
+                <path d="M12 5v14M5 12h14" />
               </svg>
               สร้างห้อง On-site
             </>
           )}
         </button>
 
-        {!canSubmit && !isSubmitting && (
-          <p className="text-center text-xs text-gray-400">
-            {!projectId && selectedIds.size === 0
-              ? "เลือกโปรเจกต์ และ สมาชิก ก่อนสร้างห้อง"
-              : !projectId
-              ? "กรุณาเลือกโปรเจกต์"
-              : "กรุณาเลือกสมาชิกอย่างน้อย 1 คน"}
+        {!canSubmit && (
+          <p className="text-xs text-gray-400 text-center">
+            {!projectId
+              ? "กรุณาเลือกโปรเจกต์ก่อนสร้างห้อง"
+              : "กรุณากรอกข้อมูลให้ครบ"}
           </p>
         )}
       </div>

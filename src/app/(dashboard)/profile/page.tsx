@@ -23,6 +23,8 @@ interface DayLog {
   isReportSent: boolean;
   otHours: number; // รวม OT จาก daily_time_logs + ot_requests ที่อนุมัติ
   dailyAllowance: boolean;
+  isDriverTo:   boolean;
+  isDriverFrom: boolean;
 }
 
 // Row จาก daily_time_logs
@@ -475,6 +477,23 @@ function ListView({ logs }: { logs: DayLog[] }) {
               )}
             </p>
           </div>
+
+          {/* ✅ เพิ่มตรงนี้ */}
+  {(log.isDriverTo || log.isDriverFrom) && (
+    <div className="flex gap-1">
+      {log.isDriverTo && (
+        <span className="text-[10px] bg-sky-100 text-sky-600 font-bold px-1.5 py-0.5 rounded-full">
+          🚗↗
+        </span>
+      )}
+      {log.isDriverFrom && (
+        <span className="text-[10px] bg-violet-100 text-violet-600 font-bold px-1.5 py-0.5 rounded-full">
+          🚗↙
+        </span>
+      )}
+    </div>
+  )}
+
           <span
             className={`text-[10px] font-bold px-2 py-0.5 rounded-lg ${
               log.status === "on_time"
@@ -697,7 +716,7 @@ export default function ProfilePage() {
     const todayStr = today.toISOString().split("T")[0];
 
     try {
-      const [timeRes, holidayRes, reportRes, otReqRes] = await Promise.all([
+      const [timeRes, holidayRes, reportRes, otReqRes, driverRes] = await Promise.all([
         // ── time logs ของ user เดือนนี้
         supabase
           .from("daily_time_logs")
@@ -731,7 +750,15 @@ export default function ProfilePage() {
           .eq("status", "approved")
           .gte("request_date", start)
           .lte("request_date", end),
-      ]);
+
+           // query driver
+          supabase
+            .from("onsite_sessions")
+            .select("session_date, driver_to_id, driver_from_id")
+            .or(`driver_to_id.eq.${userId},driver_from_id.eq.${userId}`)
+            .gte("session_date", start)
+            .lte("session_date", end),
+        ]);
 
       // ── Build lookup maps ────────────────────────────────────────────────────
       const timeLogMap: Record<string, TimeLogRow> = {};
@@ -767,6 +794,14 @@ export default function ProfilePage() {
         });
       });
 
+      const driverMap = new Map<string, { to: boolean; from: boolean }>();
+    (driverRes.data ?? []).forEach((s) => {
+      driverMap.set(s.session_date, {
+        to:   s.driver_to_id   === userId,
+        from: s.driver_from_id === userId,
+      });
+    });
+
       // ── สร้าง DayLog ครบทุกวันในเดือน ───────────────────────────────────────
       const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
       const result: DayLog[] = [];
@@ -791,6 +826,8 @@ export default function ProfilePage() {
             isReportSent: reportSet.has(dateStr),
             otHours: 0,
             dailyAllowance: false,
+            isDriverTo:   false,
+            isDriverFrom: false,
           });
           continue;
         }
@@ -806,6 +843,8 @@ export default function ProfilePage() {
             isReportSent: false,
             otHours: 0,
             dailyAllowance: false,
+            isDriverTo:   false,
+            isDriverFrom: false,
           });
           continue;
         }
@@ -855,6 +894,8 @@ export default function ProfilePage() {
             isReportSent: false,
             otHours: 0,
             dailyAllowance: false,
+            isDriverTo:   false,
+            isDriverFrom: false, 
           });
           continue;
         }
@@ -876,6 +917,8 @@ export default function ProfilePage() {
           isReportSent: reportSet.has(dateStr),
           otHours: combinedOT,
           dailyAllowance: timeLog?.daily_allowance ?? false,
+          isDriverTo:   driverMap.get(dateStr)?.to   ?? false,
+          isDriverFrom: driverMap.get(dateStr)?.from ?? false,
         });
       }
 

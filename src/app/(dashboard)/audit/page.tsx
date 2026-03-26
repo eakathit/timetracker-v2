@@ -118,9 +118,10 @@ export default async function AuditPage({
     const { data } = await supabase
       .from("onsite_sessions")
       .select(
-        `id, site_name, status, group_check_in, group_check_out, session_code,
-         projects ( project_no, name, end_users ( name ) )`
-      )
+  `id, site_name, status, group_check_in, group_check_out, session_code,
+   driver_to_id, driver_from_id,
+   projects ( project_no, name, end_users ( name ) )`
+)
       .in("id", sessionIds);
     onsiteSessions = (data as unknown as OnsiteSessionRow[]) ?? [];
   }
@@ -235,6 +236,8 @@ const otEnd = (log?.timeline_events as Record<string, string>[])
             projectNo: (onsiteSession.projects as any)?.project_no ?? null,
             projectName: (onsiteSession.projects as any)?.name ?? null,
             endUserName: (onsiteSession.projects as any)?.end_users?.name ?? null,
+            isDriverTo:   onsiteSession.driver_to_id === p.id,
+            isDriverFrom: onsiteSession.driver_from_id === p.id,
           }
         : null,
 

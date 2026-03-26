@@ -14,6 +14,7 @@ import {
   earlyLeave,
   addMidSessionMember,    // ← เพิ่ม
   getAvailableEmployees,  // ← เพิ่ม
+  setSessionDriver,
 } from "@/app/actions/onsite";
 import { supabase } from "@/lib/supabase";
 import type {
@@ -71,11 +72,19 @@ function MemberCard({
   isCurrentUser,
   sessionStatus,
   onEarlyLeave,
+  isLeaderView,    // ← เพิ่ม
+  isDriverTo,      // ← เพิ่ม
+  isDriverFrom,    // ← เพิ่ม
+  onPickDriver,    // ← เพิ่ม
 }: {
-  member: OnsiteSessionMemberWithProfile;
+  member:        OnsiteSessionMemberWithProfile;
   isCurrentUser: boolean;
   sessionStatus: OnsiteSessionStatus;
-  onEarlyLeave: () => void;
+  onEarlyLeave:  () => void;
+  isLeaderView:  boolean;
+  isDriverTo:    boolean;
+  isDriverFrom:  boolean;
+  onPickDriver:  () => void;
 }) {
   const isLeader      = member.role === "leader";
   const isEarlyLeft   = member.checkout_type === "early";
@@ -84,7 +93,14 @@ function MemberCard({
   const canEarlyLeave = isCurrentUser && !isLeader && isPending && sessionStatus === "checked_in";
 
   return (
-    <div className={`flex items-center gap-3 px-4 py-3.5 ${isEarlyLeft ? "opacity-60" : ""}`}>
+  <div
+    className={`flex items-center gap-3 px-4 py-3.5 transition-colors
+      ${isEarlyLeft ? "opacity-60" : ""}
+      ${isLeaderView ? "cursor-pointer active:bg-gray-50" : ""}
+    `}
+    onClick={isLeaderView ? onPickDriver : undefined}
+  >
+
       {/* Avatar */}
       <div className="relative flex-shrink-0">
         {member.profile?.avatar_url ? (
@@ -107,16 +123,15 @@ function MemberCard({
       </div>
 
       {/* Info */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1.5">
-          <p className="text-sm font-semibold text-gray-800 truncate">{getFullName(member)}</p>
-          {isCurrentUser && (
-            <span className="text-[9px] font-bold text-sky-600 bg-sky-50 px-1.5 py-0.5 rounded-full flex-shrink-0">คุณ</span>
-          )}
-        </div>
-        <p className="text-xs text-gray-400">{member.profile?.department || "–"}</p>
+<div className="flex-1 min-w-0">
+  <div className="flex items-center gap-1.5">
+    <p className="text-sm font-semibold text-gray-800 truncate">{getFullName(member)}</p>
+    {isCurrentUser && (
+      <span className="text-[9px] font-bold text-sky-600 bg-sky-50 px-1.5 py-0.5 rounded-full flex-shrink-0">คุณ</span>
+    )}
+  </div>
+  <p className="text-xs text-gray-400">{member.profile?.department || "–"}</p>
 
-  {/* ✅ ใหม่: แสดงเวลา check-in เฉพาะถ้า session checked_in แล้ว */}
   {member.checkin_at && sessionStatus !== "open" && (
     <div className="flex items-center gap-1 mt-0.5">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
@@ -125,13 +140,29 @@ function MemberCard({
       </svg>
       <span className="text-[10px] text-gray-400">
         เข้า {fmtTime(member.checkin_at)}
-        {/* badge ถ้าเข้าช้ากว่า 08:30 */}
         {new Date(member.checkin_at).getHours() >= 9 && (
           <span className="ml-1 text-amber-500 font-bold">(มาระหว่างวัน)</span>
         )}
       </span>
     </div>
   )}
+
+  {/* ✅ เพิ่มตรงนี้ — Driver badges */}
+  {(isDriverTo || isDriverFrom) && (
+    <div className="flex gap-1 mt-1 flex-wrap">
+      {isDriverTo && (
+        <span className="text-[10px] font-bold bg-sky-100 text-sky-600 px-1.5 py-0.5 rounded-full">
+          🚗 ขาไป
+        </span>
+      )}
+      {isDriverFrom && (
+        <span className="text-[10px] font-bold bg-violet-100 text-violet-600 px-1.5 py-0.5 rounded-full">
+          🚙 ขากลับ
+        </span>
+      )}
+    </div>
+  )}
+
 </div>
 
       {/* Status */}
@@ -563,6 +594,91 @@ function AddMemberModal({
   );
 }
 
+function DriverPickerSheet({
+  member,
+  isDriverTo,
+  isDriverFrom,
+  onSet,
+  onClose,
+}: {
+  member:       OnsiteSessionMemberWithProfile;
+  isDriverTo:   boolean;
+  isDriverFrom: boolean;
+  onSet:        (trip: "to" | "from", userId: string | null) => void;
+  onClose:      () => void;
+}) {
+  const name = [member.profile?.first_name, member.profile?.last_name]
+    .filter(Boolean).join(" ") || "ไม่ระบุชื่อ";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end" onClick={onClose}>
+      <div
+        className="w-full bg-white rounded-t-3xl shadow-2xl px-4 pt-5 pb-10 space-y-2 animate-in slide-in-from-bottom duration-200"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Handle bar */}
+        <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-4" />
+
+        {/* ชื่อ */}
+        <p className="text-center text-sm font-extrabold text-gray-800 mb-4">{name}</p>
+
+        {/* ขาไป */}
+        <button
+          onClick={() => onSet("to", isDriverTo ? null : member.user_id)}
+          className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl border-2 transition-all ${
+            isDriverTo
+              ? "border-sky-400 bg-sky-50 text-sky-700"
+              : "border-gray-100 bg-white text-gray-700 hover:border-gray-200"
+          }`}
+        >
+          <span className="text-xl">🚗</span>
+          <div className="text-left">
+            <p className="text-sm font-bold">คนขับรถ ขาไป</p>
+            <p className="text-xs text-gray-400">
+              {isDriverTo ? "แตะเพื่อยกเลิก" : "ตั้งเป็นคนขับขาไป"}
+            </p>
+          </div>
+          {isDriverTo && (
+            <span className="ml-auto text-xs font-bold text-sky-600 bg-sky-100 px-2 py-0.5 rounded-full">
+              ✓ ตั้งไว้
+            </span>
+          )}
+        </button>
+
+        {/* ขากลับ */}
+        <button
+          onClick={() => onSet("from", isDriverFrom ? null : member.user_id)}
+          className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl border-2 transition-all ${
+            isDriverFrom
+              ? "border-violet-400 bg-violet-50 text-violet-700"
+              : "border-gray-100 bg-white text-gray-700 hover:border-gray-200"
+          }`}
+        >
+          <span className="text-xl">🚙</span>
+          <div className="text-left">
+            <p className="text-sm font-bold">คนขับรถ ขากลับ</p>
+            <p className="text-xs text-gray-400">
+              {isDriverFrom ? "แตะเพื่อยกเลิก" : "ตั้งเป็นคนขับขากลับ"}
+            </p>
+          </div>
+          {isDriverFrom && (
+            <span className="ml-auto text-xs font-bold text-violet-600 bg-violet-100 px-2 py-0.5 rounded-full">
+              ✓ ตั้งไว้
+            </span>
+          )}
+        </button>
+
+        <button
+          onClick={onClose}
+          className="w-full py-3 mt-2 rounded-2xl border border-gray-200 text-sm font-semibold text-gray-500"
+        >
+          ปิด
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 export default function OnsiteSessionPage() {
   const { sessionId } = useParams<{ sessionId: string }>();
@@ -580,6 +696,21 @@ export default function OnsiteSessionPage() {
   const [showGroupCheckout, setShowGroupCheckout]   = useState(false);
   const [showOTBreak, setShowOTBreak] = useState(false);
   const [showAddMember, setShowAddMember]         = useState(false);
+
+  const [driverPicker, setDriverPicker] = useState<{
+  member: OnsiteSessionMemberWithProfile;
+} | null>(null);
+
+// Handler
+const handleSetDriver = async (trip: "to" | "from", userId: string | null) => {
+  const res = await setSessionDriver(sessionId, trip, userId);
+  if (res.success) {
+    setDriverPicker(null);
+    await loadSession();
+  } else {
+    setError(res.error ?? "บันทึกไม่สำเร็จ");
+  }
+};
 
   // ─── Load current user ─────────────────────────────────
   useEffect(() => {
@@ -696,6 +827,15 @@ const handleCheckOutClick = () => {
     onClose={() => setShowAddMember(false)}
   />
 )}
+{driverPicker && session && (
+  <DriverPickerSheet
+    member={driverPicker.member}
+    isDriverTo={session.driver_to_id === driverPicker.member.user_id}
+    isDriverFrom={session.driver_from_id === driverPicker.member.user_id}
+    onSet={handleSetDriver}
+    onClose={() => setDriverPicker(null)}
+  />
+)}
 
       <div className="min-h-screen bg-gray-50 flex flex-col pb-52 md:pb-32">
         {/* ── Header ── */}
@@ -784,12 +924,16 @@ const handleCheckOutClick = () => {
             <div className="divide-y divide-gray-50">
               {session.members.map((member) => (
                 <MemberCard
-                  key={member.id}
-                  member={member}
-                  isCurrentUser={member.user_id === currentUserId}
-                  sessionStatus={session.status}
-                  onEarlyLeave={() => setShowEarlyLeave(true)}
-                />
+  key={member.id}
+  member={member}
+  isCurrentUser={member.user_id === currentUserId}
+  sessionStatus={session.status}
+  onEarlyLeave={() => setShowEarlyLeave(true)}
+  isLeaderView={isLeader && session.status !== "closed"}
+  isDriverTo={session.driver_to_id === member.user_id}
+  isDriverFrom={session.driver_from_id === member.user_id}
+  onPickDriver={() => setDriverPicker({ member })}
+/>
               ))}
             </div>
           </div>
