@@ -47,6 +47,7 @@ export interface OTRequestInfo {
   status: string;
   hours: number | null;
   reason: string;
+  actionedByName: string | null;
 }
 
 export interface TimelineEvent {

@@ -99,7 +99,7 @@ export default async function AuditPage({
 
     supabase
       .from("ot_requests")
-      .select("id, user_id, start_time, end_time, status, hours, reason")
+      .select("id, user_id, start_time, end_time, status, hours, reason, actioned_by_name")
       .eq("request_date", auditDate),
   ]);
 
@@ -143,16 +143,12 @@ export default async function AuditPage({
 
     const checkIn = fmtTime(log?.first_check_in ?? null);
     const checkOut = fmtTime(log?.last_check_out ?? null);
-    const otStart = log?.ot_intent
-      ? (log.timeline_events as Record<string, string>[])?.find(
-          (e) => e.event === "ot_start"
-        )?.timestamp ?? null
-      : null;
-    const otEnd = otStart
-      ? (log?.timeline_events as Record<string, string>[])?.find(
-          (e) => e.event === "ot_end"
-        )?.timestamp ?? null
-      : null;
+    
+    const otStart = (log?.timeline_events as Record<string, string>[])
+  ?.find((e) => e.event === "ot_start")?.timestamp ?? null;
+
+const otEnd = (log?.timeline_events as Record<string, string>[])
+  ?.find((e) => e.event === "ot_end")?.timestamp ?? null;
 
     // ── Anomaly detection ──────────────────────────────────────────────
     const anomalies: string[] = [];
@@ -200,6 +196,7 @@ export default async function AuditPage({
             status: ot.status,
             hours: ot.hours,
             reason: ot.reason,
+            actionedByName: ot.actioned_by_name ?? null,
           }
         : null,
 

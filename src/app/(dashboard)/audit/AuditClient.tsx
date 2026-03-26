@@ -543,22 +543,29 @@ function EmployeeCard({ emp }: { emp: AuditEmployee }) {
           </div>
 
           {/* OT Request badge */}
-          {emp.otRequest && (
-            <div className="mx-4 mt-3 bg-orange-50 border border-orange-100 rounded-xl px-3 py-2 text-xs flex items-center gap-2 flex-wrap">
-              <span className="font-semibold text-orange-700">📋 OT Request</span>
-              <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${
-                emp.otRequest.status === "approved" ? "bg-emerald-100 text-emerald-700"
-                : emp.otRequest.status === "pending" ? "bg-amber-100 text-amber-700"
-                : "bg-red-100 text-red-600"
-              }`}>
-                {emp.otRequest.status === "approved" ? "✓ Approved"
-                  : emp.otRequest.status === "pending" ? "⏳ Pending" : "✗ Rejected"}
-              </span>
-              <span className="font-mono text-orange-600">{emp.otRequest.startTime} – {emp.otRequest.endTime}</span>
-              {emp.otRequest.hours && <span className="text-orange-700 font-semibold">{emp.otRequest.hours}h</span>}
-              {emp.otRequest.reason && <span className="text-slate-500 w-full mt-0.5">{emp.otRequest.reason}</span>}
-            </div>
-          )}
+{emp.otRequest && (
+  <div className="mx-4 mt-3 bg-orange-50 border border-orange-100 rounded-xl px-3 py-2 text-xs flex items-center gap-2 flex-wrap">
+    <span className="font-semibold text-orange-700">📋 OT Request</span>
+    <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${
+      emp.otRequest.status === "approved" ? "bg-emerald-100 text-emerald-700"
+      : emp.otRequest.status === "pending" ? "bg-amber-100 text-amber-700"
+      : "bg-red-100 text-red-600"
+    }`}>
+      {emp.otRequest.status === "approved" ? "✓ Approved"
+        : emp.otRequest.status === "pending" ? "⏳ Pending" : "✗ Rejected"}
+    </span>
+    <span className="font-mono text-orange-600">{emp.otRequest.startTime} – {emp.otRequest.endTime}</span>
+    {emp.otRequest.hours && <span className="text-orange-700 font-semibold">{emp.otRequest.hours}h</span>}
+    {emp.otRequest.reason && <span className="text-slate-500 w-full mt-0.5">{emp.otRequest.reason}</span>}
+
+    {/* ← เพิ่มตรงนี้ */}
+    {emp.otRequest.status === "approved" && emp.otRequest.actionedByName && (
+      <span className="text-[10px] text-slate-400 w-full">
+        อนุมัติโดย: <span className="font-semibold text-emerald-600">{emp.otRequest.actionedByName}</span>
+      </span>
+    )}
+  </div>
+)}
 
           {/* Tabs */}
           <div className="flex mt-3 border-b border-slate-100">
