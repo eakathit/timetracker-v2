@@ -49,6 +49,8 @@ interface DayLog {
   otReqs: { start: string; end: string }[];
   workType: string | null;
   dailyAllowance: boolean;
+  isDriverTo:   boolean;
+  isDriverFrom: boolean;
 }
 
 interface TimeLogRow {
@@ -337,6 +339,7 @@ function DrillDownPanel({
           "Req. Start OT",
           "Req. End OT",
           "OT รวม (ชม.)",
+          "คนขับ",
         ],
       ];
 
@@ -373,6 +376,10 @@ function DrillDownPanel({
           log.otReqs.map((r) => r.start).join(" / ") || "–",
           log.otReqs.map((r) => r.end).join(" / ") || "–",
           log.otTotal > 0 ? log.otTotal : "–",
+          log.isDriverTo && log.isDriverFrom ? "ขาไป+ขากลับ"
+      : log.isDriverTo   ? "ขาไป"
+      : log.isDriverFrom ? "ขากลับ"
+      : "–",
         ];
       });
       // ── Summary แยก วันปกติ vs วันหยุดจริง ──────────────────
@@ -430,9 +437,9 @@ function DrillDownPanel({
 
       const ws = utils.aoa_to_sheet([...header, ...data, ...summary]);
       ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 5 } }];
-      ws["!cols"] = [12, 6, 16, 10, 10, 10, 10, 10, 10, 10, 12, 12, 10].map(
-        (w) => ({ wch: w }),
-      );
+      ws["!cols"] = [12, 6, 16, 10, 10, 10, 10, 10, 10, 10, 12, 12, 10, 10].map(
+  (w) => ({ wch: w }),
+);
 
       const wb = utils.book_new();
       const sheetName = `${emp.first_name}_${MONTHS_TH[month].slice(0, 3)}`;
@@ -594,6 +601,22 @@ function DrillDownPanel({
               ) : (
                 <span className="text-xs text-gray-300 flex-shrink-0">–</span>
               )}
+
+              {(log.isDriverTo || log.isDriverFrom) && (
+  <div className="flex gap-1 flex-shrink-0">
+    {log.isDriverTo && (
+      <span className="text-[10px] bg-sky-100 text-sky-600 font-bold px-1.5 py-0.5 rounded-full">
+        🚗↗
+      </span>
+    )}
+    {log.isDriverFrom && (
+      <span className="text-[10px] bg-violet-100 text-violet-600 font-bold px-1.5 py-0.5 rounded-full">
+        🚗↙
+      </span>
+    )}
+  </div>
+)}
+
             </div>
           ))
         )}
@@ -745,6 +768,13 @@ export default function HRAttendancePage() {
     new Map(),
   );
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequestRow[]>([]);
+
+  const [driverSessions, setDriverSessions] = useState<{
+  session_date:   string;
+  driver_to_id:   string | null;
+  driver_from_id: string | null;
+}[]>([]);
+
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
 
@@ -786,7 +816,7 @@ export default function HRAttendancePage() {
       const userIds = profileData.map((p) => p.id);
 
       // 2. Time logs + holidays + OT requests พร้อมกัน
-      const [logRes, holidayRes, otRes, leaveRes] = await Promise.all([
+      const [logRes, holidayRes, otRes, leaveRes, driverRes] = await Promise.all([
         supabase
           .from("daily_time_logs")
           .select(
@@ -819,6 +849,17 @@ export default function HRAttendancePage() {
           .eq("status", "approved")
           .lte("start_date", end)
           .gte("end_date", start),
+
+          supabase
+    .from("onsite_sessions")
+    .select("session_date, driver_to_id, driver_from_id, leader_id")
+    .or(
+      userIds.map((id) =>
+        `driver_to_id.eq.${id},driver_from_id.eq.${id}`
+      ).join(",")
+    )
+    .gte("session_date", start)
+    .lte("session_date", end),
       ]);
 
       setTimeLogs((logRes.data ?? []) as TimeLogRow[]);
@@ -847,6 +888,7 @@ export default function HRAttendancePage() {
 
       setOtRequests((otRes.data ?? []) as OTRequestRow[]);
       setLeaveRequests((leaveRes.data ?? []) as LeaveRequestRow[]);
+      setDriverSessions(driverRes.data ?? []);
     } catch (err) {
       console.error("HR fetchData error:", err);
     } finally {
@@ -1044,6 +1086,7 @@ otSum += (() => {
     viewMonth,
     holidays,
     workingSats,
+    driverSessions,
   ]);
 
   // ── สร้าง DayLog รายวัน ต่อ user (สำหรับ DrillDownPanel) ──
@@ -1071,6 +1114,14 @@ otSum += (() => {
       userLogs.forEach((l) => {
         logMap[l.log_date] = l;
       });
+
+      const driverMap = new Map<string, { to: boolean; from: boolean }>();
+  driverSessions.forEach((s) => {
+    driverMap.set(s.session_date, {
+      to:   s.driver_to_id   === emp.id,
+      from: s.driver_from_id === emp.id,
+    });
+  });
 
       const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
       const days: DayLog[] = [];
@@ -1103,6 +1154,8 @@ otSum += (() => {
             otReqs: [],
             workType: null,
             dailyAllowance: false,
+            isDriverTo:   false,
+            isDriverFrom: false,
           });
           continue;
         }
@@ -1124,6 +1177,8 @@ otSum += (() => {
             otReqs: [],
             workType: null,
             dailyAllowance: false,
+            isDriverTo:   false,
+            isDriverFrom: false,
           });
           continue;
         }
@@ -1144,6 +1199,8 @@ otSum += (() => {
             otReqs: [],
             workType: null,
             dailyAllowance: false,
+            isDriverTo:   false,
+            isDriverFrom: false,
           });
           continue;
         }
@@ -1231,6 +1288,8 @@ otSum += (() => {
             otReqs: reqPeriods,
             workType: log.work_type ?? null,
             dailyAllowance: log.daily_allowance ?? false,
+            isDriverTo:   driverMap.get(dateStr)?.to   ?? false,
+            isDriverFrom: driverMap.get(dateStr)?.from ?? false,
           });
         } else {
           days.push({
@@ -1248,6 +1307,8 @@ otSum += (() => {
             otReqs: [],
             workType: null,
             dailyAllowance: false,
+            isDriverTo:   false, 
+            isDriverFrom: false,
           });
         }
       }
