@@ -278,9 +278,7 @@ function calcOnsiteOTHours(checkoutIso: string): number {
 export async function groupCheckIn(sessionId: string): Promise<ActionResult> {
   try {
     const supabase = await getSupabaseServer();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { success: false, error: "Unauthorized" };
 
     const now = new Date().toISOString();
@@ -293,13 +291,12 @@ export async function groupCheckIn(sessionId: string): Promise<ActionResult> {
       .eq("leader_id", user.id)
       .limit(1);
 
-    if (sessionErr || !sessions || sessions.length === 0) {
+    if (sessionErr || !sessions || sessions.length === 0)
       return { success: false, error: "ไม่พบ Session หรือคุณไม่ใช่ Leader" };
-    }
+
     const session = sessions[0];
-    if (session.status !== "open") {
+    if (session.status !== "open")
       return { success: false, error: "Session นี้ Check-in ไปแล้ว" };
-    }
 
     const memberUserIds = (session.members as { user_id: string }[]).map(
       (m) => m.user_id,
@@ -320,35 +317,84 @@ export async function groupCheckIn(sessionId: string): Promise<ActionResult> {
       synced_from: "leader",
     };
 
+    // ✅ FIX: เพิ่ม first_check_in, work_type, status, daily_allowance ใน select
     const { data: existingLogs } = await supabase
       .from("daily_time_logs")
-      .select("user_id, timeline_events")
+      .select("user_id, timeline_events, first_check_in, work_type, status, daily_allowance")
       .in("user_id", memberUserIds)
       .eq("log_date", today);
 
-    const existingMap = new Map(
-      (existingLogs ?? []).map((l) => [l.user_id, l.timeline_events ?? []]),
+    type ExistingLog = {
+      timeline_events: OnsiteTimelineEvent[];
+      first_check_in: string | null;
+      work_type: string | null;
+      status: string | null;
+      daily_allowance: boolean;
+    };
+
+    const existingMap = new Map<string, ExistingLog>(
+      (existingLogs ?? []).map((l) => [l.user_id, {
+        timeline_events:  (l.timeline_events ?? []) as OnsiteTimelineEvent[],
+        first_check_in:   l.first_check_in ?? null,
+        work_type:        l.work_type ?? null,
+        status:           l.status ?? null,
+        daily_allowance:  l.daily_allowance ?? false,
+      }]),
     );
 
-    // ✅ คำนวณ attendance status ที่ถูกต้อง
-    const attendanceStatus = calcAttendanceStatus(now);
-    const dailyAllowance = calcDailyAllowance(now); // ก่อน 08:30 = true
+    const existingUids = memberUserIds.filter((uid) =>  existingMap.has(uid));
+    const newUids      = memberUserIds.filter((uid) => !existingMap.has(uid));
 
-    const { error: upsertErr } = await supabase.from("daily_time_logs").upsert(
-      memberUserIds.map((uid) => ({
-        user_id: uid,
-        log_date: today,
-        work_type: "on_site",
-        first_check_in: now,
-        onsite_session_id: sessionId,
-        timeline_events: [...(existingMap.get(uid) ?? []), newEvent],
-        status: attendanceStatus,
-        daily_allowance: dailyAllowance, // ✅ เพิ่มบรรทัดนี้
-      })),
-      { onConflict: "user_id,log_date" },
-    );
+    // ── UPDATE existing rows (เคย checkin factory มาก่อน) ────────────────
+    if (existingUids.length > 0) {
+      const results = await Promise.all(
+        existingUids.map((uid) => {
+          const ex = existingMap.get(uid)!;
+          // ✅ ถ้าเคย in_factory → เปลี่ยนเป็น mixed, ถ้าอื่นๆ → on_site
+          const newWorkType = ex.work_type === "in_factory" ? "mixed" : "on_site";
 
-    if (upsertErr) return { success: false, error: upsertErr.message };
+          return supabase
+            .from("daily_time_logs")
+            .update({
+              work_type:         newWorkType,       // ✅ mixed หรือ on_site
+              onsite_session_id: sessionId,
+              last_check_out:    null,              // ✅ clear checkout เก่า
+              timeline_events:   [...ex.timeline_events, newEvent],
+              // ❌ ห้ามแตะ first_check_in, status, daily_allowance
+            })
+            .eq("user_id", uid)
+            .eq("log_date", today);
+        }),
+      );
+
+      const firstErr = results.find((r) => r.error);
+      if (firstErr?.error)
+        return { success: false, error: firstErr.error.message };
+    }
+
+    // ── INSERT new rows (ยังไม่เคย checkin เลยวันนี้) ────────────────────
+    if (newUids.length > 0) {
+      const attendanceStatus = calcAttendanceStatus(now);
+      const dailyAllowance   = calcDailyAllowance(now);
+
+      const { error: insertErr } = await supabase
+        .from("daily_time_logs")
+        .insert(
+          newUids.map((uid) => ({
+            user_id:           uid,
+            log_date:          today,
+            work_type:         "on_site",   // ✅ ใหม่เลย = on_site
+            first_check_in:    now,
+            onsite_session_id: sessionId,
+            timeline_events:   [newEvent],
+            status:            attendanceStatus,
+            daily_allowance:   dailyAllowance,
+          })),
+        );
+
+      if (insertErr) return { success: false, error: insertErr.message };
+    }
+
     return { success: true };
   } catch (err) {
     return { success: false, error: String(err) };
@@ -655,7 +701,7 @@ export async function addMidSessionMember(
     // ดึง existing log ของพนักงานวันนี้
     const { data: existingRows } = await supabase
       .from("daily_time_logs")
-      .select("id, timeline_events")
+      .select("id, timeline_events, work_type")
       .eq("user_id", targetUserId)
       .eq("log_date", today)
       .limit(1);
@@ -663,30 +709,31 @@ export async function addMidSessionMember(
     const existingLog = existingRows?.[0];
 
     if (existingLog) {
+      // ✅ FIX: ถ้าเคย in_factory → mixed, ไม่ใช่ → on_site
+       const newWorkType = existingLog.work_type === "in_factory" ? "mixed" : "on_site";
       // ✅ อัปเดต status + daily_allowance ด้วย (เดิมไม่มี)
       await supabase
-        .from("daily_time_logs")
-        .update({
-          work_type: "on_site",
-          onsite_session_id: sessionId,
-          status: attendanceStatus,
-          daily_allowance: dailyAllowance,
-          timeline_events: [...(existingLog.timeline_events ?? []), newEvent],
-        })
-        .eq("id", existingLog.id);
-    } else {
-      // ✅ คำนวณจริง ไม่ hardcode "late" / false แล้ว
-      await supabase.from("daily_time_logs").insert({
-        user_id: targetUserId,
-        log_date: today,
-        work_type: "on_site",
-        first_check_in: now,
-        onsite_session_id: sessionId,
-        timeline_events: [newEvent],
-        status: attendanceStatus,
-        daily_allowance: dailyAllowance,
-      });
-    }
+    .from("daily_time_logs")
+    .update({
+      work_type:         newWorkType,
+      onsite_session_id: sessionId,
+      status:            attendanceStatus,
+      daily_allowance:   dailyAllowance,
+      timeline_events:   [...(existingLog.timeline_events ?? []), newEvent],
+    })
+    .eq("id", existingLog.id);
+} else {
+  await supabase.from("daily_time_logs").insert({
+    user_id:           targetUserId,
+    log_date:          today,
+    work_type:         "on_site",   //  ไม่มี row เดิม = on_site ปกติ
+    first_check_in:    now,
+    onsite_session_id: sessionId,
+    timeline_events:   [newEvent],
+    status:            attendanceStatus,
+    daily_allowance:   dailyAllowance,
+  });
+}
 
     return { success: true, data: { member: newMember } };
   } catch (err) {
