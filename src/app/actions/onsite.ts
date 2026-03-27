@@ -249,17 +249,30 @@ export async function getTodayActiveSession(): Promise<
 // Halper: คำนวณ status จากเวลา check-in (เหมือน factory)
 function calcAttendanceStatus(checkInIso: string): "on_time" | "late" {
   const checkIn = new Date(checkInIso);
-  const lateThreshold = new Date(checkIn);
-  lateThreshold.setHours(8, 31, 0, 0); // 08:31:00 ถึงสาย
-  return checkIn >= lateThreshold ? "late" : "on_time";
+  const bangkokHHMM = checkIn.toLocaleTimeString("en-GB", {
+    timeZone: "Asia/Bangkok",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  const [h, m] = bangkokHHMM.split(":").map(Number);
+  const totalMinutes = h * 60 + m;
+  return totalMinutes >= 8 * 60 + 31 ? "late" : "on_time"; // 08:31+ = สาย
 }
 
 // Helper: ตรวจสอบสิทธิ์เบี้ยเลี้ยง On-site (Check-in ก่อน 08:30)
 function calcDailyAllowance(checkInIso: string): boolean {
   const checkIn = new Date(checkInIso);
-  const cutoff = new Date(checkIn);
-  cutoff.setHours(8, 30, 0, 0);
-  return checkIn < cutoff; // true = ก่อน 08:30 → ได้เบี้ยเลี้ยง
+  // แปลงเป็น HH:mm ของ Bangkok แล้วเปรียบเทียบตรงๆ
+  const bangkokHHMM = checkIn.toLocaleTimeString("en-GB", {
+    timeZone: "Asia/Bangkok",
+    hour: "2-digit",
+    minute: "2-digit",
+  }); // "HH:MM" เช่น "08:22" หรือ "10:22"
+
+  const [h, m] = bangkokHHMM.split(":").map(Number);
+  const totalMinutes = h * 60 + m;
+  return totalMinutes < 8 * 60 + 30; // ก่อน 08:30 Bangkok → ได้เบี้ยเลี้ยง
 }
 
 // Helper: คำนวณ OT On-site นับจาก 17:30 (ต่างจาก Factory ที่นับ 18:00)
