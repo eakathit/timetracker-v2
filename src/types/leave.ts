@@ -6,6 +6,7 @@ export type LeaveType =
   | "personal"
   | "special_personal"
   | "other"
+  | "holiday_swap"
 
 export type LeaveStatus = "pending" | "approved" | "rejected";
 
@@ -79,9 +80,10 @@ export interface LeavePolicyFormValues {
 type LeaveTypeConfig = { label: string; icon: string; color: string; bg: string; border: string };
 
 export const LEAVE_TYPE_CONFIG: Record<LeaveType, LeaveTypeConfig> = {
-  vacation:         { label: "ลาพักร้อน",  icon: "🌴", color: "text-violet-700", bg: "bg-violet-50",  border: "border-violet-200" },
-  sick:             { label: "ลาป่วย",     icon: "🤒", color: "text-rose-700",   bg: "bg-rose-50",    border: "border-rose-200"   },
-  personal:         { label: "ลากิจ",      icon: "📋", color: "text-amber-700",  bg: "bg-amber-50",   border: "border-amber-200"  },
-  special_personal: { label: "ลากิจพิเศษ", icon: "⭐", color: "text-sky-700",    bg: "bg-sky-50",     border: "border-sky-200"    },
-  other:            { label: "ลาอื่นๆ",    icon: "📝", color: "text-gray-700",   bg: "bg-gray-50",    border: "border-gray-200"   },
+  vacation:         { label: "ลาพักร้อน",   icon: "🌴", color: "text-violet-600", bg: "bg-violet-100", border: "border-violet-200" },
+  sick:             { label: "ลาป่วย",      icon: "🤒", color: "text-rose-500",   bg: "bg-rose-100",   border: "border-rose-200"   },
+  personal:         { label: "ลากิจ",       icon: "📋", color: "text-amber-600",  bg: "bg-amber-100",  border: "border-amber-200"  },
+  special_personal: { label: "ลากิจพิเศษ",  icon: "⭐", color: "text-sky-600",    bg: "bg-sky-100",    border: "border-sky-200"    },
+  other:            { label: "ลาอื่นๆ",     icon: "📝", color: "text-gray-500",   bg: "bg-gray-200",   border: "border-gray-200"   },
+  holiday_swap:     { label: "แลกวันหยุด",  icon: "🔄", color: "text-teal-600",   bg: "bg-teal-100",   border: "border-teal-200"   },
 };

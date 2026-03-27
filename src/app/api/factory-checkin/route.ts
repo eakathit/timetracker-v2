@@ -4,6 +4,7 @@ import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { validateQRToken } from "@/lib/qr-token";
+import { getEffectiveThreshold, computeAttendanceStatus } from "@/lib/attendance";
 
 // Service role สำหรับ consume nonce (ต้องการ bypass RLS)
 const supabaseAdmin = createClient(
@@ -107,13 +108,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "เกิดข้อผิดพลาด" }, { status: 500 });
     }
 
-    // ── 6. คำนวณ status ────────────────────────────────────────────────────
-    const checkInBangkok = new Date(
-      new Date(now).toLocaleString("en-US", { timeZone: "Asia/Bangkok" })
-    );
-    const lateThreshold = new Date(checkInBangkok);
-    lateThreshold.setHours(8, 31, 0, 0);
-    const attendanceStatus = checkInBangkok >= lateThreshold ? "late" : "on_time";
+    // ── 6. คำนวณ status (คำนึงถึงใบลาที่ approved) ────────────────────────
+    const threshold = await getEffectiveThreshold(supabase, user.id, today);
+    const attendanceStatus = computeAttendanceStatus(now, threshold);
 
     // ── 6.5. ตรวจ shift_type จาก holidays table ────────────────────────────
     const { data: holidayRecord } = await supabase

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { createBrowserClient } from "@supabase/ssr";
 import UserAvatar from "@/components/UserAvatar";
 import { REFRESH_PENDING_EVENT } from "@/hooks/usePendingApprovals";
+import { thresholdFromLeave, computeAttendanceStatus } from "@/lib/attendance";
 
 // ─── Supabase Client ──────────────────────────────────────────────────────────
 const supabase = createBrowserClient(
@@ -57,6 +58,8 @@ interface LeaveRequest {
   start_date: string;
   end_date: string;
   days: number;
+  hours: number | null;
+  period_label: string | null;
   reason: string;
   status: ReqStatus;
   approved_by: string | null;
@@ -78,12 +81,13 @@ const STATUS_CFG: Record<ReqStatus, { label: string; bg: string; border: string;
 };
 
 const LEAVE_CFG: Record<string, { label: string; icon: string; bg: string; text: string }> = {
-  sick:             { label: "ลาป่วย",     icon: "🤒", bg: "bg-rose-50",    text: "text-rose-500"   },
-  personal:         { label: "ลากิจ",      icon: "📋", bg: "bg-blue-50",    text: "text-blue-500"   },
-  vacation:         { label: "ลาพักร้อน",  icon: "🌴", bg: "bg-sky-50",     text: "text-sky-500"    },
-  special_personal: { label: "ลากิจพิเศษ", icon: "⭐", bg: "bg-amber-50",   text: "text-amber-500"  },
-  other:            { label: "ลาอื่นๆ",    icon: "📝", bg: "bg-gray-50",    text: "text-gray-500"   },
-  maternity:        { label: "ลาคลอด",     icon: "👶", bg: "bg-pink-50",    text: "text-pink-500"   },
+  sick:             { label: "ลาป่วย",     icon: "🤒", bg: "bg-rose-100",    text: "text-rose-500"   },
+  personal:         { label: "ลากิจ",      icon: "📋", bg: "bg-amber-100",   text: "text-amber-600"  },
+  vacation:         { label: "ลาพักร้อน",  icon: "🌴", bg: "bg-violet-100",  text: "text-violet-600" },
+  special_personal: { label: "ลากิจพิเศษ", icon: "⭐", bg: "bg-sky-100",     text: "text-sky-600"    },
+  holiday_swap:     { label: "แลกวันหยุด", icon: "🔄", bg: "bg-teal-100",    text: "text-teal-600"   },
+  other:            { label: "ลาอื่นๆ",    icon: "📝", bg: "bg-gray-200",    text: "text-gray-500"   },
+  maternity:        { label: "ลาคลอด",     icon: "👶", bg: "bg-pink-100",    text: "text-pink-500"   },
 };
 
 const TH_MONTHS = ["", "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
@@ -236,6 +240,27 @@ const LeaveCardIcon: Record<string, React.ReactNode> = {
       <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
     </svg>
   ),
+  special_personal: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-5 h-5">
+      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+    </svg>
+  ),
+  holiday_swap: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-5 h-5">
+      <polyline points="17 1 21 5 17 9"/>
+      <path d="M3 11V9a4 4 0 0 1 4-4h14"/>
+      <polyline points="7 23 3 19 7 15"/>
+      <path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+    </svg>
+  ),
+  other: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-5 h-5">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+      <polyline points="14 2 14 8 20 8"/>
+      <line x1="8" y1="13" x2="16" y2="13"/>
+      <line x1="8" y1="17" x2="12" y2="17"/>
+    </svg>
+  ),
   maternity: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-5 h-5">
       <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
@@ -295,7 +320,9 @@ function LeaveCard({ req, showUser, onClick }: { req: LeaveRequest; showUser: bo
             </svg>
             {isSameDay ? fmtDate(req.start_date) : `${fmtDate(req.start_date)} – ${fmtDate(req.end_date)}`}
           </span>
-          <span className={`text-xs font-black ${st.text}`}>{req.days} วัน</span>
+          <span className={`text-xs font-black ${st.text}`}>
+            {req.hours != null ? `${req.hours} ชม.` : `${req.days} วัน`}
+          </span>
         </div>
 
        
@@ -399,7 +426,8 @@ function BottomSheet({
     : [
         { icon: TagIcon,      label: "ประเภท",    value: LEAVE_CFG[leaveItem.leave_type].label },
         { icon: CalendarIcon, label: "วันที่ลา",  value: leaveItem.start_date === leaveItem.end_date ? fmtDate(leaveItem.start_date) : `${fmtDate(leaveItem.start_date)} – ${fmtDate(leaveItem.end_date)}` },
-        { icon: DaysIcon,     label: "จำนวนวัน", value: `${leaveItem.days} วัน` },
+        { icon: DaysIcon,     label: leaveItem.hours != null ? "จำนวนชั่วโมง" : "จำนวนวัน",
+                              value: leaveItem.hours != null ? `${leaveItem.hours} ชม.${leaveItem.period_label ? ` (${leaveItem.period_label})` : ""}` : `${leaveItem.days} วัน` },
         { icon: NoteIcon,     label: "เหตุผล",   value: item.reason },
         { icon: SubmitIcon,   label: "ยื่นเมื่อ", value: fmtDateTime(item.created_at) },
       ];
@@ -757,44 +785,68 @@ const handleApproveLeave = async (id: string) => {
     actioned_at: new Date().toISOString(),
   }).eq("id", id);
 
-  // 2. หา leave request ที่เพิ่ง approve เพื่อดึง start_date, end_date, user_id
+  // 2. หา leave request ที่เพิ่ง approve
   const leaveReq = [...deptLeave, ...myLeave].find(r => r.id === id);
   if (leaveReq) {
     // สร้าง date range ทุกวันในช่วงลา
     const leaveDates: string[] = [];
-    // ✅ ใช้ string แยก ไม่ผ่าน new Date() เพื่อหลีกเลี่ยง timezone bug
     const [sy, sm, sd] = leaveReq.start_date.split("-").map(Number);
     const [ey, em, ed] = leaveReq.end_date.split("-").map(Number);
-    const start = new Date(sy, sm - 1, sd); // local time ✅
+    const start = new Date(sy, sm - 1, sd);
     const end   = new Date(ey, em - 1, ed);
-
     for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-      leaveDates.push(dateStr);
+      leaveDates.push(
+        `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+      );
     }
 
-    // 3. Upsert daily_time_logs สำหรับทุกวันลา
-    await supabase.from("daily_time_logs").upsert(
-      leaveDates.map(date => ({
-        user_id:   leaveReq.user_id,
-        log_date:  date,       // ✅ string โดยตรง ไม่ผ่าน UTC
-        work_type: "leave",
-        status:    "leave",
-      })),
-      { onConflict: "user_id,log_date" }
-    );
+    const threshold = thresholdFromLeave(leaveReq);
+    const isFullDay = threshold === null;
+
+    if (isFullDay) {
+      // 3a. ลาทั้งวัน → upsert status = "leave"
+      await supabase.from("daily_time_logs").upsert(
+        leaveDates.map(date => ({
+          user_id:   leaveReq.user_id,
+          log_date:  date,
+          work_type: "leave",
+          status:    "leave",
+        })),
+        { onConflict: "user_id,log_date" }
+      );
+    } else {
+      // 3b. ลาครึ่งวัน / รายชั่วโมง → recalculate status ของวันที่ check-in แล้ว
+      for (const date of leaveDates) {
+        const { data: log } = await supabase
+          .from("daily_time_logs")
+          .select("first_check_in, status")
+          .eq("user_id", leaveReq.user_id)
+          .eq("log_date", date)
+          .maybeSingle();
+
+        if (log?.first_check_in) {
+          const newStatus = computeAttendanceStatus(log.first_check_in, threshold);
+          if (newStatus !== log.status) {
+            await supabase
+              .from("daily_time_logs")
+              .update({ status: newStatus })
+              .eq("user_id", leaveReq.user_id)
+              .eq("log_date", date);
+          }
+        }
+      }
+    }
   }
 
   await Promise.all([fetchMyRequests(), fetchDeptRequests()]);
   dispatchRefresh();
 };
 
- // ✅ handleRejectLeave ที่ดีขึ้น
 const handleRejectLeave = async (id: string, reason: string) => {
-  // ดึงข้อมูลก่อน
+  // ดึงข้อมูลก่อน (รวม period + hours เพื่อแยก full-day / half-day)
   const { data: leaveReq } = await supabase
     .from("leave_requests")
-    .select("user_id, start_date, end_date, status")
+    .select("user_id, start_date, end_date, status, period_label, hours")
     .eq("id", id)
     .single();
 
@@ -805,16 +857,42 @@ const handleRejectLeave = async (id: string, reason: string) => {
     actioned_at: new Date().toISOString(),
   }).eq("id", id);
 
-  // ถ้าเคย approve แล้ว (มี daily_time_logs status=leave) ให้ revert เป็น absent
+  // ถ้าเคย approve แล้ว → revert daily_time_logs
   if (leaveReq && leaveReq.status === "approved") {
     const leaveDates = getDatesInRange(leaveReq.start_date, leaveReq.end_date);
     if (leaveDates.length > 0) {
-      // ลบ rows ที่เป็น leave ออก (เพราะไม่มี check-in จริง)
-      await supabase.from("daily_time_logs")
-        .delete()
-        .eq("user_id", leaveReq.user_id)
-        .eq("status", "leave")
-        .in("log_date", leaveDates);
+      const wasFullDay = thresholdFromLeave(leaveReq) === null;
+
+      if (wasFullDay) {
+        // ลาทั้งวัน → ลบ rows ที่สร้างจากใบลา (ไม่มี check-in จริง)
+        await supabase.from("daily_time_logs")
+          .delete()
+          .eq("user_id", leaveReq.user_id)
+          .eq("status", "leave")
+          .in("log_date", leaveDates);
+      } else {
+        // ลาครึ่งวัน/ชั่วโมง → recalc กลับเป็น threshold ปกติ (08:30)
+        for (const date of leaveDates) {
+          const { data: log } = await supabase
+            .from("daily_time_logs")
+            .select("first_check_in, status")
+            .eq("user_id", leaveReq.user_id)
+            .eq("log_date", date)
+            .maybeSingle();
+
+          if (log?.first_check_in) {
+            // ใช้ WORK_START_MINUTES (08:30) เพราะใบลาถูก reject แล้ว
+            const newStatus = computeAttendanceStatus(log.first_check_in, 8 * 60 + 30);
+            if (newStatus !== log.status) {
+              await supabase
+                .from("daily_time_logs")
+                .update({ status: newStatus })
+                .eq("user_id", leaveReq.user_id)
+                .eq("log_date", date);
+            }
+          }
+        }
+      }
     }
   }
 

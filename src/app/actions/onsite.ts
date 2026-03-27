@@ -11,6 +11,7 @@ import type {
   OnsiteTimelineEvent,
   MemberProfile,
 } from "@/types/onsite";
+import { getEffectiveThreshold, computeAttendanceStatus } from "@/lib/attendance";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Supabase Server Client — Server Action version
@@ -246,18 +247,15 @@ export async function getTodayActiveSession(): Promise<
   }
 }
 
-// Halper: คำนวณ status จากเวลา check-in (เหมือน factory)
-function calcAttendanceStatus(checkInIso: string): "on_time" | "late" {
-  const checkIn = new Date(checkInIso);
-  const bangkokHHMM = checkIn.toLocaleTimeString("en-GB", {
-    timeZone: "Asia/Bangkok",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-
-  const [h, m] = bangkokHHMM.split(":").map(Number);
-  const totalMinutes = h * 60 + m;
-  return totalMinutes >= 8 * 60 + 31 ? "late" : "on_time"; // 08:31+ = สาย
+// Helper: คำนวณ status โดยคำนึงถึงใบลา approved ของ user
+async function calcAttendanceStatusForUser(
+  supabase: Awaited<ReturnType<typeof getSupabaseServer>>,
+  userId: string,
+  logDate: string,
+  checkInIso: string,
+): Promise<"on_time" | "late" | "leave"> {
+  const threshold = await getEffectiveThreshold(supabase, userId, logDate);
+  return computeAttendanceStatus(checkInIso, threshold);
 }
 
 // Helper: ตรวจสอบสิทธิ์เบี้ยเลี้ยง On-site (Check-in ก่อน 08:30)
@@ -387,8 +385,16 @@ export async function groupCheckIn(sessionId: string): Promise<ActionResult> {
 
     // ── INSERT new rows (ยังไม่เคย checkin เลยวันนี้) ────────────────────
     if (newUids.length > 0) {
-      const attendanceStatus = calcAttendanceStatus(now);
-      const dailyAllowance   = calcDailyAllowance(now);
+      const dailyAllowance = calcDailyAllowance(now);
+
+      // คำนวณ status แยกตาม user เพราะแต่ละคนอาจมีใบลาต่างกัน
+      const statusMap = new Map<string, string>();
+      await Promise.all(
+        newUids.map(async (uid) => {
+          const s = await calcAttendanceStatusForUser(supabase, uid, today, now);
+          statusMap.set(uid, s);
+        }),
+      );
 
       const { error: insertErr } = await supabase
         .from("daily_time_logs")
@@ -396,11 +402,11 @@ export async function groupCheckIn(sessionId: string): Promise<ActionResult> {
           newUids.map((uid) => ({
             user_id:           uid,
             log_date:          today,
-            work_type:         "on_site",   // ✅ ใหม่เลย = on_site
+            work_type:         "on_site",
             first_check_in:    now,
             onsite_session_id: sessionId,
             timeline_events:   [newEvent],
-            status:            attendanceStatus,
+            status:            statusMap.get(uid) ?? "on_time",
             daily_allowance:   dailyAllowance,
           })),
         );
@@ -684,7 +690,7 @@ export async function addMidSessionMember(
 
     // ✅ ใช้ now เป็น effective check-in เสมอ
     // เพราะพนักงานที่เพิ่มกลางวันไม่ควรได้ daily_allowance เหมือนคนที่เข้าก่อน 08:30
-    const attendanceStatus = calcAttendanceStatus(now);
+    const attendanceStatus = await calcAttendanceStatusForUser(supabase, targetUserId, today, now);
     const dailyAllowance = calcDailyAllowance(now);
 
     // Insert member

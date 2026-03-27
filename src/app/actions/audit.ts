@@ -4,6 +4,7 @@
 import { revalidatePath } from "next/cache";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { getEffectiveThreshold, computeAttendanceStatus } from "@/lib/attendance";
 type ActionResult = { success: boolean; error?: string };
 
 // ── Supabase Server Client (inline — same pattern as onsite.ts) ───────────
@@ -67,8 +68,8 @@ export async function adminForceCheckIn(
       note: `Admin force check-in → ${timeHHMM}`,
     };
 
-    const lateThreshold = new Date(`${logDate}T08:30:00+07:00`);
-    const status = new Date(iso) > lateThreshold ? "late" : "on_time";
+    const threshold = await getEffectiveThreshold(supabase, targetUserId, logDate);
+    const status = computeAttendanceStatus(iso, threshold);
 
     if (log) {
       // ── Row มีอยู่แล้ว → UPDATE เท่านั้น (ไม่แตะ work_type) ──
