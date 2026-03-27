@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { createBrowserClient } from "@supabase/ssr";
 import type { LeaveBalanceWithPolicy } from "@/types/leave";
 import { LEAVE_TYPE_CONFIG } from "@/types/leave";
+import { fmtLeaveBalance, fmtNum, leaveUnit, toLeaveDisplay } from "@/lib/leave-format";
 
 // ─── Supabase Client (Browser) ────────────────────────────────────────────────
 function useSupabase() {
@@ -608,13 +609,13 @@ function LeaveQuotaSection({ userId }: { userId: string }) {
                     <div className="flex items-center gap-2">
                       {Number(b.pending_days) > 0 && (
                         <span className="text-[9px] font-bold bg-amber-50 text-amber-600 border border-amber-200 px-1.5 py-0.5 rounded-full">
-                          รอ {b.pending_days}
+                          รอ {fmtLeaveBalance(Number(b.pending_days), b.allow_hourly)}
                         </span>
                       )}
                       <span className="text-[10px] text-gray-400 font-medium">
                         {Number(b.total_days) === 0
-                          ? `${b.used_days} วัน`
-                          : `${b.used_days}/${b.total_days} วัน`}
+                          ? fmtLeaveBalance(Number(b.used_days), b.allow_hourly)
+                          : `${fmtNum(toLeaveDisplay(Number(b.used_days), b.allow_hourly))}/${fmtNum(toLeaveDisplay(Number(b.total_days), b.allow_hourly))} ${leaveUnit(b.allow_hourly)}`}
                       </span>
                     </div>
                   </div>
