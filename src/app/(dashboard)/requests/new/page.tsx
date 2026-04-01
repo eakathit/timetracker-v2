@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { fmtLeaveBalance, fmtNum, leaveUnit, toLeaveDisplay } from "@/lib/leave-format";
 import { createBrowserClient } from "@supabase/ssr";
 
 // ─── Supabase Client ──────────────────────────────────────────────────────────
@@ -18,20 +19,28 @@ type LeaveType =
   | "personal"
   | "vacation"
   | "special_personal"
-  | "other";
+  | "other"
+  | "holiday_swap";
 const PERIOD_LEAVE_TYPES: LeaveType[] = [
   "sick",
   "personal",
   "special_personal",
+  "vacation",
+  "other",
+  // holiday_swap ไม่อยู่ที่นี่ — ลาได้เฉพาะเต็มวัน ไม่มีรายชั่วโมง
 ];
 // เพิ่มต่อจาก type LeaveType
-type LeavePeriod = "full" | "morning" | "afternoon" | "custom";
+type LeavePeriod = "full" | "morning" | "afternoon" | "hourly";
 
-const PERIOD_OPTIONS: { id: LeavePeriod; label: string; sub: string }[] = [
+const HALF_DAY_HOURS: Record<"morning" | "afternoon", number> = {
+  morning: 3.5,   // 08:30–12:00
+  afternoon: 4.5, // 13:00–17:30
+};
+
+const PERIOD_OPTIONS: { id: Exclude<LeavePeriod, "hourly">; label: string; sub: string }[] = [
   { id: "full", label: "ทั้งวัน", sub: "08:30 – 17:30" },
   { id: "morning", label: "ครึ่งเช้า", sub: "08:30 – 12:00" },
   { id: "afternoon", label: "ครึ่งบ่าย", sub: "13:00 – 17:30" },
-  { id: "custom", label: "ระบุเวลาเอง", sub: "กำหนดเอง" },
 ];
 
 interface Project {
@@ -119,12 +128,13 @@ const LeaveIcons: Record<string, React.ReactNode> = {
   ),
 };
 
-const LEAVE_TYPES: { id: LeaveType; label: string; desc: string }[] = [
-  { id: "sick", label: "ลาป่วย", desc: "เจ็บป่วยหรือต้องพบแพทย์" },
-  { id: "personal", label: "ลากิจ", desc: "ธุระส่วนตัว" },
-  { id: "vacation", label: "ลาพักร้อน", desc: "วันหยุดพักผ่อน" },
-  { id: "special_personal", label: "ลากิจพิเศษ", desc: "กิจธุระพิเศษ" },
-  { id: "other", label: "ลาอื่นๆ", desc: "ระบุในเหตุผล" },
+const LEAVE_TYPES: { id: LeaveType; label: string; desc: string; icon: string; bg: string }[] = [
+  { id: "sick",             label: "ลาป่วย",      desc: "เจ็บป่วยหรือต้องพบแพทย์",    icon: "🤒", bg: "bg-rose-100"   },
+  { id: "personal",         label: "ลากิจ",       desc: "ธุระส่วนตัว",                icon: "📋", bg: "bg-amber-100"  },
+  { id: "vacation",         label: "ลาพักร้อน",   desc: "วันหยุดพักผ่อน",             icon: "🌴", bg: "bg-violet-100" },
+  { id: "special_personal", label: "ลากิจพิเศษ",  desc: "กิจธุระพิเศษ",               icon: "⭐", bg: "bg-sky-100"    },
+  { id: "holiday_swap",     label: "แลกวันหยุด",  desc: "สะสมจากทำงานในวันหยุด",      icon: "🔄", bg: "bg-teal-100"   },
+  { id: "other",            label: "ลาอื่นๆ",     desc: "ระบุในเหตุผล",               icon: "📝", bg: "bg-gray-200"   },
 ];
 
 const OT_REASON_PRESETS = [
@@ -592,15 +602,15 @@ function LeaveForm() {
     startDate: today,
     endDate: today,
     period: "full" as LeavePeriod,
-    customStart: "08:30",
-    customEnd: "17:30",
+    hourlyStart: "09:00",
+    hourlyEnd: "10:00",
     reason: "",
   });
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // ── Leave balance ──
+  // ── Leave balance & policy ──
   const [balanceMap, setBalanceMap] = useState<
     Record<
       string,
@@ -609,25 +619,55 @@ function LeaveForm() {
         total: number;
         used: number;
         pending: number;
+        allowHourly: boolean;
       }
     >
   >({});
+  const [allowHourlySet, setAllowHourlySet] = useState<Set<string>>(new Set());
   const [balanceLoading, setBalanceLoading] = useState(false);
 
   // ── Computed ──────────────────────────────────────────────────────────────
-  const days = calcDays(form.startDate, form.endDate); // ← ต้องอยู่ก่อน
+  const days = calcDays(form.startDate, form.endDate);
+  const hourlyCount = form.period === "hourly" ? calcHours(form.hourlyStart, form.hourlyEnd) : 0;
+
+  // effective days used for balance comparison (mirrors DB trigger: hours/8)
+  const effectiveDays = (() => {
+    if (form.period === "morning") return HALF_DAY_HOURS.morning / 8;
+    if (form.period === "afternoon") return HALF_DAY_HOURS.afternoon / 8;
+    if (form.period === "hourly") return hourlyCount / 8;
+    return days;
+  })();
+
+  const showHourly =
+    form.leaveType === "personal" && allowHourlySet.has("personal");
+
   const isValid =
     form.leaveType &&
     form.startDate &&
-    form.endDate &&
     form.reason.trim() &&
-    days > 0;
+    (form.period === "hourly" ? hourlyCount > 0 : effectiveDays > 0);
 
   const currentBalance = form.leaveType ? balanceMap[form.leaveType] : null;
-  const isOverBalance =
-    currentBalance != null && days > 0 && days > currentBalance.remaining;
+  const allowHourly    = currentBalance?.allowHourly ?? false;
+  const unit           = leaveUnit(allowHourly);
+  const isOverBalance  =
+    currentBalance != null && effectiveDays > 0 && effectiveDays > currentBalance.remaining;
 
   useEffect(() => {
+    // ดึง policies ก่อน (ไม่ขึ้นกับ user balance)
+    supabase
+      .from("leave_policies")
+      .select("leave_type, allow_hourly")
+      .eq("is_active", true)
+      .then(({ data }) => {
+        if (data) {
+          const hourlySet = new Set(
+            data.filter((p) => p.allow_hourly).map((p) => p.leave_type as string),
+          );
+          setAllowHourlySet(hourlySet);
+        }
+      });
+
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return;
       setUserId(user.id);
@@ -636,7 +676,7 @@ function LeaveForm() {
       supabase
         .from("leave_balances_with_policy")
         .select(
-          "leave_type, remaining_days, total_days, used_days, pending_days",
+          "leave_type, remaining_days, total_days, used_days, pending_days, allow_hourly",
         )
         .eq("user_id", user.id)
         .eq("year", year)
@@ -651,6 +691,7 @@ function LeaveForm() {
                 total: number;
                 used: number;
                 pending: number;
+                allowHourly: boolean;
               }
             > = {};
             data.forEach((b) => {
@@ -659,6 +700,7 @@ function LeaveForm() {
                 total: Number(b.total_days),
                 used: Number(b.used_days),
                 pending: Number(b.pending_days),
+                allowHourly: Boolean(b.allow_hourly),
               };
             });
             setBalanceMap(map);
@@ -667,11 +709,21 @@ function LeaveForm() {
         });
     });
   }, []);
-  const getPeriodLabel = () => {
+  const getPeriodLabel = (): string | null => {
     if (!PERIOD_LEAVE_TYPES.includes(form.leaveType as LeaveType)) return null;
-    if (form.period === "custom")
-      return `${form.customStart} – ${form.customEnd}`;
-    return PERIOD_OPTIONS.find((p) => p.id === form.period)?.sub ?? null;
+    switch (form.period) {
+      case "full":      return "ทั้งวัน";
+      case "morning":   return "ครึ่งเช้า";
+      case "afternoon": return "ครึ่งบ่าย";
+      case "hourly":    return `${form.hourlyStart} – ${form.hourlyEnd}`;
+    }
+  };
+
+  const getSubmitHours = (): number | null => {
+    if (form.period === "morning") return HALF_DAY_HOURS.morning;
+    if (form.period === "afternoon") return HALF_DAY_HOURS.afternoon;
+    if (form.period === "hourly") return calcHours(form.hourlyStart, form.hourlyEnd);
+    return null;
   };
 
   const handleSubmit = async () => {
@@ -684,6 +736,7 @@ function LeaveForm() {
       leave_type: form.leaveType,
       start_date: form.startDate,
       end_date: form.endDate,
+      hours: getSubmitHours(),
       period_label: getPeriodLabel(),
       reason: form.reason.trim(),
       status: "pending",
@@ -720,7 +773,7 @@ function LeaveForm() {
         </div>
         <div className="px-4 pt-3 pb-4">
           <div className="grid grid-cols-2 gap-2.5">
-            {LEAVE_TYPES.map((lt) => (
+            {LEAVE_TYPES.map((lt, i) => (
               <button
                 key={lt.id}
                 onClick={() =>
@@ -728,35 +781,38 @@ function LeaveForm() {
                     ...form,
                     leaveType: lt.id,
                     period: "full",
-                    customStart: "08:30",
-                    customEnd: "17:30",
+                    hourlyStart: "09:00",
+                    hourlyEnd: "10:00",
                   })
                 }
                 className={`relative flex flex-col items-start p-4 rounded-2xl border-2 transition-all active:scale-95 text-left ${
+                  i === LEAVE_TYPES.length - 1 && LEAVE_TYPES.length % 2 !== 0
+                    ? "col-span-2"
+                    : ""
+                } ${
                   form.leaveType === lt.id
                     ? "border-slate-900 bg-slate-900 shadow-lg"
                     : "border-gray-100 bg-gray-50 hover:border-gray-200 hover:bg-white"
                 }`}
               >
-                <p
-                  className={`text-sm font-black ${form.leaveType === lt.id ? "text-white" : "text-gray-800"}`}
-                >
+                {/* Icon badge */}
+                <span className={`mb-2.5 w-9 h-9 rounded-xl flex items-center justify-center text-lg ${
+                  form.leaveType === lt.id ? "bg-white/15" : lt.bg
+                }`}>
+                  {lt.icon}
+                </span>
+
+                <p className={`text-sm font-black ${form.leaveType === lt.id ? "text-white" : "text-gray-800"}`}>
                   {lt.label}
                 </p>
-                <p
-                  className={`text-[11px] mt-0.5 ${form.leaveType === lt.id ? "text-gray-400" : "text-gray-400"}`}
-                >
+                <p className={`text-[11px] mt-0.5 ${form.leaveType === lt.id ? "text-gray-400" : "text-gray-400"}`}>
                   {lt.desc}
                 </p>
+
+                {/* Checkmark */}
                 {form.leaveType === lt.id && (
                   <span className="absolute top-3 right-3 w-5 h-5 rounded-full bg-white flex items-center justify-center shadow-sm">
-                    <svg
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="3"
-                      className="w-3 h-3 text-slate-900"
-                    >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="w-3 h-3 text-slate-900">
                       <polyline points="20 6 9 17 4 12" />
                     </svg>
                   </span>
@@ -803,18 +859,25 @@ function LeaveForm() {
                     isOverBalance ? "text-rose-500" : "text-gray-900"
                   }`}
                 >
-                  {currentBalance.remaining}
+                  {fmtNum(toLeaveDisplay(currentBalance.remaining, allowHourly))}
                 </span>
                 <span className="text-sm text-gray-400 mb-0.5">
-                  / {currentBalance.total} วัน
+                  / {fmtNum(toLeaveDisplay(currentBalance.total, allowHourly))} {unit}
                 </span>
-                {days > 0 && (
+                {effectiveDays > 0 && (
                   <span
                     className={`ml-auto text-sm font-bold ${
                       isOverBalance ? "text-rose-500" : "text-indigo-500"
                     }`}
                   >
-                    จะใช้ {days} วัน
+                    จะใช้{" "}
+                    {form.period === "morning"
+                      ? "ครึ่งเช้า (3.5 ชม.)"
+                      : form.period === "afternoon"
+                        ? "ครึ่งบ่าย (4.5 ชม.)"
+                        : form.period === "hourly"
+                          ? `${hourlyCount} ชม.`
+                          : `${days} วัน`}
                   </span>
                 )}
               </div>
@@ -831,7 +894,7 @@ function LeaveForm() {
                   }`}
                   style={{
                     width: `${Math.min(
-                      ((currentBalance.used + (days > 0 ? days : 0)) /
+                      ((currentBalance.used + effectiveDays) /
                         currentBalance.total) *
                         100,
                       100,
@@ -845,23 +908,23 @@ function LeaveForm() {
                 <span>
                   ใช้ไปเเล้ว{" "}
                   <strong className="text-gray-600">
-                    {currentBalance.used}
+                    {fmtNum(toLeaveDisplay(currentBalance.used, allowHourly))}
                   </strong>{" "}
-                  วัน
+                  {unit}
                 </span>
                 {currentBalance.pending > 0 && (
                   <span className="flex items-center gap-1">
                     <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
                     รออนุมัติ{" "}
                     <strong className="text-amber-600">
-                      {currentBalance.pending}
+                      {fmtNum(toLeaveDisplay(currentBalance.pending, allowHourly))}
                     </strong>{" "}
-                    วัน
+                    {unit}
                   </span>
                 )}
                 {isOverBalance && (
                   <span className="text-rose-500 font-semibold ml-auto">
-                    เกิน {days - currentBalance.remaining} วัน
+                    เกิน {fmtLeaveBalance(effectiveDays - currentBalance.remaining, allowHourly)}
                   </span>
                 )}
               </div>
@@ -900,59 +963,72 @@ function LeaveForm() {
 
         <div className="mx-4 border-t border-gray-50 mt-3" />
 
-        {/* วันสิ้นสุด */}
-        <div className="px-4 pt-3 pb-4">
-          <label className={labelCls}>วันสิ้นสุด</label>
-          <input
-            type="date"
-            value={form.endDate}
-            min={form.startDate}
-            onChange={(e) => setForm({ ...form, endDate: e.target.value })}
-            className={inputCls}
-          />
-        </div>
+        {/* วันสิ้นสุด — ซ่อนเมื่อ period ≠ full */}
+        {form.period === "full" && (
+          <div className="px-4 pt-3 pb-4">
+            <label className={labelCls}>วันสิ้นสุด</label>
+            <input
+              type="date"
+              value={form.endDate}
+              min={form.startDate}
+              onChange={(e) => setForm({ ...form, endDate: e.target.value })}
+              className={inputCls}
+            />
+          </div>
+        )}
 
-        {/* Days summary badge */}
-        <div
-          className={`mx-4 mb-4 flex items-center gap-2.5 px-4 py-2.5 rounded-xl border transition-all duration-200 ${
-            days > 0
-              ? "bg-indigo-50 border-indigo-100"
-              : "bg-gray-50 border-gray-100 opacity-50"
-          }`}
-        >
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            className={`w-4 h-4 flex-shrink-0 ${days > 0 ? "text-indigo-400" : "text-gray-300"}`}
-          >
-            <rect x="3" y="4" width="18" height="18" rx="2" />
-            <line x1="3" y1="9" x2="21" y2="9" />
-          </svg>
-          <span
-            className={`text-[13px] font-medium flex-1 ${days > 0 ? "text-indigo-600" : "text-gray-400"}`}
-          >
-            ระยะเวลาการลา
-          </span>
-          <span
-            className={`text-[18px] font-semibold tabular-nums ${days > 0 ? "text-indigo-700" : "text-gray-300"}`}
-          >
-            {days > 0 ? (
-              <>
-                {days}{" "}
-                <span className="text-[12px] font-normal text-indigo-400">
-                  วัน
-                </span>
-              </>
-            ) : (
-              <span className="text-[13px]">--</span>
-            )}
-          </span>
-        </div>
+        {/* Days / Hours summary badge */}
+        {(() => {
+          const isHourly = form.period === "hourly";
+          const isHalfDay = form.period === "morning" || form.period === "afternoon";
+          const badgeActive = isHourly ? hourlyCount > 0 : effectiveDays > 0;
+          const badgeLabel = isHourly
+            ? `${hourlyCount > 0 ? hourlyCount : "--"}`
+            : form.period === "morning"
+              ? "ครึ่งเช้า"
+              : form.period === "afternoon"
+                ? "ครึ่งบ่าย"
+                : days > 0 ? `${days}` : "--";
+          const badgeUnit = isHourly ? "ชั่วโมง" : isHalfDay ? "" : "วัน";
+          return (
+            <div
+              className={`mx-4 mb-4 flex items-center gap-2.5 px-4 py-2.5 rounded-xl border transition-all duration-200 ${
+                badgeActive
+                  ? "bg-indigo-50 border-indigo-100"
+                  : "bg-gray-50 border-gray-100 opacity-50"
+              }`}
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                className={`w-4 h-4 flex-shrink-0 ${badgeActive ? "text-indigo-400" : "text-gray-300"}`}
+              >
+                <rect x="3" y="4" width="18" height="18" rx="2" />
+                <line x1="3" y1="9" x2="21" y2="9" />
+              </svg>
+              <span
+                className={`text-[13px] font-medium flex-1 ${badgeActive ? "text-indigo-600" : "text-gray-400"}`}
+              >
+                ระยะเวลาการลา
+              </span>
+              <span
+                className={`text-[18px] font-semibold tabular-nums ${badgeActive ? "text-indigo-700" : "text-gray-300"}`}
+              >
+                {badgeLabel}
+                {badgeUnit && (
+                  <span className="text-[12px] font-normal text-indigo-400 ml-1">
+                    {badgeUnit}
+                  </span>
+                )}
+              </span>
+            </div>
+          );
+        })()}
       </div>
 
-      {/* ── Card 3: ช่วงเวลา (เฉพาะ sick / personal) ────────────────────────── */}
+      {/* ── Card 3: ช่วงเวลา (เฉพาะ sick / personal / special_personal) ──────── */}
       {showPeriod && (
         <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
           <div className="px-4 pt-3.5 pb-0">
@@ -961,24 +1037,27 @@ function LeaveForm() {
             </p>
           </div>
           <div className="px-4 pt-3 pb-4 space-y-2.5">
-            <div className="grid grid-cols-2 gap-2">
+            {/* ทั้งวัน / ครึ่งเช้า / ครึ่งบ่าย */}
+            <div className="grid grid-cols-3 gap-2">
               {PERIOD_OPTIONS.map((p) => (
                 <button
                   key={p.id}
-                  onClick={() => setForm({ ...form, period: p.id })}
-                  className={`flex flex-col items-start px-4 py-3 rounded-xl border-2 transition-all active:scale-95 text-left ${
+                  onClick={() =>
+                    setForm({ ...form, period: p.id, endDate: form.startDate })
+                  }
+                  className={`flex flex-col items-start px-3 py-3 rounded-xl border-2 transition-all active:scale-95 text-left ${
                     form.period === p.id
                       ? "border-indigo-400 bg-indigo-50"
                       : "border-gray-100 bg-gray-50 hover:border-gray-200 hover:bg-white"
                   }`}
                 >
                   <span
-                    className={`text-sm font-bold ${form.period === p.id ? "text-indigo-700" : "text-gray-800"}`}
+                    className={`text-[13px] font-bold ${form.period === p.id ? "text-indigo-700" : "text-gray-800"}`}
                   >
                     {p.label}
                   </span>
                   <span
-                    className={`text-[11px] mt-0.5 ${form.period === p.id ? "text-indigo-400" : "text-gray-400"}`}
+                    className={`text-[10px] mt-0.5 leading-tight ${form.period === p.id ? "text-indigo-400" : "text-gray-400"}`}
                   >
                     {p.sub}
                   </span>
@@ -986,31 +1065,73 @@ function LeaveForm() {
               ))}
             </div>
 
-            {/* Custom time pickers */}
-            {form.period === "custom" && (
+            {/* ลาเป็นชั่วโมง — เฉพาะลากิจ + allow_hourly */}
+            {showHourly && (
+              <button
+                onClick={() =>
+                  setForm({ ...form, period: "hourly", endDate: form.startDate })
+                }
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-all active:scale-95 text-left ${
+                  form.period === "hourly"
+                    ? "border-indigo-400 bg-indigo-50"
+                    : "border-gray-100 bg-gray-50 hover:border-gray-200 hover:bg-white"
+                }`}
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  className={`w-4 h-4 flex-shrink-0 ${form.period === "hourly" ? "text-indigo-500" : "text-gray-400"}`}
+                >
+                  <circle cx="12" cy="12" r="10" />
+                  <polyline points="12 6 12 12 16 14" />
+                </svg>
+                <div>
+                  <span
+                    className={`text-[13px] font-bold ${form.period === "hourly" ? "text-indigo-700" : "text-gray-800"}`}
+                  >
+                    ลาเป็นชั่วโมง
+                  </span>
+                  <span
+                    className={`block text-[10px] mt-0.5 ${form.period === "hourly" ? "text-indigo-400" : "text-gray-400"}`}
+                  >
+                    ระบุเวลาเริ่ม–สิ้นสุด
+                  </span>
+                </div>
+                {form.period === "hourly" && hourlyCount > 0 && (
+                  <span className="ml-auto text-sm font-black text-indigo-600">
+                    {hourlyCount} ชม.
+                  </span>
+                )}
+              </button>
+            )}
+
+            {/* Time pickers เมื่อเลือก ลาเป็นชั่วโมง */}
+            {form.period === "hourly" && (
               <div className="grid grid-cols-2 gap-2.5 pt-1">
                 <div>
                   <p className="text-[11px] text-gray-400 mb-1.5 font-medium">
-                    เริ่มต้น
+                    เวลาเริ่ม
                   </p>
                   <input
                     type="time"
-                    value={form.customStart}
+                    value={form.hourlyStart}
                     onChange={(e) =>
-                      setForm({ ...form, customStart: e.target.value })
+                      setForm({ ...form, hourlyStart: e.target.value })
                     }
                     className={inputCls}
                   />
                 </div>
                 <div>
                   <p className="text-[11px] text-gray-400 mb-1.5 font-medium">
-                    สิ้นสุด
+                    เวลาสิ้นสุด
                   </p>
                   <input
                     type="time"
-                    value={form.customEnd}
+                    value={form.hourlyEnd}
                     onChange={(e) =>
-                      setForm({ ...form, customEnd: e.target.value })
+                      setForm({ ...form, hourlyEnd: e.target.value })
                     }
                     className={inputCls}
                   />
@@ -1119,7 +1240,16 @@ function LeaveForm() {
               <path d="M22 2L11 13" />
               <path d="M22 2L15 22l-4-9-9-4 20-7z" />
             </svg>
-            ยื่นใบลา{days > 0 ? ` (${days} วัน)` : ""}
+            ยื่นใบลา
+            {form.period === "morning"
+              ? " (ครึ่งเช้า)"
+              : form.period === "afternoon"
+                ? " (ครึ่งบ่าย)"
+                : form.period === "hourly" && hourlyCount > 0
+                  ? ` (${hourlyCount} ชม.)`
+                  : days > 0
+                    ? ` (${days} วัน)`
+                    : ""}
           </>
         )}
       </button>

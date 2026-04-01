@@ -16,6 +16,7 @@ BEGIN
 END;
 $$;
 
+-- 2. Backfill user ที่มีอยู่แล้วทั้งหมด ที่ยังไม่มี leave_balances ปีนี้
 DO $$
 DECLARE
   u        record;
