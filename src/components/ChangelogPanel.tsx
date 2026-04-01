@@ -17,6 +17,16 @@ interface ChangelogEntry {
 // ─── Changelog Data (Dev/Admin) ────────────
 const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "3.0.0",
+    date: "2026-04-01",
+    items: [
+      { tag: "improvement",             text: "ปรับปรุง On-site สร้างห้องได้โดยไม่ต้องมีสมาชิกในห้องก่อน" },
+      { tag: "feature",                 text: "On-site เพิ่มรายละเอียดคนขับรถ (ขาไป / ขากลับ) ในห้อง On-site ได้แล้ว" },
+      { tag: "feature",                 text: " เพิ่มประเภทการลา 'แลกวันหยุด' ในหน้ายื่นลา" },
+      { tag: "improvement",             text: "เปลี่ยนหน่วยสิทธิ์การลาจาก วัน เป็น ชม. เพื่อรองรับการลารายชั่วโมงได้อย่างแม่นยำ" },
+    ],
+  },
+  {
     version: "2.6.0",
     date: "2026-03-25",
     items: [
