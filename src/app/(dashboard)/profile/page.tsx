@@ -548,10 +548,18 @@ function LeaveQuotaSection({ userId }: { userId: string }) {
       });
   }, [userId]);
 
-  const totalUsed = balances.reduce((s, b) => s + Number(b.used_days), 0);
-  const totalTotal = balances.reduce((s, b) => s + Number(b.total_days), 0);
-  const totalPct =
-    totalTotal > 0 ? Math.round((totalUsed / totalTotal) * 100) : 0;
+  const totalUsedHours = balances.reduce(
+  (s, b) => s + toLeaveDisplay(Number(b.used_days), b.allow_hourly),
+  0,
+);
+const totalTotalHours = balances.reduce(
+  (s, b) => s + toLeaveDisplay(Number(b.total_days), b.allow_hourly),
+  0,
+);
+const totalPct =
+  totalTotalHours > 0
+    ? Math.round((totalUsedHours / totalTotalHours) * 100)
+    : 0;
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
@@ -562,8 +570,8 @@ function LeaveQuotaSection({ userId }: { userId: string }) {
           <div className="h-3 w-36 bg-gray-100 rounded-full animate-pulse mt-1" />
         ) : (
           <p className="text-xs text-gray-400 mt-0.5">
-            ใช้ไป {totalUsed} / {totalTotal} วัน ({totalPct}%)
-          </p>
+  ใช้ไป {fmtNum(totalUsedHours)} / {fmtNum(totalTotalHours)} ชม. ({totalPct}%)
+</p>
         )}
       </div>
 
