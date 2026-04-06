@@ -148,6 +148,7 @@ export async function getEffectiveThreshold(
  *
  * Logic:
  * - ถ้ายังไม่ได้ check-in → ไม่ต้องทำอะไร (จะ recalc ตอน check-in)
+ * - วันหยุด (holidays table หรือ เสาร์/อาทิตย์) → status = "on_time" เสมอ
  * - ถ้า check-in แล้ว → คำนวณ threshold ใหม่และ update status
  */
 export async function recalcAttendanceStatus(
@@ -157,15 +158,21 @@ export async function recalcAttendanceStatus(
 ): Promise<void> {
   const { data: log } = await supabase
     .from("daily_time_logs")
-    .select("first_check_in, status")
+    .select("first_check_in, status, shift_type")
     .eq("user_id", userId)
     .eq("log_date", logDate)
     .maybeSingle();
 
   if (!log?.first_check_in) return;
 
-  const threshold = await getEffectiveThreshold(supabase, userId, logDate);
-  const newStatus = computeAttendanceStatus(log.first_check_in, threshold);
+  // วันหยุดไม่นับสาย
+  const isHoliday =
+    log.shift_type === "holiday" ||
+    (() => { const d = new Date(logDate).getDay(); return d === 0 || d === 6; })();
+
+  const newStatus = isHoliday
+    ? "on_time"
+    : computeAttendanceStatus(log.first_check_in, await getEffectiveThreshold(supabase, userId, logDate));
 
   if (newStatus !== log.status) {
     await supabase

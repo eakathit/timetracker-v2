@@ -108,11 +108,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "เกิดข้อผิดพลาด" }, { status: 500 });
     }
 
-    // ── 6. คำนวณ status (คำนึงถึงใบลาที่ approved) ────────────────────────
-    const threshold = await getEffectiveThreshold(supabase, user.id, today);
-    const attendanceStatus = computeAttendanceStatus(now, threshold);
-
-    // ── 6.5. ตรวจ shift_type จาก holidays table ────────────────────────────
+    // ── 6. ตรวจ shift_type จาก holidays table ────────────────────────────────
     const { data: holidayRecord } = await supabase
       .from("holidays")
       .select("is_workday")
@@ -127,6 +123,15 @@ export async function POST(req: NextRequest) {
       shiftType = dayOfWeek === 0 || dayOfWeek === 6 ? "holiday" : "regular";
     }
     const dayoffCredit = shiftType === "holiday" ? "pending" : null;
+
+    // ── 6.5. คำนวณ status — วันหยุดไม่นับสาย ────────────────────────────────
+    let attendanceStatus: "on_time" | "late" | "leave";
+    if (shiftType === "holiday") {
+      attendanceStatus = "on_time";
+    } else {
+      const threshold = await getEffectiveThreshold(supabase, user.id, today);
+      attendanceStatus = computeAttendanceStatus(now, threshold);
+    }
 
     // ── 7. บันทึก daily_time_logs ──────────────────────────────────────────
     const newEvent = {

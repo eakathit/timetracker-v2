@@ -728,7 +728,9 @@ export default function DashboardUI({
       setRawCheckIn(existing.first_check_in || now);
     } else {
       // สร้าง row ใหม่ → ใส่ day_type, pay_multiplier, holiday_name ด้วย
-      const attendanceStatus = calcAttendanceStatus(now);
+      // วันหยุด (holiday/weekend) ไม่นับสาย
+      const attendanceStatus =
+        dt === "holiday" || dt === "weekend" ? "on_time" : calcAttendanceStatus(now);
 
       await supabase.from("daily_time_logs").insert([
   {

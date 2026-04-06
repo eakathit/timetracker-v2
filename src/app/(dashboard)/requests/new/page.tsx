@@ -773,9 +773,14 @@ function LeaveForm() {
         </div>
         <div className="px-4 pt-3 pb-4">
           <div className="grid grid-cols-2 gap-2.5">
-            {LEAVE_TYPES.map((lt, i) => (
+            {LEAVE_TYPES.map((lt, i) => {
+              const isHolidaySwapDisabled =
+                lt.id === "holiday_swap" &&
+                !(balanceMap["holiday_swap"]?.remaining > 0);
+              return (
               <button
                 key={lt.id}
+                disabled={isHolidaySwapDisabled}
                 onClick={() =>
                   setForm({
                     ...form,
@@ -785,14 +790,16 @@ function LeaveForm() {
                     hourlyEnd: "10:00",
                   })
                 }
-                className={`relative flex flex-col items-start p-4 rounded-2xl border-2 transition-all active:scale-95 text-left ${
+                className={`relative flex flex-col items-start p-4 rounded-2xl border-2 transition-all text-left ${
                   i === LEAVE_TYPES.length - 1 && LEAVE_TYPES.length % 2 !== 0
                     ? "col-span-2"
                     : ""
                 } ${
-                  form.leaveType === lt.id
-                    ? "border-slate-900 bg-slate-900 shadow-lg"
-                    : "border-gray-100 bg-gray-50 hover:border-gray-200 hover:bg-white"
+                  isHolidaySwapDisabled
+                    ? "border-gray-100 bg-gray-50 opacity-40 cursor-not-allowed"
+                    : form.leaveType === lt.id
+                    ? "border-slate-900 bg-slate-900 shadow-lg active:scale-95"
+                    : "border-gray-100 bg-gray-50 hover:border-gray-200 hover:bg-white active:scale-95"
                 }`}
               >
                 {/* Icon badge */}
@@ -806,7 +813,7 @@ function LeaveForm() {
                   {lt.label}
                 </p>
                 <p className={`text-[11px] mt-0.5 ${form.leaveType === lt.id ? "text-gray-400" : "text-gray-400"}`}>
-                  {lt.desc}
+                  {isHolidaySwapDisabled ? "ไม่มีวันสะสม" : lt.desc}
                 </p>
 
                 {/* Checkmark */}
@@ -818,7 +825,7 @@ function LeaveForm() {
                   </span>
                 )}
               </button>
-            ))}
+            );})}
           </div>
         </div>
       </div>

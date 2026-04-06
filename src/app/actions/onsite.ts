@@ -688,9 +688,22 @@ export async function addMidSessionMember(
     const now = new Date().toISOString();
     const today = getLocalToday();
 
+    // ตรวจวันหยุด (holidays table หรือ เสาร์/อาทิตย์)
+    const { data: holidayRecordOnsite } = await supabase
+      .from("holidays")
+      .select("is_workday")
+      .eq("date", today)
+      .maybeSingle();
+    const isHolidayOnsite = holidayRecordOnsite
+      ? !holidayRecordOnsite.is_workday
+      : new Date(today).getDay() === 0 || new Date(today).getDay() === 6;
+
     // ✅ ใช้ now เป็น effective check-in เสมอ
     // เพราะพนักงานที่เพิ่มกลางวันไม่ควรได้ daily_allowance เหมือนคนที่เข้าก่อน 08:30
-    const attendanceStatus = await calcAttendanceStatusForUser(supabase, targetUserId, today, now);
+    // วันหยุดไม่นับสาย
+    const attendanceStatus = isHolidayOnsite
+      ? ("on_time" as const)
+      : await calcAttendanceStatusForUser(supabase, targetUserId, today, now);
     const dailyAllowance = calcDailyAllowance(now);
 
     // Insert member

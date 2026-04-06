@@ -2477,58 +2477,8 @@ function LeavePolicySection() {
                 )}
               </div>
 
-              {/* sick_paid_limit — แสดงเฉพาะ sick */}
-              <div
-                className={
-                  policy.leave_type === "sick"
-                    ? ""
-                    : "opacity-30 pointer-events-none"
-                }
-              >
-                <p className="text-[11px] font-bold text-gray-400 mb-1.5">
-                  วันที่ได้รับเงิน
-                </p>
-                <div className="flex items-center gap-1.5">
-                  <input
-                    type="number"
-                    min={0}
-                    max={365}
-                    value={policy.sick_paid_limit}
-                    onChange={(e) =>
-                      update(
-                        policy.id,
-                        "sick_paid_limit",
-                        Number(e.target.value),
-                      )
-                    }
-                    disabled={policy.leave_type !== "sick"}
-                    className="w-full px-3 py-2 text-sm font-semibold text-gray-700 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-sky-300 focus:ring-2 focus:ring-sky-50 transition-colors disabled:cursor-not-allowed"
-                  />
-                  <span className="text-xs text-gray-400 flex-shrink-0">
-                    วัน
-                  </span>
-                </div>
-                {policy.leave_type !== "sick" && (
-                  <p className="text-[10px] text-gray-300 mt-1">เฉพาะลาป่วย</p>
-                )}
-              </div>
-
-              {/* allow_hourly */}
-              <div className="flex flex-col justify-between">
-                <p className="text-[11px] font-bold text-gray-400 mb-1.5">
-                  ลาเป็นชั่วโมง
-                </p>
-                <div
-                  onClick={() =>
-                    update(policy.id, "allow_hourly", !policy.allow_hourly)
-                  }
-                  className={`relative w-9 h-5 rounded-full transition-colors cursor-pointer ${policy.allow_hourly ? "bg-sky-500" : "bg-gray-200"}`}
-                >
-                  <span
-                    className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${policy.allow_hourly ? "left-4" : "left-0.5"}`}
-                  />
-                </div>
-              </div>
+              {/* sick_paid_limit — hidden for now */}
+              {/* allow_hourly — hidden for now */}
             </div>
 
             {/* save button */}
@@ -2661,8 +2611,8 @@ function LeaveBalanceAdminSection() {
       {};
     user.balances.forEach((b) => {
       init[b.leave_type] = {
-        used_days: Number(b.used_days),
-        entitled_days: Number(b.entitled_days),
+        used_days: Number(b.used_days) * 8,
+        entitled_days: Number(b.entitled_days) * 8,
       };
     });
     setEditValues(init);
@@ -2679,8 +2629,8 @@ function LeaveBalanceAdminSection() {
       return supabase
         .from("leave_balances")
         .update({
-          used_days: v?.used_days ?? b.used_days,
-          entitled_days: v?.entitled_days ?? b.entitled_days,
+          used_days: (v?.used_days ?? Number(b.used_days) * 8) / 8,
+          entitled_days: (v?.entitled_days ?? Number(b.entitled_days) * 8) / 8,
           updated_at: new Date().toISOString(),
         })
         .eq("id", b.id);
@@ -2697,9 +2647,8 @@ function LeaveBalanceAdminSection() {
               ...u,
               balances: u.balances.map((b) => ({
                 ...b,
-                used_days: editValues[b.leave_type]?.used_days ?? b.used_days,
-                entitled_days:
-                  editValues[b.leave_type]?.entitled_days ?? b.entitled_days,
+                used_days: (editValues[b.leave_type]?.used_days ?? Number(b.used_days) * 8) / 8,
+                entitled_days: (editValues[b.leave_type]?.entitled_days ?? Number(b.entitled_days) * 8) / 8,
               })),
             },
       ),
@@ -2807,9 +2756,9 @@ function LeaveBalanceAdminSection() {
                   </div>
                   <div className="text-right flex-shrink-0">
                     <p className="text-sm font-bold text-gray-700">
-                      {totalUsed}{" "}
+                      {totalUsed * 8}{" "}
                       <span className="text-xs font-normal text-gray-400">
-                        / {totalDays} วัน
+                        / {totalDays * 8} ชม.
                       </span>
                     </p>
                     <p className="text-[10px] text-gray-400">ใช้ไปแล้ว</p>
@@ -2853,7 +2802,7 @@ function LeaveBalanceAdminSection() {
                               {/* entitled_days */}
                               <div>
                                 <p className="text-[11px] text-gray-400 mb-1.5">
-                                  สิทธิ์ (วัน/ปี)
+                                  สิทธิ์ (ชม./ปี)
                                 </p>
                                 <input
                                   type="number"
@@ -2874,7 +2823,7 @@ function LeaveBalanceAdminSection() {
                               {/* used_days */}
                               <div>
                                 <p className="text-[11px] text-gray-400 mb-1.5">
-                                  ใช้ไปแล้ว (วัน)
+                                  ใช้ไปแล้ว (ชม.)
                                 </p>
                                 <input
                                   type="number"
@@ -2900,14 +2849,14 @@ function LeaveBalanceAdminSection() {
                                 {Math.max(
                                   0,
                                   (v?.entitled_days ?? 0) +
-                                    Number(b.carried_over_days) -
+                                    Number(b.carried_over_days) * 8 -
                                     (v?.used_days ?? 0),
                                 )}{" "}
-                                วัน
+                                ชม.
                               </span>
                               {Number(b.carried_over_days) > 0 && (
                                 <span className="ml-1 text-violet-500">
-                                  (รวมยกยอด {b.carried_over_days} วัน)
+                                  (รวมยกยอด {Number(b.carried_over_days) * 8} ชม.)
                                 </span>
                               )}
                             </p>

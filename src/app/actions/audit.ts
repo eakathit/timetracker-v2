@@ -55,7 +55,7 @@ export async function adminForceCheckIn(
     // ดึง log เดิมก่อนเสมอ
     const { data: log } = await supabase
       .from("daily_time_logs")
-      .select("timeline_events, work_type")
+      .select("timeline_events, work_type, shift_type")
       .eq("user_id", targetUserId)
       .eq("log_date", logDate)
       .maybeSingle();
@@ -68,8 +68,12 @@ export async function adminForceCheckIn(
       note: `Admin force check-in → ${timeHHMM}`,
     };
 
-    const threshold = await getEffectiveThreshold(supabase, targetUserId, logDate);
-    const status = computeAttendanceStatus(iso, threshold);
+    // วันหยุดไม่นับสาย — ดู shift_type จาก log เดิม หรือ fallback เสาร์/อาทิตย์
+    const isHolidayDate =
+      log?.shift_type === "holiday" ||
+      (() => { const d = new Date(logDate).getDay(); return d === 0 || d === 6; })();
+    const threshold = isHolidayDate ? null : await getEffectiveThreshold(supabase, targetUserId, logDate);
+    const status = isHolidayDate ? "on_time" : computeAttendanceStatus(iso, threshold!);
 
     if (log) {
       // ── Row มีอยู่แล้ว → UPDATE เท่านั้น (ไม่แตะ work_type) ──
