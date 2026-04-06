@@ -111,13 +111,14 @@ export async function POST(req: NextRequest) {
     // ── 6. ตรวจ shift_type จาก holidays table ────────────────────────────────
     const { data: holidayRecord } = await supabase
       .from("holidays")
-      .select("is_workday")
-      .eq("date", today)
+      .select("holiday_type")
+      .eq("holiday_date", today)
       .maybeSingle();
 
     let shiftType: "regular" | "holiday";
     if (holidayRecord) {
-      shiftType = holidayRecord.is_workday ? "regular" : "holiday";
+      // working_sat = วันเสาร์ที่ต้องมาทำงาน → regular
+      shiftType = holidayRecord.holiday_type === "working_sat" ? "regular" : "holiday";
     } else {
       const dayOfWeek = new Date(today).getDay(); // 0 = Sun, 6 = Sat
       shiftType = dayOfWeek === 0 || dayOfWeek === 6 ? "holiday" : "regular";

@@ -17,6 +17,15 @@ interface ChangelogEntry {
 // ─── Changelog Data (Dev/Admin) ────────────
 const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "3.0.5",
+    date: "2026-04-05",
+    items: [
+      { tag: "fix",             text: "แก้ไข Auto-checkout 17:30 ทำงานผิดพลาดในวันหยุดปฎิทิน (วันธรรมดา)" },
+      { tag: "fix",             text: "แก้ไขหน้าวันลาพนักงาน เเปลงวันลาเป็นชม." },
+      { tag: "improvement",     text: "แสดงปุ่ม 'แลกวันหยุด' เฉพาะผู้ที่มีสิทธิ์สะสมเเลกวันหยุด" },
+    ],
+  },
+  {
     version: "3.0.1",
     date: "2026-04-05",
     items: [
