@@ -438,6 +438,26 @@ export default function QRDisplayPage() {
     };
   }, []);
 
+  // ── Auto-reload เมื่อมี deploy ใหม่ ──────────────────────────────────────────  ← เพิ่มต่อจากนี้
+  useEffect(() => {
+    const checkVersion = async () => {
+      try {
+        const res = await fetch("/api/version", { cache: "no-store" });
+        if (!res.ok) return;
+        const { version } = await res.json();
+        const current = localStorage.getItem("app-version");
+        if (current && current !== version) {
+          window.location.reload();
+        }
+        localStorage.setItem("app-version", version);
+      } catch {}
+    };
+
+    checkVersion();
+    const id = setInterval(checkVersion, 60_000);
+    return () => clearInterval(id);
+  }, []);
+  
   // ── Fullscreen ────────────────────────────────────────────────────────────────
   const toggleFullscreen = useCallback(() => {
     if (!document.fullscreenElement) {
