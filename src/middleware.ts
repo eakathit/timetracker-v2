@@ -7,6 +7,20 @@ export async function middleware(request: NextRequest) {
     request: { headers: request.headers },
   });
 
+  const url = request.nextUrl.clone();
+
+  // ── Public routes — ไม่ต้องการ auth เลย → return ทันที ──────────────────
+  // สำคัญ: ออกก่อนสร้าง Supabase client เพื่อไม่ให้เรียก getUser() โดยไม่จำเป็น
+  const isQRTokenAPI        = url.pathname === "/api/qr-token";
+  const isRecentCheckinsAPI = url.pathname === "/api/recent-checkins";
+  const isCronRoute         = url.pathname.startsWith("/api/cron/");
+  const isAuthCallback      = url.pathname.startsWith("/auth/callback");
+
+  if (isQRTokenAPI || isRecentCheckinsAPI || isCronRoute || isAuthCallback) {
+    return supabaseResponse;
+  }
+
+  // ── สร้าง Supabase client (ยังไม่มี network call ตรงนี้) ─────────────────
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -28,26 +42,14 @@ export async function middleware(request: NextRequest) {
     },
   );
 
+  // ── getUser() — network call เกิดตรงนี้ เฉพาะ route ที่ต้องการ auth ─────
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const url = request.nextUrl.clone();
   const isLoginPage = url.pathname === "/login";
-  const isAuthCallback = url.pathname.startsWith("/auth/callback");
-  const isCronRoute = url.pathname.startsWith("/api/cron/");
-  const isQRDisplay = url.pathname === "/qr-display";
-  const isQRTokenAPI = url.pathname === "/api/qr-token";
-  const isRecentCheckinsAPI = url.pathname === "/api/recent-checkins";
-  // แล้วเพิ่มเข้า isPublicPage:
-  const isPublicPage =
-    isLoginPage ||
-    isAuthCallback ||
-    isCronRoute ||
-    isQRTokenAPI ||
-    isRecentCheckinsAPI;
 
-  if (!user && !isPublicPage) {
+  if (!user && !isLoginPage) {
     url.pathname = "/login";
     return NextResponse.redirect(url);
   }
@@ -57,23 +59,10 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  const ADMIN_ONLY_PATHS = ["/settings", "/audit", "/team", "/hr"];
+  // ── Admin-only paths — รวม /qr-display ไว้ในก้อนเดียว (1 DB query) ───────
+  const ADMIN_ONLY_PATHS = ["/settings", "/audit", "/team", "/hr", "/qr-display"];
 
-  if (user && ADMIN_ONLY_PATHS.some(p => url.pathname.startsWith(p))) {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .maybeSingle();
-
-    if (!profile || profile.role !== "admin") {
-      url.pathname = "/";
-      return NextResponse.redirect(url);
-    }
-  }
-
-  // ✅ เพิ่มใหม่ — qr-display เฉพาะ admin เท่านั้น
-  if (user && isQRDisplay) {
+  if (user && ADMIN_ONLY_PATHS.some((p) => url.pathname.startsWith(p))) {
     const { data: profile } = await supabase
       .from("profiles")
       .select("role")

@@ -4,7 +4,7 @@
 import Image from "next/image";
 import { useEffect, useRef, useState, useCallback } from "react";
 import QRCode from "qrcode";
-
+import { createClient } from "@supabase/supabase-js";
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface QRPayload { t: string; loc: string; exp: number; }
 
@@ -362,6 +362,10 @@ export default function QRDisplayPage() {
   }
 }, []);
 
+// ── fetchEntries ref ──────────────────────────────────────────────────────────
+  const fetchEntriesRef = useRef(fetchEntries);
+  useEffect(() => { fetchEntriesRef.current = fetchEntries; }, [fetchEntries]);
+
   // ── Process toast queue ───────────────────────────────────────────────────────
   useEffect(() => {
     if (toastQueue.length > 0 && !activeToast) {
@@ -400,12 +404,39 @@ export default function QRDisplayPage() {
   return () => clearInterval(id);
 }, [refreshQR]);
 
-  // ── Poll entries every 5s ─────────────────────────────────────────────────────
+  // ── Initial load + Supabase Realtime (แทน polling) ───────────────────────────
   useEffect(() => {
-    fetchEntries();
-    const id = setInterval(fetchEntries, 5000);
-    return () => clearInterval(id);
-  }, [fetchEntries]);
+    fetchEntriesRef.current();
+
+    const supabaseRealtime = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    );
+
+    const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Bangkok" });
+
+    const channel = supabaseRealtime
+      .channel("qr-display-checkins")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "daily_time_logs",
+          filter: `log_date=eq.${today}`,
+        },
+        (payload) => {
+          const record = payload.new as Record<string, unknown>;
+          if (!record?.first_check_in) return;
+          fetchEntriesRef.current();
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabaseRealtime.removeChannel(channel);
+    };
+  }, []);
 
   // ── Fullscreen ────────────────────────────────────────────────────────────────
   const toggleFullscreen = useCallback(() => {
