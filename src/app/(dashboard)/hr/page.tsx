@@ -967,17 +967,18 @@ export default function HRAttendancePage() {
     employees.forEach((emp) => {
       const logs = timeLogs.filter((l) => l.user_id === emp.id);
 
-      const present = logs.filter((l) => l.status === "on_time").length;
-      const late = logs.filter((l) => l.status === "late").length;
+      const isRegularWorkday = (logDate: string) => {
+        const dow = new Date(logDate).getDay();
+        if (dow === 0) return false;
+        if (dow === 6 && !workingSats.has(logDate)) return false;
+        if (holidays.has(logDate)) return false;
+        return true;
+      };
+      const present = logs.filter((l) => l.status === "on_time" && isRegularWorkday(l.log_date)).length;
+      const late = logs.filter((l) => l.status === "late" && isRegularWorkday(l.log_date)).length;
       const leave = logs.filter((l) => {
         if (l.status !== "leave") return false;
-        const dow = new Date(l.log_date).getDay();
-        const isWsat = workingSats.has(l.log_date);
-        const isHol = holidays.has(l.log_date);
-        if (dow === 0) return false;
-        if (dow === 6 && !isWsat) return false;
-        if (isHol) return false;
-        return true;
+        return isRegularWorkday(l.log_date);
       }).length;
 
       const absent = Math.max(0, expectedWorkdays - present - late - leave);
