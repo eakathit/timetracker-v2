@@ -26,6 +26,7 @@ interface AttendanceStat {
   late: number;
   absent: number;
   leave: number;
+  extraDays: number;
   totalRegHours: number;
   totalOT: number;
   avgIn: string;
@@ -671,7 +672,7 @@ async function exportHRExcel(
     [],
     [
   "ชื่อ-นามสกุล", "แผนก",
-  "วันทำงาน", "มาทำงาน", "มาสาย", "ขาดงาน", "ลา",
+  "วันทำงาน", "มาทำงาน", "มาสาย", "ขาดงาน", "ลา", "มาวันหยุด/นอกเวลา",
   "ชม.ปกติ", "ชม.วันหยุด", "OT ปกติ (ชม.)", "OT วันหยุด (ชม.)",
   "เบี้ยเลี้ยง On-site (บาท)",
 ]
@@ -726,6 +727,7 @@ async function exportHRExcel(
       att.late,
       att.absent,
       att.leave,
+      att.extraDays ?? 0,
       normalWorkHours,
       holidayWorkHours,
       normalOT,
@@ -736,8 +738,8 @@ async function exportHRExcel(
 
   const ws = utils.aoa_to_sheet([...header, ...data]);
 
-  ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 10 } }];
-  ws["!cols"] = [20, 14, 9, 9, 9, 9, 6, 9, 10, 13, 14].map((w) => ({ wch: w }));
+  ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 11 } }];
+  ws["!cols"] = [20, 14, 9, 9, 9, 9, 6, 14, 9, 10, 13, 14].map((w) => ({ wch: w }));
 
   const wb = utils.book_new();
   utils.book_append_sheet(
@@ -980,6 +982,11 @@ export default function HRAttendancePage() {
         if (l.status !== "leave") return false;
         return isRegularWorkday(l.log_date);
       }).length;
+      const extraDays = logs.filter(
+        (l) =>
+          (l.status === "on_time" || l.status === "late") &&
+          !isRegularWorkday(l.log_date),
+      ).length;
 
       const absent = Math.max(0, expectedWorkdays - present - late - leave);
 
@@ -1061,6 +1068,7 @@ otSum += (() => {
         late,
         absent,
         leave,
+        extraDays,
         totalRegHours:
           Math.round(
             logs
@@ -1706,6 +1714,11 @@ otSum += (() => {
                             / {att.workdays}
                           </span>
                         </p>
+                        {att.extraDays > 0 && (
+                          <p className="text-[9px] font-bold text-indigo-400 mt-0.5">
+                            +{att.extraDays} วันหยุด
+                          </p>
+                        )}
                         <div className="w-16 h-1.5 bg-gray-100 rounded-full mt-1 overflow-hidden">
                           <div
                             className={`h-full rounded-full transition-all ${
