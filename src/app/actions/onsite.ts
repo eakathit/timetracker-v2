@@ -426,6 +426,8 @@ export async function groupCheckIn(sessionId: string): Promise<ActionResult> {
 export async function groupCheckOut(
   sessionId: string,
   breakMinutes: number = 0,
+  checkoutLat?: number | null,
+  checkoutLng?: number | null,
 ): Promise<ActionResult> {
   try {
     const supabase = await getSupabaseServer();
@@ -485,6 +487,9 @@ export async function groupCheckOut(
         raw_ot_hours: rawOT,
         net_ot_hours: otHours,
         ot_starts_from: "17:30",
+        ...(checkoutLat != null && checkoutLng != null
+          ? { checkout_lat: checkoutLat, checkout_lng: checkoutLng }
+          : {}),
       };
 
       const { data: existingLogs } = await supabase
@@ -530,6 +535,8 @@ export async function groupCheckOut(
 export async function earlyLeave(
   sessionId: string,
   note: string,
+  checkoutLat?: number | null,
+  checkoutLng?: number | null,
 ): Promise<ActionResult> {
   try {
     const supabase = await getSupabaseServer();
@@ -584,6 +591,9 @@ export async function earlyLeave(
         raw_ot_hours: rawOtHours,
         net_ot_hours: rawOtHours, // ไม่หักเบรค
         ot_starts_from: "17:30",
+        ...(checkoutLat != null && checkoutLng != null
+          ? { checkout_lat: checkoutLat, checkout_lng: checkoutLng }
+          : {}),
       },
     ];
 

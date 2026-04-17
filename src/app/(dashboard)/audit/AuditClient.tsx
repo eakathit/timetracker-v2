@@ -699,18 +699,30 @@ function EmployeeCard({ emp }: { emp: AuditEmployee }) {
   </div>
 )}
 
-                <a
-                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(emp.onsiteSession.siteName)}`}
-                  target="_blank" rel="noopener noreferrer"
-                  className="flex items-center gap-2 text-xs text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-100 rounded-xl px-3 py-2.5 transition-colors"
-                >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                  ดูแผนที่บน Google Maps
-                  <span className="ml-auto text-blue-400">↗</span>
-                </a>
+                {/* Google Maps button — แสดงเฉพาะเมื่อมี GPS coordinates */}
+                {emp.onsiteSession.checkoutLat != null && emp.onsiteSession.checkoutLng != null ? (
+                  <a
+                    href={`https://www.google.com/maps?q=${emp.onsiteSession.checkoutLat},${emp.onsiteSession.checkoutLng}`}
+                    target="_blank" rel="noopener noreferrer"
+                    className="flex items-center gap-2 text-xs text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-100 rounded-xl px-3 py-2.5 transition-colors"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    ดูแผนที่บน Google Maps
+                    <span className="ml-auto text-blue-400">↗</span>
+                  </a>
+                ) : (
+                  <div className="flex items-center gap-2 text-xs text-slate-400 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 cursor-not-allowed">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    ดูแผนที่บน Google Maps
+                    <span className="ml-auto text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-full">กลับโรงงาน</span>
+                  </div>
+                )}
               </div>
             )}
 

@@ -224,21 +224,34 @@ const otEnd = (log?.timeline_events as Record<string, string>[])
 
       // On-site
       onsiteSession: onsiteSession
-        ? {
-            id: onsiteSession.id,
-            siteName: onsiteSession.site_name,
-            status: onsiteSession.status,
-            groupCheckIn: fmtTime(onsiteSession.group_check_in),
-            groupCheckOut: fmtTime(onsiteSession.group_check_out),
-            sessionCode: onsiteSession.session_code,
-            rawCheckIn: onsiteSession.group_check_in,
-            rawCheckOut: onsiteSession.group_check_out,
-            projectNo: (onsiteSession.projects as any)?.project_no ?? null,
-            projectName: (onsiteSession.projects as any)?.name ?? null,
-            endUserName: (onsiteSession.projects as any)?.end_users?.name ?? null,
-            isDriverTo:   onsiteSession.driver_to_id === p.id,
-            isDriverFrom: onsiteSession.driver_from_id === p.id,
-          }
+        ? (() => {
+            // ค้นหา onsite_checkout event ใน timeline ของ log นี้ เพื่อดึง GPS
+            const checkoutEvent = (log?.timeline_events as Record<string, unknown>[] | undefined)
+              ?.find((e) => e.event === "onsite_checkout");
+            const checkoutLat = typeof checkoutEvent?.checkout_lat === "number"
+              ? checkoutEvent.checkout_lat as number
+              : null;
+            const checkoutLng = typeof checkoutEvent?.checkout_lng === "number"
+              ? checkoutEvent.checkout_lng as number
+              : null;
+            return {
+              id: onsiteSession.id,
+              siteName: onsiteSession.site_name,
+              status: onsiteSession.status,
+              groupCheckIn: fmtTime(onsiteSession.group_check_in),
+              groupCheckOut: fmtTime(onsiteSession.group_check_out),
+              sessionCode: onsiteSession.session_code,
+              rawCheckIn: onsiteSession.group_check_in,
+              rawCheckOut: onsiteSession.group_check_out,
+              projectNo: (onsiteSession.projects as any)?.project_no ?? null,
+              projectName: (onsiteSession.projects as any)?.name ?? null,
+              endUserName: (onsiteSession.projects as any)?.end_users?.name ?? null,
+              isDriverTo:   onsiteSession.driver_to_id === p.id,
+              isDriverFrom: onsiteSession.driver_from_id === p.id,
+              checkoutLat,
+              checkoutLng,
+            };
+          })()
         : null,
 
       anomalies,

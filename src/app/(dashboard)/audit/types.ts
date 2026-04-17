@@ -42,6 +42,8 @@ export interface OnsiteInfo {
   endUserName: string | null;
   isDriverTo:   boolean;  
   isDriverFrom: boolean;
+  checkoutLat:  number | null;
+  checkoutLng:  number | null;
 }
 
 export interface OTRequestInfo {
@@ -64,6 +66,8 @@ export interface TimelineEvent {
   note?: string;
   checkout_type?: string;
   synced_from?: string;
+  checkout_lat?: number;
+  checkout_lng?: number;
 }
 
 export interface AuditEmployee {

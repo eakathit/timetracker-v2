@@ -836,11 +836,23 @@ const handleSetDriver = async (trip: "to" | "from", userId: string | null) => {
     return now < cutoff;
   };
 
-  const handleGroupCheckOut = (breakMinutes: number = 0) => {
+  // ── helper: ดึง GPS พิกัดปัจจุบัน (timeout 5s, ถ้าล้มเหลวคืน null) ──────
+  const getGPS = (): Promise<{ lat: number; lng: number } | null> =>
+    new Promise((resolve) => {
+      if (!navigator.geolocation) return resolve(null);
+      navigator.geolocation.getCurrentPosition(
+        (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        () => resolve(null),
+        { timeout: 5000, maximumAge: 0 },
+      );
+    });
+
+  const handleGroupCheckOut = async (breakMinutes: number = 0) => {
   setShowGroupCheckout(false);
   setShowOTBreak(false);
+  const gps = await getGPS();
   startTransition(async () => {
-    const res = await groupCheckOut(sessionId, breakMinutes);
+    const res = await groupCheckOut(sessionId, breakMinutes, gps?.lat, gps?.lng);
     if (res.success) await loadSession();
     else setError(res.error ?? "Check-out ไม่สำเร็จ");
   });
@@ -890,10 +902,11 @@ const handleCheckOutClick = () => {
     });
   };
 
-  const handleEarlyLeave = (note: string) => {
+  const handleEarlyLeave = async (note: string) => {
     setShowEarlyLeave(false);
+    const gps = await getGPS();
     startTransition(async () => {
-      const res = await earlyLeave(sessionId, note);
+      const res = await earlyLeave(sessionId, note, gps?.lat, gps?.lng);
       if (res.success) await loadSession();
       else setError(res.error ?? "บันทึกไม่สำเร็จ");
     });
