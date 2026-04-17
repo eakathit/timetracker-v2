@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
       .from("daily_time_logs")
       .select("id, user_id, timeline_events")
       .eq("log_date", today)
-      .eq("work_type", "in_factory")
+      .in("work_type", ["in_factory", "mixed"])
       .eq("shift_type", "regular")
       .eq("auto_checked_out", false)
       .is("last_check_out", null)

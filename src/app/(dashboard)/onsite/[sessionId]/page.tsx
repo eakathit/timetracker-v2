@@ -15,6 +15,7 @@ import {
   addMidSessionMember,    // ← เพิ่ม
   getAvailableEmployees,  // ← เพิ่ม
   setSessionDriver,
+  returnToFactory,
 } from "@/app/actions/onsite";
 import { supabase } from "@/lib/supabase";
 import type {
@@ -169,6 +170,13 @@ function MemberCard({
       <div className="flex-shrink-0 text-right">
         {isGroupOut || (isEarlyLeft && isLeader) ? (
           <span className="text-xs text-gray-500 font-medium">ออกแล้ว</span>
+        ) : member.checkout_type === "return_to_factory" ? (
+          <div>
+            <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">
+              🏭 กลับโรงงาน
+            </span>
+            <p className="text-[10px] text-gray-400 mt-0.5">Auto-checkout 17:30</p>
+          </div>
         ) : isEarlyLeft ? (
           <div>
             <span className="text-[10px] font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full">
@@ -191,6 +199,80 @@ function MemberCard({
             กำลังทำงาน
           </span>
         ) : null}
+      </div>
+    </div>
+  );
+}
+
+// ─── Return to Factory Modal ──────────────────────────────────────────────────
+function ReturnToFactoryModal({
+  scope,
+  onCheckoutNow,
+  onReturnToFactory,
+  onCancel,
+  loading,
+}: {
+  scope:             "group" | "member";
+  onCheckoutNow:     () => void;
+  onReturnToFactory: () => void;
+  onCancel:          () => void;
+  loading:           boolean;
+}) {
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4">
+      <div className="w-full max-w-sm bg-white rounded-3xl p-6 space-y-4">
+        <div className="text-center">
+          <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto mb-3">
+            <span className="text-2xl">🏭</span>
+          </div>
+          <h3 className="text-base font-extrabold text-gray-800">
+            {scope === "group" ? "Check-out ทั้งกลุ่ม" : "ออกก่อนกลุ่ม"}
+          </h3>
+          <p className="text-sm text-gray-500 mt-1">ออก On-site แล้วจะทำอะไรต่อ?</p>
+        </div>
+
+        <div className="space-y-2">
+          {/* Option A: Checkout On-site ทันที */}
+          <button
+            onClick={onCheckoutNow}
+            disabled={loading}
+            className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl border-2 border-sky-200 bg-sky-50 hover:bg-sky-100 disabled:opacity-50 transition-all"
+          >
+            <span className="w-9 h-9 bg-sky-500 rounded-xl flex items-center justify-center flex-shrink-0">
+              <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" className="w-5 h-5">
+                <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/>
+                <polyline points="16 17 21 12 16 7"/>
+                <line x1="21" y1="12" x2="9" y2="12"/>
+              </svg>
+            </span>
+            <div className="text-left">
+              <p className="text-sm font-extrabold text-sky-700">Checkout On-site ทันที</p>
+              <p className="text-xs text-sky-500">บันทึกเวลา Checkout ณ ตอนนี้</p>
+            </div>
+          </button>
+
+          {/* Option B: กลับโรงงาน */}
+          <button
+            onClick={onReturnToFactory}
+            disabled={loading}
+            className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl border-2 border-indigo-200 bg-indigo-50 hover:bg-indigo-100 disabled:opacity-50 transition-all"
+          >
+            <span className="w-9 h-9 bg-indigo-500 rounded-xl flex items-center justify-center flex-shrink-0">
+              <span className="text-lg">🏭</span>
+            </span>
+            <div className="text-left">
+              <p className="text-sm font-extrabold text-indigo-700">กลับไปทำงานโรงงาน</p>
+              <p className="text-xs text-indigo-400">ระบบจะ Auto-checkout ให้เวลา 17:30</p>
+            </div>
+          </button>
+        </div>
+
+        <button
+          onClick={onCancel}
+          className="w-full py-3 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition"
+        >
+          ยกเลิก
+        </button>
       </div>
     </div>
   );
@@ -691,11 +773,12 @@ export default function OnsiteSessionPage() {
   const [error, setError]           = useState<string | null>(null);
 
   // Modals
-  const [showEarlyLeave, setShowEarlyLeave]         = useState(false);
-
-  const [showGroupCheckout, setShowGroupCheckout]   = useState(false);
-  const [showOTBreak, setShowOTBreak] = useState(false);
-  const [showAddMember, setShowAddMember]         = useState(false);
+  const [showEarlyLeave, setShowEarlyLeave]               = useState(false);
+  const [showGroupCheckout, setShowGroupCheckout]         = useState(false);
+  const [showOTBreak, setShowOTBreak]                     = useState(false);
+  const [showAddMember, setShowAddMember]                 = useState(false);
+  const [showReturnToFactory, setShowReturnToFactory]     = useState(false);
+  const [pendingReturnScope, setPendingReturnScope]       = useState<"group" | "member" | null>(null);
 
   const [driverPicker, setDriverPicker] = useState<{
   member: OnsiteSessionMemberWithProfile;
@@ -745,6 +828,14 @@ const handleSetDriver = async (trip: "to" | "from", userId: string | null) => {
     });
   };
 
+  // ── helper: เวลาปัจจุบันก่อน 17:30 ไหม ──────────────────────────────────
+  const isBeforeEOD = () => {
+    const now = new Date();
+    const cutoff = new Date(now);
+    cutoff.setHours(17, 30, 0, 0);
+    return now < cutoff;
+  };
+
   const handleGroupCheckOut = (breakMinutes: number = 0) => {
   setShowGroupCheckout(false);
   setShowOTBreak(false);
@@ -756,13 +847,48 @@ const handleSetDriver = async (trip: "to" | "from", userId: string | null) => {
 };
 
 const handleCheckOutClick = () => {
+  if (isBeforeEOD()) {
+    setPendingReturnScope("group");
+    setShowReturnToFactory(true);
+    return;
+  }
   const otHours = calcOnsiteOTHoursPreview(new Date().toISOString());
   if (otHours > 0) {
-    setShowOTBreak(true);      // มี OT → ถามเบรค
+    setShowOTBreak(true);
   } else {
-    setShowGroupCheckout(true); // ไม่มี OT → confirm ปกติ
+    setShowGroupCheckout(true);
   }
 };
+
+  const proceedGroupCheckout = () => {
+    setShowReturnToFactory(false);
+    const otHours = calcOnsiteOTHoursPreview(new Date().toISOString());
+    if (otHours > 0) setShowOTBreak(true);
+    else setShowGroupCheckout(true);
+  };
+
+  const handleEarlyLeaveClick = () => {
+    if (isBeforeEOD()) {
+      setPendingReturnScope("member");
+      setShowReturnToFactory(true);
+      return;
+    }
+    setShowEarlyLeave(true);
+  };
+
+  const proceedMemberEarlyLeave = () => {
+    setShowReturnToFactory(false);
+    setShowEarlyLeave(true);
+  };
+
+  const handleReturnToFactory = () => {
+    setShowReturnToFactory(false);
+    startTransition(async () => {
+      const res = await returnToFactory(sessionId, pendingReturnScope ?? "group");
+      if (res.success) await loadSession();
+      else setError(res.error ?? "บันทึกไม่สำเร็จ");
+    });
+  };
 
   const handleEarlyLeave = (note: string) => {
     setShowEarlyLeave(false);
@@ -794,6 +920,15 @@ const handleCheckOutClick = () => {
   return (
     <>
       {/* ── Modals ── */}
+      {showReturnToFactory && pendingReturnScope && (
+        <ReturnToFactoryModal
+          scope={pendingReturnScope}
+          onCheckoutNow={pendingReturnScope === "group" ? proceedGroupCheckout : proceedMemberEarlyLeave}
+          onReturnToFactory={handleReturnToFactory}
+          onCancel={() => setShowReturnToFactory(false)}
+          loading={isPending}
+        />
+      )}
       {showEarlyLeave && (
         <EarlyLeaveModal
           onConfirm={handleEarlyLeave}
@@ -928,7 +1063,7 @@ const handleCheckOutClick = () => {
   member={member}
   isCurrentUser={member.user_id === currentUserId}
   sessionStatus={session.status}
-  onEarlyLeave={() => setShowEarlyLeave(true)}
+  onEarlyLeave={() => handleEarlyLeaveClick()}
   isLeaderView={isLeader && session.status !== "closed"}
   isDriverTo={session.driver_to_id === member.user_id}
   isDriverFrom={session.driver_from_id === member.user_id}
@@ -996,7 +1131,7 @@ const handleCheckOutClick = () => {
           {/* Member: ออกก่อน (ถ้าตัวเองยัง pending) */}
           {!isLeader && session.status === "checked_in" && myMembership?.checkout_type === "pending" && (
             <button
-              onClick={() => setShowEarlyLeave(true)}
+              onClick={handleEarlyLeaveClick}
               disabled={isPending}
               className="w-full bg-rose-500 hover:bg-rose-600 disabled:opacity-50 text-white font-extrabold py-4 rounded-2xl transition-colors"
             >

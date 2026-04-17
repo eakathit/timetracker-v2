@@ -7,7 +7,7 @@
 
 export type OnsiteSessionStatus = "open" | "checked_in" | "closed";
 export type MemberRole          = "leader" | "member";
-export type CheckoutType        = "pending" | "group" | "early";
+export type CheckoutType        = "pending" | "group" | "early" | "return_to_factory";
 
 // ─── Database Row Types ────────────────────────────────────────────────────────
 

@@ -852,3 +852,147 @@ export async function setSessionDriver(
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 11. Return to Factory (ออก On-site แล้วกลับโรงงาน ก่อน 17:30)
+//
+// scope = 'group' : Leader ปิด session ทั้งกลุ่ม — ไม่บันทึก checkout time,
+//                   เปลี่ยน work_type → 'mixed', ปล่อยให้ Cron 17:30 จัดการ
+// scope = 'member': Member เดี่ยว early-return — เปลี่ยนเฉพาะ record ตัวเอง
+// ─────────────────────────────────────────────────────────────────────────────
+export async function returnToFactory(
+  sessionId: string,
+  scope: "group" | "member",
+): Promise<ActionResult> {
+  try {
+    const supabase = await getSupabaseServer();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { success: false, error: "Unauthorized" };
+
+    const today = getLocalToday();
+
+    if (scope === "group") {
+      // ── ตรวจสิทธิ์ Leader ─────────────────────────────────────────────────
+      const { data: sessions } = await supabase
+        .from("onsite_sessions")
+        .select("id, status, members:onsite_session_members(user_id, checkout_type)")
+        .eq("id", sessionId)
+        .eq("leader_id", user.id)
+        .limit(1);
+
+      if (!sessions || sessions.length === 0)
+        return { success: false, error: "ไม่พบ Session หรือคุณไม่ใช่ Leader" };
+
+      const session = sessions[0];
+      if (session.status !== "checked_in")
+        return { success: false, error: "Session ยังไม่ได้ Check-in" };
+
+      // รวบ pending UIDs
+      const pendingUids = (
+        session.members as { user_id: string; checkout_type: string }[]
+      )
+        .filter((m) => m.checkout_type === "pending")
+        .map((m) => m.user_id);
+
+      // ── อัปเดต members → return_to_factory ───────────────────────────────
+      await supabase
+        .from("onsite_session_members")
+        .update({ checkout_type: "return_to_factory" })
+        .eq("session_id", sessionId)
+        .eq("checkout_type", "pending");
+
+      // ── ปิด session ทันที แต่ไม่ตั้ง group_check_out ─────────────────────
+      await supabase
+        .from("onsite_sessions")
+        .update({ status: "closed", closed_at: new Date().toISOString() })
+        .eq("id", sessionId);
+
+      // ── เปลี่ยน daily_time_logs → work_type='mixed', ล้าง last_check_out ─
+      if (pendingUids.length > 0) {
+        const returnEvent = {
+          event: "onsite_return_to_factory",
+          timestamp: new Date().toISOString(),
+          session_id: sessionId,
+          note: "กลับโรงงาน — รอ Auto-checkout 17:30",
+        };
+
+        const { data: existingLogs } = await supabase
+          .from("daily_time_logs")
+          .select("user_id, timeline_events, work_type")
+          .in("user_id", pendingUids)
+          .eq("log_date", today);
+
+        const existingMap = new Map(
+          (existingLogs ?? []).map((l) => [l.user_id, l]),
+        );
+
+        await Promise.all(
+          pendingUids.map((uid) => {
+            const existing = existingMap.get(uid);
+            return supabase
+              .from("daily_time_logs")
+              .update({
+                work_type:      "mixed",
+                last_check_out: null,
+                auto_checked_out: false,
+                timeline_events: [
+                  ...(existing?.timeline_events ?? []),
+                  returnEvent,
+                ],
+              })
+              .eq("user_id", uid)
+              .eq("log_date", today);
+          }),
+        );
+      }
+
+      return { success: true };
+    }
+
+    // ── scope = 'member' ──────────────────────────────────────────────────────
+    const { error: memberErr } = await supabase
+      .from("onsite_session_members")
+      .update({ checkout_type: "return_to_factory" })
+      .eq("session_id", sessionId)
+      .eq("user_id", user.id)
+      .eq("checkout_type", "pending");
+
+    if (memberErr) return { success: false, error: memberErr.message };
+
+    const returnEvent = {
+      event: "onsite_return_to_factory",
+      timestamp: new Date().toISOString(),
+      session_id: sessionId,
+      note: "กลับโรงงาน — รอ Auto-checkout 17:30",
+    };
+
+    const { data: existingRows } = await supabase
+      .from("daily_time_logs")
+      .select("timeline_events, work_type")
+      .eq("user_id", user.id)
+      .eq("log_date", today)
+      .limit(1);
+
+    const existing = existingRows?.[0];
+
+    await supabase
+      .from("daily_time_logs")
+      .update({
+        work_type:        "mixed",
+        last_check_out:   null,
+        auto_checked_out: false,
+        timeline_events:  [
+          ...(existing?.timeline_events ?? []),
+          returnEvent,
+        ],
+      })
+      .eq("user_id", user.id)
+      .eq("log_date", today);
+
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: String(err) };
+  }
+}
+
