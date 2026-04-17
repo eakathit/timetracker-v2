@@ -273,14 +273,20 @@ function calcDailyAllowance(checkInIso: string): boolean {
   return totalMinutes < 8 * 60 + 30; // ก่อน 08:30 Bangkok → ได้เบี้ยเลี้ยง
 }
 
-// Helper: คำนวณ OT On-site นับจาก 17:30 (ต่างจาก Factory ที่นับ 18:00)
+// Helper: คำนวณ OT On-site นับจาก 17:30 Bangkok (UTC+7)
+// ⚠️ ใช้ UTC+7 offset ตรงๆ ไม่ใช้ setHours() เพราะ server อาจ run บน UTC
 function calcOnsiteOTHours(checkoutIso: string): number {
   const checkout = new Date(checkoutIso);
-  const otStart = new Date(checkout);
-  otStart.setHours(17, 30, 0, 0);
+  // หา "YYYY-MM-DD" ตาม Bangkok timezone จาก checkout timestamp
+  const BANGKOK_OFFSET_MS = 7 * 60 * 60 * 1000;
+  const bangkokDateStr = new Date(checkout.getTime() + BANGKOK_OFFSET_MS)
+    .toISOString()
+    .split("T")[0]; // "YYYY-MM-DD" ใน Bangkok
+  // 17:30 Bangkok = 10:30 UTC (UTC+7 offset = -7h)
+  const otStart = new Date(bangkokDateStr + "T10:30:00.000Z");
   if (checkout <= otStart) return 0;
   const diffHours = (checkout.getTime() - otStart.getTime()) / (1000 * 60 * 60);
-  return Math.round(diffHours * 100) / 100; // ← ตามจริง
+  return Math.round(diffHours * 100) / 100;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

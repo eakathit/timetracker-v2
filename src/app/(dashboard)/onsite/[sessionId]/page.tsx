@@ -5,7 +5,7 @@
 // หน้าห้อง On-site — แสดงสมาชิก + ปุ่ม Check-in/out
 // ============================================================
 
-import { useState, useEffect, useTransition, useMemo  } from "react";
+import { useState, useEffect, useTransition, useMemo, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   getOnsiteSession,
@@ -836,21 +836,27 @@ const handleSetDriver = async (trip: "to" | "from", userId: string | null) => {
     return now < cutoff;
   };
 
-  // ── helper: ดึง GPS พิกัดปัจจุบัน (timeout 5s, ถ้าล้มเหลวคืน null) ──────
+  // ── helper: ดึง GPS พิกัดปัจจุบัน (timeout 8s, ถ้าล้มเหลวคืน null) ──────
   const getGPS = (): Promise<{ lat: number; lng: number } | null> =>
     new Promise((resolve) => {
       if (!navigator.geolocation) return resolve(null);
       navigator.geolocation.getCurrentPosition(
         (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
         () => resolve(null),
-        { timeout: 5000, maximumAge: 0 },
+        { timeout: 8000, maximumAge: 0 },
       );
     });
+
+  // ── GPS Promise ref: เก็บ Promise ที่ยิงไปแล้ว เพื่อไม่ต้องรอซ้ำ ─────────
+  const gpsPromiseRef = useRef<Promise<{ lat: number; lng: number } | null> | null>(null);
 
   const handleGroupCheckOut = async (breakMinutes: number = 0) => {
   setShowGroupCheckout(false);
   setShowOTBreak(false);
-  const gps = await getGPS();
+  // GPS ถูกยิงไปแล้วตั้งแต่กดปุ่ม Checkout ครั้งแรก
+  // await ตรงนี้มักจะ resolve ทันทีเพราะ user ใช้เวลาอ่าน modal ไปแล้ว
+  const gps = gpsPromiseRef.current ? await gpsPromiseRef.current : null;
+  gpsPromiseRef.current = null;
   startTransition(async () => {
     const res = await groupCheckOut(sessionId, breakMinutes, gps?.lat, gps?.lng);
     if (res.success) await loadSession();
@@ -859,6 +865,8 @@ const handleSetDriver = async (trip: "to" | "from", userId: string | null) => {
 };
 
 const handleCheckOutClick = () => {
+  // เริ่ม GPS ทันทีที่กดปุ่ม — ทำ background ไม่บล็อก UI
+  gpsPromiseRef.current = getGPS();
   if (isBeforeEOD()) {
     setPendingReturnScope("group");
     setShowReturnToFactory(true);
@@ -880,6 +888,8 @@ const handleCheckOutClick = () => {
   };
 
   const handleEarlyLeaveClick = () => {
+    // เริ่ม GPS ทันทีที่กดปุ่ม — ทำ background ไม่บล็อก UI
+    gpsPromiseRef.current = getGPS();
     if (isBeforeEOD()) {
       setPendingReturnScope("member");
       setShowReturnToFactory(true);
@@ -904,7 +914,8 @@ const handleCheckOutClick = () => {
 
   const handleEarlyLeave = async (note: string) => {
     setShowEarlyLeave(false);
-    const gps = await getGPS();
+    const gps = gpsPromiseRef.current ? await gpsPromiseRef.current : null;
+    gpsPromiseRef.current = null;
     startTransition(async () => {
       const res = await earlyLeave(sessionId, note, gps?.lat, gps?.lng);
       if (res.success) await loadSession();
