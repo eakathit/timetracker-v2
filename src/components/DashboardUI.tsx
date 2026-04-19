@@ -799,8 +799,37 @@ export default function DashboardUI({
   const effectiveCheckIn = log?.first_check_in ?? rawCheckIn;
 
   if (effectiveShiftType === "holiday" && effectiveCheckIn) {
-    // ✅ ตรวจ GPS ก่อนแสดง modal วันหยุด
-    if (!validateLocation()) return;
+    // ✅ ตรวจ GPS ด้วย one-time getCurrentPosition (ขอ permission จริง, รอผล)
+    // on_site / mixed ไม่บังคับ GPS โรงงาน
+    if (workType === "in_factory") {
+      const locationOk = await new Promise<boolean>((resolve) => {
+        if (!navigator.geolocation) {
+          resolve(true); // fallback: อนุญาตถ้าไม่มี GPS
+          return;
+        }
+        navigator.geolocation.getCurrentPosition(
+          ({ coords: { latitude, longitude } }) => {
+            const dist = calculateDistance(
+              FACTORY_LAT,
+              FACTORY_LNG,
+              latitude,
+              longitude,
+            );
+            if (dist <= ALLOWED_RADIUS_METERS) {
+              resolve(true);
+            } else {
+              alert(
+                `ไม่สามารถ Check-out ได้\nคุณอยู่นอกพื้นที่โรงงาน (${Math.round(dist)} ม.)\nกรุณาเข้ามาในพื้นที่ก่อน`,
+              );
+              resolve(false);
+            }
+          },
+          () => resolve(true), // GPS error → อนุญาต (graceful degradation)
+          { timeout: 10_000, maximumAge: 30_000 },
+        );
+      });
+      if (!locationOk) return;
+    }
 
     const netHours =
       (new Date(now).getTime() - new Date(effectiveCheckIn).getTime()) /
