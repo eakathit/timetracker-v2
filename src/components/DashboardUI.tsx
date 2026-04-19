@@ -325,6 +325,11 @@ export default function DashboardUI({
   const [pendingCheckoutIso, setPendingCheckoutIso] = useState<string | null>(
     null,
   );
+  const [pendingCheckoutLog, setPendingCheckoutLog] = useState<{
+    timeline_events?: unknown;
+    shift_type?: string;
+    first_check_in?: string;
+  } | null>(null);
 
   const [popupEndUsers, setPopupEndUsers] = useState<any[]>([]);
   const [popupProjects, setPopupProjects] = useState<any[]>([]);
@@ -732,6 +737,9 @@ export default function DashboardUI({
       const attendanceStatus =
         dt === "holiday" || dt === "weekend" ? "on_time" : calcAttendanceStatus(now);
 
+      const newShiftType: "regular" | "holiday" =
+        dt === "holiday" || dt === "weekend" ? "holiday" : "regular";
+
       await supabase.from("daily_time_logs").insert([
   {
     user_id: userId,
@@ -739,12 +747,15 @@ export default function DashboardUI({
     work_type: workType,
     first_check_in: now,
     timeline_events: [newEvent],
-    day_type: dt,          // ← เปลี่ยน
-    pay_multiplier: pm,    // ← เปลี่ยน
-    holiday_name: hn,      // ← เปลี่ยน
+    day_type: dt,
+    pay_multiplier: pm,
+    holiday_name: hn,
     status: attendanceStatus,
+    shift_type: newShiftType,
+    dayoff_credit: newShiftType === "holiday" ? "pending" : null,
   },
 ]);
+      setShiftType(newShiftType);
       setRawCheckIn(now);
     }
 
@@ -788,12 +799,16 @@ export default function DashboardUI({
   const effectiveCheckIn = log?.first_check_in ?? rawCheckIn;
 
   if (effectiveShiftType === "holiday" && effectiveCheckIn) {
+    // ✅ ตรวจ GPS ก่อนแสดง modal วันหยุด
+    if (!validateLocation()) return;
+
     const netHours =
       (new Date(now).getTime() - new Date(effectiveCheckIn).getTime()) /
         3_600_000 - 1;
 
     if (netHours >= 8) {
       setPendingCheckoutIso(now);
+      setPendingCheckoutLog(log);
       setShowHolidayCheckout(true);
       return; // ← หยุดรอ popup
     }
@@ -838,7 +853,7 @@ export default function DashboardUI({
         claimDayoff === true ? "earned" : "forfeited";
     }
  
-    await supabase
+    const { error: updateError } = await supabase
       .from("daily_time_logs")
       .update({
         ...extraUpdate,
@@ -846,6 +861,13 @@ export default function DashboardUI({
       })
       .eq("user_id", userId)
       .eq("log_date", today);
+
+    if (updateError) {
+      console.error("[checkout] update failed:", updateError);
+      alert("เกิดข้อผิดพลาดในการบันทึกข้อมูล กรุณาลองใหม่อีกครั้ง");
+      setIsSubmitting(false);
+      return;
+    }
  
     setRawCheckOut(checkoutIso);
     setCheckOutTime(
@@ -857,6 +879,7 @@ export default function DashboardUI({
     setWorkStatus("completed");
     setIsSubmitting(false);
     setPendingCheckoutIso(null);
+    setPendingCheckoutLog(null);
     setShowHolidayCheckout(false);
     if (claimDayoff === true) setDayoffCredit("earned");
     else if (shiftType === "holiday") setDayoffCredit("forfeited");
@@ -1557,11 +1580,13 @@ export default function DashboardUI({
           checkInIso={rawCheckIn}
           checkOutIso={pendingCheckoutIso}
           holidayName={holidayName}
-          onClaim={() => _doCheckOut(pendingCheckoutIso, null, true)}
-          onSkip={() => _doCheckOut(pendingCheckoutIso, null, false)}
+          onClaim={() => _doCheckOut(pendingCheckoutIso, pendingCheckoutLog, true)}
+          onSkip={() => _doCheckOut(pendingCheckoutIso, pendingCheckoutLog, false)}
+          isLoading={isSubmitting}
           onClose={() => {
             setShowHolidayCheckout(false);
             setPendingCheckoutIso(null);
+            setPendingCheckoutLog(null);
           }}
         />
       )}

@@ -12,6 +12,7 @@ interface HolidayCheckoutModalProps {
   onClaim:     () => void;
   onSkip:      () => void;
   onClose:     () => void;
+  isLoading?:  boolean;
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
@@ -39,6 +40,7 @@ export default function HolidayCheckoutModal({
   onClaim,
   onSkip,
   onClose,
+  isLoading = false,
 }: HolidayCheckoutModalProps) {
   const [visible, setVisible] = useState(false);
 
@@ -106,14 +108,30 @@ export default function HolidayCheckoutModal({
           <div className="space-y-2.5">
             <button
               onClick={onClaim}
-              className="w-full py-3.5 bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm rounded-2xl active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+              disabled={isLoading}
+              className={`w-full py-3.5 text-white font-bold text-sm rounded-2xl active:scale-[0.98] transition-all flex items-center justify-center gap-2 ${
+                isLoading
+                  ? "bg-amber-300 cursor-wait"
+                  : "bg-amber-500 hover:bg-amber-600"
+              }`}
             >
+              {isLoading ? (
+                <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z" />
+                </svg>
+              ) : null}
               เก็บสิทธิ์วันหยุดชดเชย
             </button>
 
             <button
               onClick={onSkip}
-              className="w-full py-3 border border-gray-200 text-gray-500 font-semibold text-sm rounded-2xl active:scale-[0.98] transition-all hover:bg-gray-50"
+              disabled={isLoading}
+              className={`w-full py-3 border border-gray-200 font-semibold text-sm rounded-2xl active:scale-[0.98] transition-all ${
+                isLoading
+                  ? "text-gray-300 cursor-wait"
+                  : "text-gray-500 hover:bg-gray-50"
+              }`}
             >
               ออกงานปกติ (ไม่เก็บสิทธิ์)
             </button>
