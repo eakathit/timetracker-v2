@@ -301,16 +301,16 @@ function TableSkeleton() {
 function DrillDownPanel({
   emp,
   empIdx,
-  year,
-  month,
+  startDate,
+  endDate,
   dailyLogs,
   att,
   onClose,
 }: {
   emp: Employee;
   empIdx: number;
-  year: number;
-  month: number;
+  startDate: string;
+  endDate: string;
   dailyLogs: DayLog[];
   att: AttendanceStat;
   onClose: () => void;
@@ -321,7 +321,7 @@ function DrillDownPanel({
     setExporting(true);
     try {
       const { utils, writeFile } = await import("xlsx");
-      const title = `${emp.first_name} ${emp.last_name} — ${MONTHS_TH[month]} ${year + 543}`;
+      const title = `${emp.first_name} ${emp.last_name} — ${startDate} ถึง ${endDate}`;
 
       const header = [
         [title],
@@ -443,12 +443,9 @@ function DrillDownPanel({
 );
 
       const wb = utils.book_new();
-      const sheetName = `${emp.first_name}_${MONTHS_TH[month].slice(0, 3)}`;
+      const sheetName = `${emp.first_name}_${startDate}`;
       utils.book_append_sheet(wb, ws, sheetName);
-      writeFile(
-        wb,
-        `attendance_${emp.first_name}_${emp.last_name}_${year}_${String(month + 1).padStart(2, "0")}.xlsx`,
-      );
+      writeFile(wb, `attendance_${emp.first_name}_${emp.last_name}_${startDate}_${endDate}.xlsx`);
     } finally {
       setExporting(false);
     }
@@ -486,7 +483,7 @@ function DrillDownPanel({
             {emp.first_name} {emp.last_name}
           </p>
           <p className="text-xs text-gray-400">
-            {emp.department} · {MONTHS_TH[month]} {year + 543}
+            {emp.department} · {fmtDateTH(startDate)} – {fmtDateTH(endDate)}
           </p>
         </div>
         <button
@@ -659,13 +656,12 @@ function DrillDownPanel({
 async function exportHRExcel(
   employees: Employee[],
   attendances: Record<string, AttendanceStat>,
-  dailyLogsPerUser: Record<string, DayLog[]>, // ← เพิ่ม parameter
-  year: number,
-  month: number,
+  dailyLogsPerUser: Record<string, DayLog[]>,
+  startDate: string,
+  endDate: string,
 ) {
   const { utils, writeFile } = await import("xlsx");
-
-  const title = `HR ATTENDANCE SUMMARY — ${MONTHS_TH[month]} ${year + 543}`;
+  const title = `HR ATTENDANCE SUMMARY — ${startDate} ถึง ${endDate}`;
 
   const header = [
     [title],
@@ -742,23 +738,125 @@ async function exportHRExcel(
   ws["!cols"] = [20, 14, 9, 9, 9, 9, 6, 14, 9, 10, 13, 14].map((w) => ({ wch: w }));
 
   const wb = utils.book_new();
-  utils.book_append_sheet(
-    wb,
-    ws,
-    `${MONTHS_TH[month].slice(0, 3)}_${year + 543}`,
-  );
-  writeFile(
-    wb,
-    `hr_attendance_${year}_${String(month + 1).padStart(2, "0")}.xlsx`,
-  );
+  utils.book_append_sheet(wb, ws, `${startDate}_${endDate}`);
+  writeFile(wb, `hr_attendance_${startDate}_${endDate}.xlsx`);
+}
+
+// ── Export Multi-sheet Individual Excel ──────────────────────────────────────
+async function exportMultiSheetIndividual(
+  employees: Employee[],
+  attendances: Record<string, AttendanceStat>,
+  dailyLogsPerUser: Record<string, DayLog[]>,
+  startDate: string,
+  endDate: string,
+) {
+  const { utils, writeFile } = await import("xlsx");
+  const wb = utils.book_new();
+
+  const getDayTypeLabel = (log: DayLog): string => {
+    if (log.isWorkingSat) return "เสาร์ทำงาน";
+    if (log.dow === 0 || log.dow === 6) return "วันหยุดประจำสัปดาห์";
+    if (log.status === "holiday") return "วันหยุด";
+    return "วันปกติ";
+  };
+  const STATUS_TEXT: Record<string, string> = {
+    present: "มาปกติ", late: "มาสาย", absent: "ขาดงาน",
+    leave: "ลา", holiday: "วันหยุด", weekend: "เสาร์-อา",
+  };
+
+  employees.forEach((emp) => {
+    const att = attendances[emp.id];
+    const dailyLogs = dailyLogsPerUser[emp.id] ?? [];
+
+    const title = `${emp.first_name} ${emp.last_name} — ${startDate} ถึง ${endDate}`;
+    const header = [
+      [title], [],
+      ["วันที่","วัน","ประเภทวัน","สถานะ","ประเภทงาน","เบี้ยเลี้ยง",
+       "เข้างาน","ออกงาน","Start OT","End OT",
+       "Req. Start OT","Req. End OT","OT รวม (ชม.)","คนขับ"],
+    ];
+
+    const data = dailyLogs.map((log) => {
+      const workOT = log.otTimeline;
+      return [
+        log.date, DAYS_SHORT[log.dow], getDayTypeLabel(log),
+        STATUS_TEXT[log.status] ?? log.status,
+        log.workType ? (WORK_TYPE_LABEL[log.workType] ?? log.workType) : "–",
+        log.dailyAllowance ? "50" : "–",
+        log.checkIn, log.checkOut,
+        workOT?.start ?? "–", workOT?.end ?? "–",
+        log.otReqs.map((r) => r.start).join(" / ") || "–",
+        log.otReqs.map((r) => r.end).join(" / ") || "–",
+        log.otTotal > 0 ? log.otTotal : "–",
+        log.isDriverTo && log.isDriverFrom ? "ขาไป+ขากลับ"
+          : log.isDriverTo   ? "ขาไป"
+          : log.isDriverFrom ? "ขากลับ"
+          : "–",
+      ];
+    });
+
+    const workdayLogs = dailyLogs.filter(
+      (l) => (l.status === "present" || l.status === "late") && l.dow !== 0 && (l.dow !== 6 || l.isWorkingSat),
+    );
+    const holidayLogs = dailyLogs.filter(
+      (l) => (l.status === "present" || l.status === "late") && !l.isWorkingSat && (l.dow === 0 || l.dow === 6),
+    );
+    const workdayRegHours = Math.round(workdayLogs.reduce((s, l) => s + (l.regHours ?? 0), 0) * 10) / 10;
+    const holidayRegHours = Math.round(holidayLogs.reduce((s, l) => s + (l.regHours ?? 0), 0) * 10) / 10;
+    const workdayOT = Math.round(workdayLogs.reduce((s, l) => s + l.otTotal, 0) * 100) / 100;
+    const holidayOT = Math.round(holidayLogs.reduce((s, l) => s + l.otTotal, 0) * 10) / 10;
+    const allowanceDays = dailyLogs.filter((l) => l.dailyAllowance).length;
+    const allowanceTotal = allowanceDays * 50;
+
+    const summary = [
+      [], ["สรุป"],
+      ["วันมาทำงาน", "", att?.present ?? 0],
+      ["มาสาย",      "", att?.late    ?? 0],
+      ["ขาดงาน",     "", att?.absent  ?? 0],
+      ["ลา",         "", att?.leave   ?? 0],
+      [],
+      ["—— วันปกติ ——"],
+      ["ชั่วโมงทำงาน (วันปกติ)", "", workdayRegHours, "ชม."],
+      ["OT รวม (วันปกติ)",       "", workdayOT,       "ชม."],
+      [],
+      ["—— วันหยุด ——"],
+      ["ชั่วโมงทำงาน (วันหยุด)", "", holidayRegHours, "ชม."],
+      ["OT รวม (วันหยุด)",       "", holidayOT,       "ชม."],
+      [],
+      ["—— เบี้ยเลี้ยง ——"],
+      ["เบี้ยเลี้ยง On-site", "", allowanceDays,  "วัน"],
+      ["รวมเบี้ยเลี้ยง",      "", allowanceTotal, "บาท"],
+    ];
+
+    const ws = utils.aoa_to_sheet([...header, ...data, ...summary]);
+    ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 5 } }];
+    ws["!cols"] = [12, 6, 16, 10, 10, 10, 10, 10, 10, 10, 12, 12, 10, 10].map((w) => ({ wch: w }));
+
+    // Sheet name: ชื่อจริง truncated to 31 chars (Excel limit)
+    const sheetName = `${emp.first_name} ${emp.last_name}`.slice(0, 28).replace(/[\\/*?[\]:]/g, "_");
+    utils.book_append_sheet(wb, ws, sheetName);
+  });
+
+  writeFile(wb, `hr_detail_${startDate}_${endDate}.xlsx`);
+}
+
+// ── helper: format ISO date to Thai display ──────────────────────────────
+function fmtDateTH(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  return `${d} ${MONTHS_TH[m - 1]} ${y + 543}`;
 }
 
 export default function HRAttendancePage() {
   const today = new Date();
-  const [viewYear, setViewYear] = useState(today.getFullYear());
-  const [viewMonth, setViewMonth] = useState(today.getMonth());
+  const todayISO = today.toISOString().split("T")[0];
+  const firstOfMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-01`;
+
+  const [startDate, setStartDate] = useState(firstOfMonth);
+  const [endDate, setEndDate] = useState(todayISO);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filterDept, setFilterDept] = useState("all");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [multiSelectMode, setMultiSelectMode] = useState(false);
 
   // ── Real data state ───────────────────────────────────
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -779,12 +877,11 @@ export default function HRAttendancePage() {
 
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
+  const [exportingDetail, setExportingDetail] = useState(false);
 
-  // ── Month range ───────────────────────────────────────
-  const { start, end } = useMemo(
-    () => getMonthRange(viewYear, viewMonth),
-    [viewYear, viewMonth],
-  );
+  // ── Date range as query bounds ────────────────────────
+  const start = startDate;
+  const end = endDate;
 
   // ── Fetch all data ────────────────────────────────────
   const fetchData = useCallback(async () => {
@@ -938,13 +1035,20 @@ export default function HRAttendancePage() {
     const result: Record<string, AttendanceStat> = {};
     const todayStr = new Date().toISOString().split("T")[0];
 
-    // ── คำนวณ expectedWorkdays จากปฏิทิน (ไม่รวมอนาคต) ──
-    const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+    // ── คำนวณ expectedWorkdays จากช่วงวันที่ที่เลือก ──────────
+    const [sy, sm, sd] = startDate.split("-").map(Number);
+    const [ey, em, ed] = endDate.split("-").map(Number);
+    const rangeStart = new Date(sy, sm - 1, sd);
+    const rangeEnd = new Date(ey, em - 1, ed);
     let expectedWorkdays = 0;
-    for (let d = 1; d <= daysInMonth; d++) {
-      const dateStr = `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    for (
+      let cur = new Date(rangeStart);
+      cur <= rangeEnd;
+      cur.setDate(cur.getDate() + 1)
+    ) {
+      const dateStr = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, "0")}-${String(cur.getDate()).padStart(2, "0")}`;
       if (workdayEnded ? dateStr > todayStr : dateStr >= todayStr) break;
-      const dow = new Date(viewYear, viewMonth, d).getDay();
+      const dow = cur.getDay();
       if (dow === 0) continue;
       if (dow === 6 && !workingSats.has(dateStr)) continue;
       if (holidays.has(dateStr)) continue;
@@ -1091,8 +1195,8 @@ otSum += (() => {
     employees,
     timeLogs,
     otRequests,
-    viewYear,
-    viewMonth,
+    startDate,
+    endDate,
     holidays,
     workingSats,
     driverSessions,
@@ -1132,14 +1236,22 @@ otSum += (() => {
     });
   });
 
-      const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+      const [rsy, rsm, rsd] = startDate.split("-").map(Number);
+      const [rey, rem, red] = endDate.split("-").map(Number);
+      const loopStart = new Date(rsy, rsm - 1, rsd);
+      const loopEnd = new Date(rey, rem - 1, red);
       const days: DayLog[] = [];
 
-      for (let d = 1; d <= daysInMonth; d++) {
-        const dateStr = `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+      for (
+        let cur = new Date(loopStart);
+        cur <= loopEnd;
+        cur.setDate(cur.getDate() + 1)
+      ) {
+        const d = cur.getDate();
+        const dow = cur.getDay();
+        const dateStr = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 
         if (dateStr > todayStr) break;
-        const dow = new Date(viewYear, viewMonth, d).getDay();
         const isWorkingSat = workingSats.has(dateStr);
         const isWeekend = dow === 0 || (dow === 6 && !isWorkingSat);
         const isHoliday = holidays.has(dateStr);
@@ -1327,12 +1439,30 @@ otSum += (() => {
   }, [
     employees,
     timeLogs,
-    viewYear,
-    viewMonth,
+    startDate,
+    endDate,
     holidays,
     leaveMap,
     workingSats,
+    otRequests,
+    driverSessions,
+    holidayNames,
   ]);
+
+  // ── Employee filter dropdown state ──────────────────
+  const [empDropdownOpen, setEmpDropdownOpen] = useState(false);
+  const [empSearch, setEmpSearch] = useState("");
+  const [filterEmpIds, setFilterEmpIds] = useState<Set<string>>(new Set());
+
+  const toggleFilterEmp = (id: string) => {
+    setFilterEmpIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+  const clearFilterEmp = () => setFilterEmpIds(new Set());
 
   // ── Derived: depts, filtered, agg ────────────────────
   const depts = useMemo(() => {
@@ -1340,13 +1470,11 @@ otSum += (() => {
     return ["all", ...Array.from(s).sort()];
   }, [employees]);
 
-  const filtered = useMemo(
-    () =>
-      filterDept === "all"
-        ? employees
-        : employees.filter((e) => e.department === filterDept),
-    [employees, filterDept],
-  );
+  const filtered = useMemo(() => {
+    let base = filterDept === "all" ? employees : employees.filter((e) => e.department === filterDept);
+    if (filterEmpIds.size > 0) base = base.filter((e) => filterEmpIds.has(e.id));
+    return base;
+  }, [employees, filterDept, filterEmpIds]);
 
   const agg = useMemo(() => {
     const vals = employees.map((e) => attendances[e.id]).filter(Boolean);
@@ -1378,32 +1506,42 @@ otSum += (() => {
       .sort((a, b) => b.pct - a.pct);
   }, [employees, attendances]);
 
-  // ── Month navigation ──────────────────────────────────
-  const prevMonth = () => {
-    if (viewMonth === 0) {
-      setViewYear((y) => y - 1);
-      setViewMonth(11);
-    } else setViewMonth((m) => m - 1);
+  // ── Multi-select helpers ──────────────────────────────
+  const toggleSelectId = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   };
-  const nextMonth = () => {
-    if (viewMonth === 11) {
-      setViewYear((y) => y + 1);
-      setViewMonth(0);
-    } else setViewMonth((m) => m + 1);
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filtered.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filtered.map((e) => e.id)));
+    }
   };
+
   const handleExport = async () => {
     if (employees.length === 0) return;
     setExporting(true);
+    const exportList = selectedIds.size > 0 ? filtered.filter((e) => selectedIds.has(e.id)) : filtered;
     try {
-      await exportHRExcel(
-        filtered,
-        attendances,
-        dailyLogsPerUser,
-        viewYear,
-        viewMonth,
-      );
+      await exportHRExcel(exportList, attendances, dailyLogsPerUser, startDate, endDate);
     } finally {
       setExporting(false);
+    }
+  };
+
+  const handleExportDetail = async () => {
+    if (employees.length === 0) return;
+    setExportingDetail(true);
+    const exportList = selectedIds.size > 0 ? filtered.filter((e) => selectedIds.has(e.id)) : filtered;
+    try {
+      await exportMultiSheetIndividual(exportList, attendances, dailyLogsPerUser, startDate, endDate);
+    } finally {
+      setExportingDetail(false);
     }
   };
   const selectedEmp = selectedId
@@ -1419,7 +1557,7 @@ otSum += (() => {
           ╚═══════════════════════════════════╝ */}
       <div className="sticky top-0 z-20 bg-gray-50/90 backdrop-blur-sm border-b border-gray-100">
         {/* Title row */}
-        <div className="flex items-center justify-between px-4 md:px-6 pt-4 pb-1 gap-3">
+        <div className="flex items-center justify-between px-4 md:px-6 pt-4 pb-2 gap-3">
           <div>
             <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">
               Admin · HR
@@ -1437,60 +1575,73 @@ otSum += (() => {
             {exporting ? (
               <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
             ) : (
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                className="w-4 h-4"
-              >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
                 <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
                 <polyline points="7 10 12 15 17 10" />
                 <line x1="12" y1="15" x2="12" y2="3" />
               </svg>
             )}
             <span className="hidden sm:inline">
-              {exporting ? "กำลัง Export..." : "Export Excel"}
+              {exporting ? "กำลัง Export..." : selectedIds.size > 0 ? `Export (${selectedIds.size})` : "Export Excel"}
             </span>
           </button>
         </div>
 
-        {/* Month nav + dept filter */}
-        <div className="flex items-center gap-3 px-4 md:px-6 pb-3 flex-wrap">
-          <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-xl p-1">
-            <button
-              onClick={prevMonth}
-              className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition-all"
-            >
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                className="w-3.5 h-3.5"
-              >
-                <polyline points="15 18 9 12 15 6" />
+        {/* ── Date range picker row ── */}
+        <div className="px-4 md:px-6 pb-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Start date */}
+            <div className="flex items-center gap-1.5 bg-white border border-gray-200 rounded-xl px-3 py-1.5 shadow-sm">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-sky-400 flex-shrink-0">
+                <rect x="3" y="4" width="18" height="18" rx="2" />
+                <line x1="16" y1="2" x2="16" y2="6" />
+                <line x1="8" y1="2" x2="8" y2="6" />
+                <line x1="3" y1="10" x2="21" y2="10" />
               </svg>
-            </button>
-            <span className="text-sm font-extrabold text-gray-700 px-2 min-w-[128px] text-center">
-              {MONTHS_TH[viewMonth]} {viewYear + 543}
-            </span>
-            <button
-              onClick={nextMonth}
-              className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition-all"
-            >
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                className="w-3.5 h-3.5"
-              >
-                <polyline points="9 18 15 12 9 6" />
-              </svg>
-            </button>
-          </div>
+              <span className="text-[10px] font-bold text-gray-400 uppercase">From</span>
+              <input
+                type="date"
+                value={startDate}
+                max={endDate}
+                onChange={(e) => {
+                  if (e.target.value) setStartDate(e.target.value);
+                }}
+                className="font-medium text-xs text-gray-500 bg-transparent border-none outline-none cursor-pointer"
+              />
+            </div>
 
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-gray-300 flex-shrink-0">
+              <line x1="5" y1="12" x2="19" y2="12" />
+              <polyline points="12 5 19 12 12 19" />
+            </svg>
+
+            {/* End date */}
+            <div className="flex items-center gap-1.5 bg-white border border-gray-200 rounded-xl px-3 py-1.5 shadow-sm">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-violet-400 flex-shrink-0">
+                <rect x="3" y="4" width="18" height="18" rx="2" />
+                <line x1="16" y1="2" x2="16" y2="6" />
+                <line x1="8" y1="2" x2="8" y2="6" />
+                <line x1="3" y1="10" x2="21" y2="10" />
+              </svg>
+              <span className="text-[10px] font-bold text-gray-400 uppercase">To</span>
+              <input
+                type="date"
+                value={endDate}
+                min={startDate}
+                max={todayISO}
+                onChange={(e) => {
+                  if (e.target.value) setEndDate(e.target.value);
+                }}
+                className="font-medium text-xs text-gray-500 bg-transparent border-none outline-none cursor-pointer"
+              />
+            </div>
+
+
+          </div>
+        </div>
+
+        {/* ── Dept filter + Employee picker row ── */}
+        <div className="flex items-center gap-2 px-4 md:px-6 pb-3 flex-wrap">
           {depts.map((d) => (
             <button
               key={d}
@@ -1507,6 +1658,161 @@ otSum += (() => {
               {d === "all" ? "ทั้งหมด" : d}
             </button>
           ))}
+
+          {/* ── Employee multi-select dropdown ── */}
+          <div className="relative">
+            <button
+              onClick={() => setEmpDropdownOpen((v) => !v)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all ${
+                filterEmpIds.size > 0
+                  ? "bg-sky-500 text-white border-sky-500 shadow-sm"
+                  : "bg-white text-gray-500 border-gray-200 hover:border-sky-300 hover:text-sky-600"
+              }`}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+              {filterEmpIds.size > 0 ? `พนักงาน (${filterEmpIds.size})` : "เลือกพนักงาน"}
+              {filterEmpIds.size > 0 && (
+                <span
+                  onClick={(e) => { e.stopPropagation(); clearFilterEmp(); }}
+                  className="ml-1 w-4 h-4 rounded-full bg-white/30 hover:bg-white/50 flex items-center justify-center transition-colors"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="w-2.5 h-2.5">
+                    <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </span>
+              )}
+            </button>
+
+            {empDropdownOpen && (
+              <>
+                {/* Backdrop */}
+                <div className="fixed inset-0 z-30" onClick={() => setEmpDropdownOpen(false)} />
+                {/* Panel */}
+                <div className="absolute top-full left-0 mt-1.5 w-64 bg-white border border-gray-200 rounded-2xl shadow-xl z-40 overflow-hidden">
+                  {/* Search */}
+                  <div className="flex items-center gap-2 px-3 py-2.5 border-b border-gray-100">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-gray-400 flex-shrink-0">
+                      <circle cx="11" cy="11" r="8" />
+                      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                    </svg>
+                    <input
+                      type="text"
+                      placeholder="ค้นหาพนักงาน..."
+                      value={empSearch}
+                      onChange={(e) => setEmpSearch(e.target.value)}
+                      autoFocus
+                      className="flex-1 text-xs text-gray-700 placeholder-gray-400 bg-transparent border-none outline-none"
+                    />
+                    {empSearch && (
+                      <button onClick={() => setEmpSearch("")} className="text-gray-300 hover:text-gray-500">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3 h-3">
+                          <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Select all / clear */}
+                  {(() => {
+                    const searchFiltered = employees.filter(
+                      (e) =>
+                        `${e.first_name} ${e.last_name}`.toLowerCase().includes(empSearch.toLowerCase()) ||
+                        e.department.toLowerCase().includes(empSearch.toLowerCase()),
+                    );
+                    const allChecked = searchFiltered.length > 0 && searchFiltered.every((e) => filterEmpIds.has(e.id));
+                    return (
+                      <>
+                        <div className="flex items-center justify-between px-3 py-2 border-b border-gray-50">
+                          <button
+                            onClick={() => {
+                              if (allChecked) {
+                                setFilterEmpIds((prev) => {
+                                  const next = new Set(prev);
+                                  searchFiltered.forEach((e) => next.delete(e.id));
+                                  return next;
+                                });
+                              } else {
+                                setFilterEmpIds((prev) => {
+                                  const next = new Set(prev);
+                                  searchFiltered.forEach((e) => next.add(e.id));
+                                  return next;
+                                });
+                              }
+                            }}
+                            className="text-[11px] font-bold text-sky-500 hover:text-sky-600 transition-colors"
+                          >
+                            {allChecked ? "ยกเลิกทั้งหมด" : "เลือกทั้งหมด"}
+                          </button>
+                          {filterEmpIds.size > 0 && (
+                            <span className="text-[11px] text-gray-400">เลือกแล้ว {filterEmpIds.size} คน</span>
+                          )}
+                        </div>
+
+                        {/* Employee list */}
+                        <div className="max-h-52 overflow-y-auto">
+                          {searchFiltered.length === 0 ? (
+                            <p className="text-xs text-gray-400 text-center py-4">ไม่พบพนักงาน</p>
+                          ) : (
+                            searchFiltered.map((e, i) => {
+                              const checked = filterEmpIds.has(e.id);
+                              return (
+                                <button
+                                  key={e.id}
+                                  onClick={() => toggleFilterEmp(e.id)}
+                                  className={`w-full flex items-center gap-2.5 px-3 py-2 text-left transition-colors hover:bg-gray-50 ${
+                                    checked ? "bg-sky-50/40" : ""
+                                  }`}
+                                >
+                                  {/* Checkbox */}
+                                  <div
+                                    className={`w-4 h-4 rounded border-2 flex-shrink-0 flex items-center justify-center transition-all ${
+                                      checked ? "bg-sky-500 border-sky-500" : "border-gray-300"
+                                    }`}
+                                  >
+                                    {checked && (
+                                      <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" className="w-2.5 h-2.5">
+                                        <polyline points="20 6 9 17 4 12" />
+                                      </svg>
+                                    )}
+                                  </div>
+                                  {/* Avatar */}
+                                  {e.avatar_url ? (
+                                    <img src={e.avatar_url} referrerPolicy="no-referrer" className="w-6 h-6 rounded-lg object-cover flex-shrink-0" />
+                                  ) : (
+                                    <div className={`w-6 h-6 rounded-lg flex items-center justify-center text-white text-[10px] font-extrabold flex-shrink-0 bg-gradient-to-br ${AVATAR_GRAD[i % AVATAR_GRAD.length]}`}>
+                                      {e.first_name.charAt(0)}
+                                    </div>
+                                  )}
+                                  {/* Name */}
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-xs font-bold text-gray-700 truncate">{e.first_name} {e.last_name}</p>
+                                    <p className="text-[10px] text-gray-400 truncate">{e.department}</p>
+                                  </div>
+                                </button>
+                              );
+                            })
+                          )}
+                        </div>
+
+                        {/* Done button */}
+                        <div className="px-3 py-2.5 border-t border-gray-100">
+                          <button
+                            onClick={() => { setEmpDropdownOpen(false); setEmpSearch(""); }}
+                            className="w-full py-1.5 rounded-xl bg-sky-500 text-white text-xs font-bold hover:bg-sky-600 transition-colors"
+                          >
+                            {filterEmpIds.size > 0 ? `แสดง ${filterEmpIds.size} คน` : "ปิด"}
+                          </button>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
@@ -1603,13 +1909,7 @@ otSum += (() => {
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-50">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-xl bg-sky-50 text-sky-500 flex items-center justify-center">
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    className="w-4 h-4"
-                  >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
                     <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
                     <circle cx="9" cy="7" r="4" />
                     <path d="M23 21v-2a4 4 0 00-3-3.87" />
@@ -1621,14 +1921,47 @@ otSum += (() => {
                     รายชื่อพนักงาน
                   </h3>
                   <p className="text-xs text-gray-400">
-                    {filtered.length} คน · คลิกเพื่อดูรายละเอียด
+                    {filtered.length} คน ·{" "}
+                    {multiSelectMode
+                      ? `เลือกแล้ว ${selectedIds.size} คน`
+                      : "คลิกเพื่อดูรายละเอียด"}
                   </p>
                 </div>
               </div>
-              <div className="hidden md:flex items-center gap-6 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                <span>มา / ทั้งหมด</span>
-                <span>สถานะ</span>
-                <span>OT</span>
+              <div className="flex items-center gap-2">
+                {/* Multi-select toggle */}
+                <button
+                  onClick={() => {
+                    setMultiSelectMode((v) => !v);
+                    if (multiSelectMode) setSelectedIds(new Set());
+                  }}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all ${
+                    multiSelectMode
+                      ? "bg-sky-500 text-white border-sky-500 shadow-sm"
+                      : "bg-white text-gray-500 border-gray-200 hover:border-sky-300 hover:text-sky-600"
+                  }`}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3 h-3">
+                    <polyline points="9 11 12 14 22 4" />
+                    <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
+                  </svg>
+                  {multiSelectMode ? "เสร็จสิ้น" : "เลือกหลายคน"}
+                </button>
+                {multiSelectMode && (
+                  <button
+                    onClick={toggleSelectAll}
+                    className="px-3 py-1.5 rounded-xl text-xs font-bold border border-gray-200 bg-white text-gray-500 hover:border-sky-300 hover:text-sky-600 transition-all"
+                  >
+                    {selectedIds.size === filtered.length ? "ยกเลิกทั้งหมด" : "เลือกทั้งหมด"}
+                  </button>
+                )}
+                {!multiSelectMode && (
+                  <div className="hidden md:flex items-center gap-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                    <span>มา / ทั้งหมด</span>
+                    <span>สถานะ</span>
+                    <span>OT</span>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1668,17 +2001,43 @@ otSum += (() => {
                       ? Math.round((att.present / att.workdays) * 100)
                       : 0;
                   const isSelected = selectedId === emp.id;
+                  const isChecked = selectedIds.has(emp.id);
 
                   return (
                     <div
                       key={emp.id}
-                      onClick={() => setSelectedId(isSelected ? null : emp.id)}
+                      onClick={() => {
+                        if (multiSelectMode) {
+                          toggleSelectId(emp.id);
+                        } else {
+                          setSelectedId(isSelected ? null : emp.id);
+                        }
+                      }}
                       className={`flex items-center gap-3 px-4 py-3.5 cursor-pointer transition-all border-b border-gray-50 last:border-0 ${
-                        isSelected
+                        multiSelectMode && isChecked
                           ? "bg-sky-50/60 border-l-2 border-l-sky-400"
-                          : "hover:bg-gray-50/50"
+                          : !multiSelectMode && isSelected
+                            ? "bg-sky-50/60 border-l-2 border-l-sky-400"
+                            : "hover:bg-gray-50/50"
                       }`}
                     >
+                      {/* Checkbox (multi-select mode) */}
+                      {multiSelectMode && (
+                        <div
+                          className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-all ${
+                            isChecked
+                              ? "bg-sky-500 border-sky-500"
+                              : "border-gray-300 bg-white"
+                          }`}
+                        >
+                          {isChecked && (
+                            <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" className="w-3 h-3">
+                              <polyline points="20 6 9 17 4 12" />
+                            </svg>
+                          )}
+                        </div>
+                      )}
+
                       {/* Avatar */}
                       {emp.avatar_url ? (
                         <img
@@ -1803,8 +2162,8 @@ otSum += (() => {
               <DrillDownPanel
                 emp={selectedEmp}
                 empIdx={selectedIdx}
-                year={viewYear}
-                month={viewMonth}
+                startDate={startDate}
+                endDate={endDate}
                 dailyLogs={dailyLogsPerUser[selectedEmp.id] ?? []}
                 att={
                   attendances[selectedEmp.id] ?? {
@@ -1910,6 +2269,95 @@ otSum += (() => {
           </div>
         </div>
       </div>
+      {/* ╔═══════════════════════════════════╗
+          ║  FLOATING MULTI-SELECT BAR        ║
+          ╚═══════════════════════════════════╝ */}
+      {multiSelectMode && selectedIds.size > 0 && (
+        <div className="fixed bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 z-30 animate-in slide-in-from-bottom-4 duration-200">
+          <div className="flex items-center gap-3 bg-gray-900 text-white rounded-2xl shadow-xl px-4 py-3">
+            {/* Avatars stack */}
+            <div className="flex -space-x-2">
+              {filtered
+                .filter((e) => selectedIds.has(e.id))
+                .slice(0, 4)
+                .map((e, i) =>
+                  e.avatar_url ? (
+                    <img
+                      key={e.id}
+                      src={e.avatar_url}
+                      referrerPolicy="no-referrer"
+                      className="w-7 h-7 rounded-full border-2 border-gray-900 object-cover"
+                      style={{ zIndex: 4 - i }}
+                    />
+                  ) : (
+                    <div
+                      key={e.id}
+                      className={`w-7 h-7 rounded-full border-2 border-gray-900 flex items-center justify-center text-[10px] font-extrabold bg-gradient-to-br ${AVATAR_GRAD[i % AVATAR_GRAD.length]}`}
+                      style={{ zIndex: 4 - i }}
+                    >
+                      {e.first_name.charAt(0)}
+                    </div>
+                  ),
+                )}
+              {selectedIds.size > 4 && (
+                <div className="w-7 h-7 rounded-full border-2 border-gray-900 bg-gray-700 flex items-center justify-center text-[9px] font-extrabold z-0">
+                  +{selectedIds.size - 4}
+                </div>
+              )}
+            </div>
+            <span className="text-sm font-bold">เลือก {selectedIds.size} คน</span>
+            <div className="w-px h-5 bg-white/20" />
+
+            {/* ── Export สรุปรวม ── */}
+            <button
+              onClick={handleExport}
+              disabled={exporting || exportingDetail}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-xs font-bold transition-colors disabled:opacity-50"
+            >
+              {exporting ? (
+                <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+              )}
+              สรุปรวม
+            </button>
+
+            {/* ── Export รายละเอียด (multi-sheet) ── */}
+            <button
+              onClick={handleExportDetail}
+              disabled={exporting || exportingDetail}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-xs font-bold transition-colors disabled:opacity-50"
+            >
+              {exportingDetail ? (
+                <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                  <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                  <line x1="16" y1="13" x2="8" y2="13" />
+                  <line x1="16" y1="17" x2="8" y2="17" />
+                  <polyline points="10 9 9 9 8 9" />
+                </svg>
+              )}
+              รายละเอียด
+            </button>
+            {/* Clear */}
+            <button
+              onClick={() => setSelectedIds(new Set())}
+              className="w-7 h-7 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3.5 h-3.5">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
