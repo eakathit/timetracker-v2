@@ -778,6 +778,7 @@ export default function AuditClient({
         filterStatus === "all" ||
         (filterStatus === "present" && (emp.attendanceStatus === "on_time" || emp.attendanceStatus === "late")) ||
         (filterStatus === "absent"  && !emp.checkIn && emp.attendanceStatus !== "leave") ||
+        (filterStatus === "leave"   && emp.attendanceStatus === "leave") ||
         (filterStatus === "onsite"  && emp.workType === "on_site") ||
         (filterStatus === "ot"      && emp.otHours > 0) ||
         (filterStatus === "no_report" && emp.checkIn && !emp.reportFiled);
@@ -841,6 +842,7 @@ export default function AuditClient({
             { label: "ทั้งหมด",  value: summary.total,        sub: "คน",      color: "text-slate-800"   },
             { label: "เข้างาน",  value: summary.present,      sub: `สาย ${summary.late}`, color: "text-emerald-600" },
             { label: "ขาดงาน",   value: summary.absent,       sub: "คน",      color: "text-red-500"     },
+            { label: "ลา",       value: summary.leave,        sub: "อนุมัติแล้ว", color: "text-violet-600"  },
             { label: "ON-SITE",  value: summary.onsite,       sub: "คน",      color: "text-blue-600"    },
             { label: "มี OT",    value: summary.withOT,       sub: "คน",      color: "text-orange-600"  },
             { label: "รายงาน",   value: `${summary.reportFiled}/${summary.total}`, sub: "ส่งแล้ว", color: "text-sky-600" },
@@ -855,6 +857,7 @@ export default function AuditClient({
             { key: "all",       label: `ทั้งหมด (${employees.length})` },
             { key: "present",   label: `เข้างาน (${summary.present})`  },
             { key: "absent",    label: `ขาดงาน (${summary.absent})`    },
+            { key: "leave",     label: `ลา (${summary.leave})`          },
             { key: "onsite",    label: `On-site (${summary.onsite})`   },
             { key: "ot",        label: `มี OT (${summary.withOT})`     },
             { key: "no_report", label: "ยังไม่รายงาน"                  },
