@@ -260,7 +260,7 @@ export default function TeamPage() {
       supabase.from("projects").select("id, project_no, name, end_user_id").order("project_no"),
       supabase.from("end_users").select("id, name").order("name"),
       supabase.from("work_details").select("id, title").order("created_at"),
-      supabase.from("profiles_with_avatar").select("id, first_name, last_name, department, avatar_url").order("first_name"),
+      supabase.from("profiles_with_avatar").select("id, first_name, last_name, department, avatar_url").eq("access_status", "active").order("first_name"),
     ]);
     if (pRes.data)  setProjects(pRes.data);
     if (uRes.data)  setEndUsers(uRes.data);
@@ -323,13 +323,14 @@ export default function TeamPage() {
   custom_project_no_text: item.custom_project_no_text ?? null, 
 }));
 
-      setRows(mapped);
+      const activeProfileIds = new Set(profiles.map((p) => p.id));
+      setRows(mapped.filter((row) => activeProfileIds.has(row.user_id)));
     } catch (err: any) {
       setError(err?.message ?? "เกิดข้อผิดพลาดในการดึงข้อมูล");
     } finally {
       setLoadingRows(false);
     }
-  }, [masterReady, viewYear, viewMonth]);
+  }, [masterReady, profiles, viewYear, viewMonth]);
 
   useEffect(() => { fetchRows(); }, [fetchRows]);
 

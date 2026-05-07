@@ -15,6 +15,8 @@ export async function middleware(request: NextRequest) {
   const isRecentCheckinsAPI = url.pathname === "/api/recent-checkins";
   const isCronRoute         = url.pathname.startsWith("/api/cron/");
   const isAuthCallback      = url.pathname.startsWith("/auth/callback");
+  const isPendingApprovalPage = url.pathname === "/pending-approval";
+  const isAccessSuspendedPage = url.pathname === "/access-suspended";
 
   if (isQRTokenAPI || isRecentCheckinsAPI || isCronRoute || isAuthCallback) {
     return supabaseResponse;
@@ -54,7 +56,40 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (user && isLoginPage) {
+  if (!user) {
+    return supabaseResponse;
+  }
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role, access_status")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  const accessStatus = profile?.access_status ?? "pending";
+
+  if (accessStatus === "pending") {
+    if (!isPendingApprovalPage) {
+      url.pathname = "/pending-approval";
+      return NextResponse.redirect(url);
+    }
+    return supabaseResponse;
+  }
+
+  if (accessStatus === "suspended") {
+    if (!isAccessSuspendedPage) {
+      url.pathname = "/access-suspended";
+      return NextResponse.redirect(url);
+    }
+    return supabaseResponse;
+  }
+
+  if (isPendingApprovalPage || isAccessSuspendedPage) {
+    url.pathname = "/";
+    return NextResponse.redirect(url);
+  }
+
+  if (isLoginPage) {
     url.pathname = "/";
     return NextResponse.redirect(url);
   }
@@ -62,13 +97,7 @@ export async function middleware(request: NextRequest) {
   // ── Admin-only paths — รวม /qr-display ไว้ในก้อนเดียว (1 DB query) ───────
   const ADMIN_ONLY_PATHS = ["/settings", "/audit", "/team", "/hr", "/qr-display"];
 
-  if (user && ADMIN_ONLY_PATHS.some((p) => url.pathname.startsWith(p))) {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .maybeSingle();
-
+  if (ADMIN_ONLY_PATHS.some((p) => url.pathname.startsWith(p))) {
     if (!profile || profile.role !== "admin") {
       url.pathname = "/";
       return NextResponse.redirect(url);

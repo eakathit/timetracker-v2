@@ -156,6 +156,7 @@ export default function CreateOnsiteSessionPage() {
       const { data, error: err } = await supabase
         .from("profiles_with_avatar")
         .select("id, first_name, last_name, department, role, avatar_url")
+        .eq("access_status", "active")
         .neq("id", user?.id ?? "")
         .order("first_name", { ascending: true });
 

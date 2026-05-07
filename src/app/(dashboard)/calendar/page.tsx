@@ -20,6 +20,16 @@ interface Plan {
   userId: string;
 }
 
+interface CalendarPlanRow {
+  id: string;
+  user_id: string;
+  plan_date: string;
+  plan_time: string;
+  title: string;
+  category: Plan["category"];
+  note: string | null;
+}
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 const MONTHS_TH = [
   "มกราคม",
@@ -453,7 +463,7 @@ function CalendarGrid({
               <div
                 key={`e-${idx}`}
                 className={`
-                  min-h-[90px] md:min-h-[110px] bg-gray-50/50
+                  min-h-[74px] md:min-h-[110px] bg-gray-50/50
                   ${!isLastRow ? "border-b border-gray-100" : ""}
                 `}
               />
@@ -488,7 +498,7 @@ function CalendarGrid({
               key={day}
               onClick={() => onSelectDay(new Date(year, month, day))}
               className={`
-                relative min-h-[90px] md:min-h-[110px] p-2 text-left
+                relative min-h-[74px] md:min-h-[110px] p-1.5 md:p-2 text-left
                 flex flex-col gap-1
                 transition-all duration-150 group
                 ${!isLastRow ? "border-b border-gray-100" : ""}
@@ -516,7 +526,7 @@ function CalendarGrid({
               {/* Day number */}
               <span
                 className={`
-                w-7 h-7 rounded-lg flex items-center justify-center text-sm font-bold flex-shrink-0
+                w-6 h-6 md:w-7 md:h-7 rounded-lg flex items-center justify-center text-xs md:text-sm font-bold flex-shrink-0
                 transition-colors
                 ${
                   isToday
@@ -609,15 +619,32 @@ export default function CalendarPage() {
 
   // ในสถานการณ์จริง ข้อมูล holidays ตรงนี้จะถูกดึงมาจาก Database (Supabase) เหมือนหน้า Settings
   const [holidays, setHolidays] = useState<Holiday[]>([]);
-  const [plans, setPlans] = useState<Plan[]>([]); // Plans ก็สามารถทำแบบเดียวกันในอนาคต
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [view, setView] = useState<"month" | "list">("month");
 
   useEffect(() => {
-    const fetchHolidays = async () => {
-      const { data, error } = await supabase.from("holidays").select("*");
-      if (data && !error) {
+    const fetchCalendarData = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      setCurrentUserId(user?.id ?? null);
+
+      const [holidayRes, planRes] = await Promise.all([
+        supabase.from("holidays").select("*"),
+        user
+          ? supabase
+              .from("calendar_plans")
+              .select("id, user_id, plan_date, plan_time, title, category, note")
+              .eq("user_id", user.id)
+              .order("plan_date", { ascending: true })
+              .order("plan_time", { ascending: true })
+          : Promise.resolve({ data: null, error: null }),
+      ]);
+
+      if (holidayRes.data && !holidayRes.error) {
         // Map ข้อมูล Database ให้ตรงกับ Interface Holiday ของ Calendar
-        const mappedHolidays: Holiday[] = data.map((h: any) => ({
+        const mappedHolidays: Holiday[] = holidayRes.data.map((h: any) => ({
           id: h.id.toString(),
           date: h.holiday_date,
           name: h.name,
@@ -629,9 +656,24 @@ export default function CalendarPage() {
         }));
         setHolidays(mappedHolidays);
       }
+
+      if (planRes.data && !planRes.error) {
+        const mappedPlans: Plan[] = (planRes.data as CalendarPlanRow[]).map(
+          (p) => ({
+            id: p.id,
+            userId: p.user_id,
+            date: p.plan_date,
+            time: p.plan_time.slice(0, 5),
+            title: p.title,
+            category: p.category,
+            note: p.note ?? undefined,
+          }),
+        );
+        setPlans(mappedPlans);
+      }
     };
 
-    fetchHolidays();
+    fetchCalendarData();
   }, []);
 
   const prevMonth = () => {
@@ -651,14 +693,58 @@ export default function CalendarPage() {
     setViewMonth(today.getMonth());
   };
 
-  const addPlan = (plan: Omit<Plan, "id" | "userId">) => {
+  const addPlan = async (plan: Omit<Plan, "id" | "userId">) => {
+    if (!currentUserId) return;
+
+    const { data, error } = await supabase
+      .from("calendar_plans")
+      .insert({
+        user_id: currentUserId,
+        plan_date: plan.date,
+        plan_time: plan.time,
+        title: plan.title.trim(),
+        category: plan.category,
+        note: plan.note?.trim() || null,
+      })
+      .select("id, user_id, plan_date, plan_time, title, category, note")
+      .single();
+
+    if (error || !data) {
+      console.error("calendar plan insert error:", error);
+      alert("ไม่สามารถบันทึกแผนงานได้ กรุณาลองใหม่");
+      return;
+    }
+
+    const row = data as CalendarPlanRow;
     setPlans((prev) => [
       ...prev,
-      { ...plan, id: Date.now().toString(), userId: "current" },
+      {
+        id: row.id,
+        userId: row.user_id,
+        date: row.plan_date,
+        time: row.plan_time.slice(0, 5),
+        title: row.title,
+        category: row.category,
+        note: row.note ?? undefined,
+      },
     ]);
   };
-  const deletePlan = (id: string) =>
+
+  const deletePlan = async (id: string) => {
+    const previousPlans = plans;
     setPlans((prev) => prev.filter((p) => p.id !== id));
+
+    const { error } = await supabase
+      .from("calendar_plans")
+      .delete()
+      .eq("id", id);
+
+    if (error) {
+      console.error("calendar plan delete error:", error);
+      alert("ไม่สามารถลบแผนงานได้ กรุณาลองใหม่");
+      setPlans(previousPlans);
+    }
+  };
 
   // Month stats
   const monthStr = `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}`;
@@ -930,7 +1016,7 @@ export default function CalendarPage() {
       {/* ── Add Plan FAB ── */}
       <button
         onClick={() => setSelectedDate(today)}
-        className="fixed bottom-24 md:bottom-8 right-4 md:right-8 z-30 w-14 h-14 rounded-2xl bg-sky-500 text-white shadow-lg shadow-sky-300/50 flex items-center justify-center hover:bg-sky-600 transition-all active:scale-90"
+        className="fixed bottom-28 md:bottom-8 right-4 md:right-8 z-30 w-14 h-14 rounded-2xl bg-sky-500 text-white shadow-lg shadow-sky-300/50 flex items-center justify-center hover:bg-sky-600 transition-all active:scale-90"
       >
         <svg
           viewBox="0 0 24 24"

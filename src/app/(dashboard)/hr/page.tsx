@@ -891,6 +891,7 @@ export default function HRAttendancePage() {
       const { data: profileData, error: profileError } = await supabase
         .from("profiles_with_avatar")
         .select("id, first_name, last_name, department, avatar_url")
+        .eq("access_status", "active")
         .order("first_name");
 
       if (profileError) {
