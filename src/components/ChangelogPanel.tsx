@@ -17,6 +17,19 @@ interface ChangelogEntry {
 // ─── Changelog Data (Dev/Admin) ────────────
 const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "3.2.0",
+    date: "2026-05-07",
+    items: [
+      { tag: "feature",     text: "เพิ่มระบบจัดการสถานะการเข้าใช้งานพนักงาน: รออนุมัติ, ใช้งานได้, ระงับสิทธิ์" },
+      { tag: "feature",     text: "Admin สามารถอนุมัติหรือระงับสิทธิ์พนักงานจากหน้า Settings > จัดการสิทธิ์ได้" },
+      { tag: "improvement", text: "พนักงานใหม่ที่ Login ครั้งแรกจะเข้าสู่หน้ารอการอนุมัติ และยังใช้งานระบบไม่ได้จนกว่า Admin จะอนุมัติ" },
+      { tag: "improvement", text: "พนักงานที่ถูกระงับสิทธิ์จะถูกบล็อกไม่ให้เข้าใช้งาน Web App และข้อมูลจะถูกซ่อนจากหน้ารายชื่อ/รายงานหลัก" },
+      { tag: "feature",     text: "เพิ่มระบบ Calendar Plans ส่วนตัว บันทึกแผนงานลงฐานข้อมูลและแสดงเฉพาะแผนของผู้ใช้งานแต่ละคน" },
+      { tag: "fix",         text: "แก้ไขปัญหาเพิ่มแผนใน Calendar แล้วข้อมูลหายหลัง Refresh หน้า" },
+      { tag: "improvement", text: "เพิ่มปุ่มทางเข้า Calendar บนหน้า Profile สำหรับมือถือ และปรับ Calendar mobile ให้กระชับขึ้น" },
+    ],
+  },
+  {
     version: "3.1.6",
     date: "2026-05-06",
     items: [

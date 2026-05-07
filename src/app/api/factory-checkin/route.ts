@@ -68,6 +68,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("access_status")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (profile?.access_status !== "active") {
+      return NextResponse.json(
+        { error: "บัญชีนี้ยังไม่ได้รับอนุมัติหรือถูกระงับสิทธิ์" },
+        { status: 403 }
+      );
+    }
+
     const today = getLocalToday();
     const now   = new Date().toISOString();
 

@@ -40,6 +40,7 @@ export async function GET() {
     const { data: profiles, error: profilesError } = await supabase
       .from("profiles_with_avatar")
       .select("id, first_name, last_name, avatar_url")
+      .eq("access_status", "active")
       .in("id", userIds);
 
     if (profilesError) {
@@ -49,7 +50,7 @@ export async function GET() {
     // ── Step 3: Merge ──────────────────────────────────────────────────────
     const profileMap = new Map((profiles ?? []).map((p) => [p.id, p]));
 
-    const result = logs.map((log) => ({
+    const result = logs.filter((log) => profileMap.has(log.user_id)).map((log) => ({
       id: log.id,
       user_id: log.user_id,
       work_type: log.work_type,

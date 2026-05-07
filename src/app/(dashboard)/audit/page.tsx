@@ -75,6 +75,7 @@ export default async function AuditPage({
     supabase
       .from("profiles_with_avatar")
       .select("id, first_name, last_name, department, role, avatar_url")
+      .eq("access_status", "active")
       .order("first_name"),
 
     supabase

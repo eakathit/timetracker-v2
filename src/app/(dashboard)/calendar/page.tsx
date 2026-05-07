@@ -20,6 +20,16 @@ interface Plan {
   userId: string;
 }
 
+interface CalendarPlanRow {
+  id: string;
+  user_id: string;
+  plan_date: string;
+  plan_time: string;
+  title: string;
+  category: Plan["category"];
+  note: string | null;
+}
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 const MONTHS_TH = [
   "มกราคม",
@@ -334,25 +344,21 @@ function DayPanel({
               </div>
             ) : (
               <div className="space-y-2">
-                {dayPlans.map((plan) => {
-                  const cat = CATEGORY_CONFIG[plan.category];
-                  return (
+                {dayPlans.map((plan) => (
                     <div
                       key={plan.id}
-                      className="group flex items-start gap-3 bg-white rounded-xl border border-gray-100 shadow-sm p-3 hover:shadow-md transition-all duration-200"
+                      className="group flex items-center gap-3 bg-white rounded-xl border border-gray-100 shadow-sm p-3 hover:shadow-md transition-all duration-200"
                     >
                       {/* Time column */}
-                      <div className="flex flex-col items-center flex-shrink-0 pt-0.5">
-                        <span
-                          className={`w-2 h-2 rounded-full mt-1 ${cat.dot}`}
-                        />
+                      <div className="flex flex-col items-center justify-center flex-shrink-0">
+                        <span className="w-2 h-2 rounded-full bg-sky-500" />
                         <span className="text-xs font-bold text-gray-500 mt-1 tabular-nums">
                           {plan.time}
                         </span>
                       </div>
                       {/* Content */}
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-gray-800 leading-tight">
+                        <p className="text-sm font-semibold text-gray-800 leading-snug">
                           {plan.title}
                         </p>
                         {plan.note && (
@@ -360,11 +366,6 @@ function DayPanel({
                             {plan.note}
                           </p>
                         )}
-                        <span
-                          className={`inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold border ${cat.light}`}
-                        >
-                          {cat.label}
-                        </span>
                       </div>
                       {/* Delete */}
                       <button
@@ -383,8 +384,7 @@ function DayPanel({
                         </svg>
                       </button>
                     </div>
-                  );
-                })}
+                  ))}
               </div>
             )}
           </div>
@@ -453,7 +453,7 @@ function CalendarGrid({
               <div
                 key={`e-${idx}`}
                 className={`
-                  min-h-[90px] md:min-h-[110px] bg-gray-50/50
+                  min-h-[74px] md:min-h-[110px] bg-gray-50/50
                   ${!isLastRow ? "border-b border-gray-100" : ""}
                 `}
               />
@@ -488,7 +488,7 @@ function CalendarGrid({
               key={day}
               onClick={() => onSelectDay(new Date(year, month, day))}
               className={`
-                relative min-h-[90px] md:min-h-[110px] p-2 text-left
+                relative min-h-[74px] md:min-h-[110px] p-1.5 md:p-2 text-left
                 flex flex-col gap-1
                 transition-all duration-150 group
                 ${!isLastRow ? "border-b border-gray-100" : ""}
@@ -516,7 +516,7 @@ function CalendarGrid({
               {/* Day number */}
               <span
                 className={`
-                w-7 h-7 rounded-lg flex items-center justify-center text-sm font-bold flex-shrink-0
+                w-6 h-6 md:w-7 md:h-7 rounded-lg flex items-center justify-center text-xs md:text-sm font-bold flex-shrink-0
                 transition-colors
                 ${
                   isToday
@@ -563,12 +563,10 @@ function CalendarGrid({
                     className={`
                       hidden md:flex items-center gap-1
                       text-[9px] font-semibold px-1.5 py-1 rounded-md truncate w-full leading-none
-                      border ${CATEGORY_CONFIG[plan.category].light}
+                      border bg-sky-50 text-sky-600 border-sky-200
                     `}
                   >
-                    <span
-                      className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${CATEGORY_CONFIG[plan.category].dot}`}
-                    />
+                    <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 bg-sky-500" />
                     <span className="truncate">
                       {plan.time} {plan.title}
                     </span>
@@ -587,7 +585,7 @@ function CalendarGrid({
                   {dayPlans.slice(0, 4).map((plan) => (
                     <span
                       key={plan.id}
-                      className={`w-1.5 h-1.5 rounded-full ${CATEGORY_CONFIG[plan.category].dot}`}
+                      className="w-1.5 h-1.5 rounded-full bg-sky-500"
                     />
                   ))}
                 </div>
@@ -609,15 +607,32 @@ export default function CalendarPage() {
 
   // ในสถานการณ์จริง ข้อมูล holidays ตรงนี้จะถูกดึงมาจาก Database (Supabase) เหมือนหน้า Settings
   const [holidays, setHolidays] = useState<Holiday[]>([]);
-  const [plans, setPlans] = useState<Plan[]>([]); // Plans ก็สามารถทำแบบเดียวกันในอนาคต
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [view, setView] = useState<"month" | "list">("month");
 
   useEffect(() => {
-    const fetchHolidays = async () => {
-      const { data, error } = await supabase.from("holidays").select("*");
-      if (data && !error) {
+    const fetchCalendarData = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      setCurrentUserId(user?.id ?? null);
+
+      const [holidayRes, planRes] = await Promise.all([
+        supabase.from("holidays").select("*"),
+        user
+          ? supabase
+              .from("calendar_plans")
+              .select("id, user_id, plan_date, plan_time, title, category, note")
+              .eq("user_id", user.id)
+              .order("plan_date", { ascending: true })
+              .order("plan_time", { ascending: true })
+          : Promise.resolve({ data: null, error: null }),
+      ]);
+
+      if (holidayRes.data && !holidayRes.error) {
         // Map ข้อมูล Database ให้ตรงกับ Interface Holiday ของ Calendar
-        const mappedHolidays: Holiday[] = data.map((h: any) => ({
+        const mappedHolidays: Holiday[] = holidayRes.data.map((h: any) => ({
           id: h.id.toString(),
           date: h.holiday_date,
           name: h.name,
@@ -629,9 +644,24 @@ export default function CalendarPage() {
         }));
         setHolidays(mappedHolidays);
       }
+
+      if (planRes.data && !planRes.error) {
+        const mappedPlans: Plan[] = (planRes.data as CalendarPlanRow[]).map(
+          (p) => ({
+            id: p.id,
+            userId: p.user_id,
+            date: p.plan_date,
+            time: p.plan_time.slice(0, 5),
+            title: p.title,
+            category: p.category,
+            note: p.note ?? undefined,
+          }),
+        );
+        setPlans(mappedPlans);
+      }
     };
 
-    fetchHolidays();
+    fetchCalendarData();
   }, []);
 
   const prevMonth = () => {
@@ -651,14 +681,58 @@ export default function CalendarPage() {
     setViewMonth(today.getMonth());
   };
 
-  const addPlan = (plan: Omit<Plan, "id" | "userId">) => {
+  const addPlan = async (plan: Omit<Plan, "id" | "userId">) => {
+    if (!currentUserId) return;
+
+    const { data, error } = await supabase
+      .from("calendar_plans")
+      .insert({
+        user_id: currentUserId,
+        plan_date: plan.date,
+        plan_time: plan.time,
+        title: plan.title.trim(),
+        category: plan.category,
+        note: plan.note?.trim() || null,
+      })
+      .select("id, user_id, plan_date, plan_time, title, category, note")
+      .single();
+
+    if (error || !data) {
+      console.error("calendar plan insert error:", error);
+      alert("ไม่สามารถบันทึกแผนงานได้ กรุณาลองใหม่");
+      return;
+    }
+
+    const row = data as CalendarPlanRow;
     setPlans((prev) => [
       ...prev,
-      { ...plan, id: Date.now().toString(), userId: "current" },
+      {
+        id: row.id,
+        userId: row.user_id,
+        date: row.plan_date,
+        time: row.plan_time.slice(0, 5),
+        title: row.title,
+        category: row.category,
+        note: row.note ?? undefined,
+      },
     ]);
   };
-  const deletePlan = (id: string) =>
+
+  const deletePlan = async (id: string) => {
+    const previousPlans = plans;
     setPlans((prev) => prev.filter((p) => p.id !== id));
+
+    const { error } = await supabase
+      .from("calendar_plans")
+      .delete()
+      .eq("id", id);
+
+    if (error) {
+      console.error("calendar plan delete error:", error);
+      alert("ไม่สามารถลบแผนงานได้ กรุณาลองใหม่");
+      setPlans(previousPlans);
+    }
+  };
 
   // Month stats
   const monthStr = `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}`;
@@ -870,25 +944,16 @@ export default function CalendarPage() {
                       className="ml-15 space-y-2 ml-0 pl-15"
                       style={{ paddingLeft: "60px" }}
                     >
-                      {dayPlans.map((plan) => {
-                        const cat = CATEGORY_CONFIG[plan.category];
-                        return (
+                      {dayPlans.map((plan) => (
                           <div
                             key={plan.id}
                             className="bg-white rounded-2xl border border-gray-100 shadow-sm p-3 flex items-center gap-3"
                           >
-                            <div
-                              className={`w-1 self-stretch rounded-full flex-shrink-0 ${cat.dot}`}
-                            />
+                            <div className="w-1 self-stretch rounded-full flex-shrink-0 bg-sky-500" />
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2">
                                 <span className="text-xs font-bold text-gray-500 tabular-nums">
                                   {plan.time}
-                                </span>
-                                <span
-                                  className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold border ${cat.light}`}
-                                >
-                                  {cat.label}
                                 </span>
                               </div>
                               <p className="text-sm font-semibold text-gray-800 mt-0.5">
@@ -916,8 +981,7 @@ export default function CalendarPage() {
                               </svg>
                             </button>
                           </div>
-                        );
-                      })}
+                        ))}
                     </div>
                   </div>
                 );
@@ -930,7 +994,7 @@ export default function CalendarPage() {
       {/* ── Add Plan FAB ── */}
       <button
         onClick={() => setSelectedDate(today)}
-        className="fixed bottom-24 md:bottom-8 right-4 md:right-8 z-30 w-14 h-14 rounded-2xl bg-sky-500 text-white shadow-lg shadow-sky-300/50 flex items-center justify-center hover:bg-sky-600 transition-all active:scale-90"
+        className="fixed bottom-28 md:bottom-8 right-4 md:right-8 z-30 w-14 h-14 rounded-2xl bg-sky-500 text-white shadow-lg shadow-sky-300/50 flex items-center justify-center hover:bg-sky-600 transition-all active:scale-90"
       >
         <svg
           viewBox="0 0 24 24"

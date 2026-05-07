@@ -248,6 +248,18 @@ const ROLE_LABELS: Record<string, string> = {
   user: "User",
 };
 
+const ACCESS_STATUS_STYLES: Record<string, string> = {
+  pending: "bg-amber-50 text-amber-600 border-amber-200",
+  active: "bg-emerald-50 text-emerald-600 border-emerald-200",
+  suspended: "bg-rose-50 text-rose-600 border-rose-200",
+};
+
+const ACCESS_STATUS_LABELS: Record<string, string> = {
+  pending: "รออนุมัติ",
+  active: "ใช้งานได้",
+  suspended: "ระงับสิทธิ์",
+};
+
 // ─── Tab Sections ─────────────────────────────────────────────────────────────
 
 function SystemSection() {
@@ -388,11 +400,17 @@ function SystemSection() {
 function PermissionsSection() {
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   // 1. ดึงข้อมูล User จากตาราง profiles
   useEffect(() => {
     const fetchUsers = async () => {
       setLoading(true);
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      setCurrentUserId(user?.id ?? null);
+
       const { data, error } = await supabase
         .from("profiles_with_avatar")
         .select("*")
@@ -436,6 +454,56 @@ function PermissionsSection() {
     }
   };
 
+  const setAccessStatus = async (
+    id: string,
+    currentStatus: string,
+    nextStatus: "pending" | "active" | "suspended",
+  ) => {
+    if (id === currentUserId && nextStatus !== "active") {
+      alert("ไม่สามารถระงับหรือพักสิทธิ์บัญชีของตัวเองได้");
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const patch: Record<string, unknown> = {
+      access_status: nextStatus,
+      updated_at: now,
+    };
+
+    if (nextStatus === "active") {
+      patch.approved_at = now;
+      patch.approved_by = currentUserId;
+      patch.suspended_at = null;
+      patch.suspended_by = null;
+      patch.suspend_reason = null;
+    }
+
+    if (nextStatus === "suspended") {
+      patch.suspended_at = now;
+      patch.suspended_by = currentUserId;
+      patch.suspend_reason = "Suspended by admin";
+    }
+
+    setUsers((prev) =>
+      prev.map((u) => (u.id === id ? { ...u, ...patch } : u)),
+    );
+
+    const { error } = await supabase
+      .from("profiles")
+      .update(patch)
+      .eq("id", id);
+
+    if (error) {
+      console.error("Error updating access status:", error);
+      alert("ไม่สามารถเปลี่ยนสถานะการเข้าใช้งานได้ กรุณาลองใหม่");
+      setUsers((prev) =>
+        prev.map((u) =>
+          u.id === id ? { ...u, access_status: currentStatus } : u,
+        ),
+      );
+    }
+  };
+
   if (loading) {
     return (
       <div className="py-10 text-center text-sm text-gray-400 animate-pulse">
@@ -457,11 +525,12 @@ function PermissionsSection() {
             const initial =
               fullName !== "ยังไม่ได้ระบุชื่อ" ? fullName.charAt(0) : "U";
             const currentRole = u.role || "user";
+            const currentStatus = u.access_status || "active";
 
             return (
               <div
                 key={u.id}
-                className="flex items-center gap-4 px-5 py-4 hover:bg-gray-50/50 transition-colors"
+                className="flex flex-col gap-3 px-5 py-4 hover:bg-gray-50/50 transition-colors md:flex-row md:items-center"
               >
                 {/* Avatar */}
                 {u.avatar_url ? (
@@ -490,6 +559,12 @@ function PermissionsSection() {
                 </div>
 
                 {/* Role badge — คลิกเพื่อเปลี่ยนสิทธิ์ */}
+                <span
+                  className={`px-3 py-1.5 text-xs font-bold rounded-lg border ${ACCESS_STATUS_STYLES[currentStatus] || ACCESS_STATUS_STYLES.active}`}
+                >
+                  {ACCESS_STATUS_LABELS[currentStatus] || "ใช้งานได้"}
+                </span>
+
                 <button
                   onClick={() => cycleRole(u.id, currentRole)}
                   className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition-all hover:scale-105 ${ROLE_STYLES[currentRole] || ROLE_STYLES.user}`}
@@ -497,6 +572,25 @@ function PermissionsSection() {
                 >
                   {ROLE_LABELS[currentRole] || "User"}
                 </button>
+
+                {currentStatus !== "active" && (
+                  <button
+                    onClick={() => setAccessStatus(u.id, currentStatus, "active")}
+                    className="px-3 py-1.5 text-xs font-bold rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors"
+                  >
+                    อนุมัติ
+                  </button>
+                )}
+
+                {currentStatus === "active" && (
+                  <button
+                    onClick={() => setAccessStatus(u.id, currentStatus, "suspended")}
+                    className="px-3 py-1.5 text-xs font-bold rounded-lg border border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    disabled={u.id === currentUserId}
+                  >
+                    ระงับ
+                  </button>
+                )}
               </div>
             );
           })}
@@ -2574,6 +2668,7 @@ function LeaveBalanceAdminSection() {
         supabase
           .from("profiles_with_avatar")
           .select("id, first_name, last_name, department, avatar_url")
+          .eq("access_status", "active")
           .order("first_name"),
         supabase
           .from("leave_balances_with_policy")
