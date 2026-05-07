@@ -146,7 +146,22 @@ const OT_REASON_PRESETS = [
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function getLocalToday() {
-  return new Date().toISOString().split("T")[0];
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function toLocalDateOnly(date: string) {
+  const [year, month, day] = date.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function countInclusiveCalendarDays(fromDate: string, toDate: string) {
+  const start = toLocalDateOnly(fromDate).getTime();
+  const end = toLocalDateOnly(toDate).getTime();
+  return Math.floor((end - start) / (1000 * 60 * 60 * 24)) + 1;
 }
 
 function calcHours(start: string, end: string): number {
@@ -629,6 +644,9 @@ function LeaveForm() {
   // ── Computed ──────────────────────────────────────────────────────────────
   const days = calcDays(form.startDate, form.endDate);
   const hourlyCount = form.period === "hourly" ? calcHours(form.hourlyStart, form.hourlyEnd) : 0;
+  const vacationAdvanceDays = countInclusiveCalendarDays(today, form.startDate);
+  const isVacationAdvanceInvalid =
+    form.leaveType === "vacation" && vacationAdvanceDays < 3;
 
   // effective days used for balance comparison (mirrors DB trigger: hours/8)
   const effectiveDays = (() => {
@@ -645,6 +663,7 @@ function LeaveForm() {
     form.leaveType &&
     form.startDate &&
     form.reason.trim() &&
+    !isVacationAdvanceInvalid &&
     (form.period === "hourly" ? hourlyCount > 0 : effectiveDays > 0);
 
   const currentBalance = form.leaveType ? balanceMap[form.leaveType] : null;
@@ -727,7 +746,12 @@ function LeaveForm() {
   };
 
   const handleSubmit = async () => {
-    if (!isValid || !userId) return;
+    if (!userId) return;
+    if (isVacationAdvanceInvalid) {
+      setError("ลาพักร้อนต้องยื่นล่วงหน้าอย่างน้อย 3 วัน โดยนับรวมวันที่ทำรายการ");
+      return;
+    }
+    if (!isValid) return;
     setSubmitting(true);
     setError(null);
 
@@ -1036,6 +1060,44 @@ function LeaveForm() {
       </div>
 
       {/* ── Card 3: ช่วงเวลา (เฉพาะ sick / personal / special_personal) ──────── */}
+      {form.leaveType === "vacation" && (
+        <div
+          className={`flex items-start gap-2.5 px-4 py-3 rounded-2xl border ${
+            isVacationAdvanceInvalid
+              ? "bg-amber-50 border-amber-200"
+              : "bg-emerald-50 border-emerald-100"
+          }`}
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            className={`w-4 h-4 flex-shrink-0 mt-0.5 ${
+              isVacationAdvanceInvalid ? "text-amber-500" : "text-emerald-500"
+            }`}
+          >
+            {isVacationAdvanceInvalid ? (
+              <>
+                <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                <line x1="12" y1="9" x2="12" y2="13" />
+                <line x1="12" y1="17" x2="12.01" y2="17" />
+              </>
+            ) : (
+              <polyline points="20 6 9 17 4 12" />
+            )}
+          </svg>
+          <p
+            className={`text-xs leading-relaxed ${
+              isVacationAdvanceInvalid ? "text-amber-700" : "text-emerald-700"
+            }`}
+          >
+            ลาพักร้อนต้องยื่นล่วงหน้าอย่างน้อย 3 วัน โดยนับรวมวันที่ทำรายการ
+            {vacationAdvanceDays > 0 ? ` ตอนนี้นับได้ ${vacationAdvanceDays} วัน` : ""}
+          </p>
+        </div>
+      )}
+
       {showPeriod && (
         <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
           <div className="px-4 pt-3.5 pb-0">

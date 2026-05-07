@@ -17,6 +17,14 @@ interface ChangelogEntry {
 // ─── Changelog Data (Dev/Admin) ────────────
 const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "3.2.1",
+    date: "2026-05-08",
+    items: [
+      { tag: "improvement", text: "เพิ่มกติกาลาพักร้อนต้องยื่นล่วงหน้าอย่างน้อย 3 วัน โดยนับรวมวันที่ทำรายการ" },
+      { tag: "fix",         text: "เพิ่มตัวตรวจสอบฝั่งฐานข้อมูลเพื่อกันการบันทึกใบลาพักร้อนที่ไม่ตรงตามกติกาบริษัท" },
+    ],
+  },
+  {
     version: "3.2.0",
     date: "2026-05-07",
     items: [
