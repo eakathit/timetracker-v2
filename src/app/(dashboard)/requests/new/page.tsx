@@ -63,10 +63,15 @@ const LeaveIcons: Record<string, React.ReactNode> = {
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth="1.8"
-      className="w-6 h-6"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="w-4 h-4"
     >
-      <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+      <path d="M9 7V5a3 3 0 0 1 6 0v2" />
+      <rect x="4" y="7" width="16" height="13" rx="3" />
+      <path d="M12 11v5" />
+      <path d="M9.5 13.5h5" />
     </svg>
   ),
   personal: (
@@ -74,13 +79,16 @@ const LeaveIcons: Record<string, React.ReactNode> = {
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth="1.8"
-      className="w-6 h-6"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="w-4 h-4"
     >
-      <rect x="2" y="7" width="20" height="14" rx="2" />
-      <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
-      <line x1="12" y1="12" x2="12" y2="16" />
-      <line x1="10" y1="14" x2="14" y2="14" />
+      <path d="M9 5h6" />
+      <path d="M9 3h6a2 2 0 0 1 2 2v1H7V5a2 2 0 0 1 2-2Z" />
+      <path d="M7 5H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-1" />
+      <path d="M8 12h8" />
+      <path d="M8 16h5" />
     </svg>
   ),
   vacation: (
@@ -88,18 +96,18 @@ const LeaveIcons: Record<string, React.ReactNode> = {
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth="1.8"
-      className="w-6 h-6"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="w-4 h-4"
     >
-      <circle cx="12" cy="12" r="4" />
-      <line x1="12" y1="2" x2="12" y2="4" />
-      <line x1="12" y1="20" x2="12" y2="22" />
-      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
-      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
-      <line x1="2" y1="12" x2="4" y2="12" />
-      <line x1="20" y1="12" x2="22" y2="12" />
-      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
-      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+      <path d="M4 13a8 8 0 0 1 16 0" />
+      <path d="M4 13h16" />
+      <path d="M12 13v7" />
+      <path d="M12 20a2 2 0 0 0 4 0" />
+      <path d="M8 6.5 6.5 5" />
+      <path d="M16 6.5 17.5 5" />
+      <path d="M12 5V3" />
     </svg>
   ),
   special_personal: (
@@ -107,10 +115,28 @@ const LeaveIcons: Record<string, React.ReactNode> = {
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth="1.8"
-      className="w-6 h-6"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="w-4 h-4"
     >
-      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+      <path d="M12 3 14.6 8.4 20.5 9.2 16.2 13.4 17.2 19.3 12 16.5 6.8 19.3 7.8 13.4 3.5 9.2 9.4 8.4 12 3Z" />
+    </svg>
+  ),
+  holiday_swap: (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="w-4 h-4"
+    >
+      <path d="M17 2l4 4-4 4" />
+      <path d="M3 11V9a3 3 0 0 1 3-3h15" />
+      <path d="M7 22l-4-4 4-4" />
+      <path d="M21 13v2a3 3 0 0 1-3 3H3" />
     </svg>
   ),
   other: (
@@ -118,23 +144,35 @@ const LeaveIcons: Record<string, React.ReactNode> = {
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth="1.8"
-      className="w-6 h-6"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="w-4 h-4"
     >
-      <circle cx="12" cy="12" r="10" />
-      <line x1="12" y1="8" x2="12" y2="12" />
-      <line x1="12" y1="16" x2="12.01" y2="16" />
+      <path d="M14 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7Z" />
+      <path d="M14 2v5h5" />
+      <path d="M9 13h6" />
+      <path d="M9 17h4" />
     </svg>
   ),
 };
 
-const LEAVE_TYPES: { id: LeaveType; label: string; desc: string; icon: string; bg: string }[] = [
-  { id: "sick",             label: "ลาป่วย",      desc: "เจ็บป่วยหรือต้องพบแพทย์",    icon: "🤒", bg: "bg-rose-100"   },
-  { id: "personal",         label: "ลากิจ",       desc: "ธุระส่วนตัว",                icon: "📋", bg: "bg-amber-100"  },
-  { id: "vacation",         label: "ลาพักร้อน",   desc: "วันหยุดพักผ่อน",             icon: "🌴", bg: "bg-violet-100" },
-  { id: "special_personal", label: "ลากิจพิเศษ",  desc: "กิจธุระพิเศษ",               icon: "⭐", bg: "bg-sky-100"    },
-  { id: "holiday_swap",     label: "แลกวันหยุด",  desc: "สะสมจากทำงานในวันหยุด",      icon: "🔄", bg: "bg-teal-100"   },
-  { id: "other",            label: "ลาอื่นๆ",     desc: "ระบุในเหตุผล",               icon: "📝", bg: "bg-gray-200"   },
+const LEAVE_ICON_STYLE: Record<LeaveType, string> = {
+  sick: "bg-rose-50 text-rose-600",
+  personal: "bg-amber-50 text-amber-600",
+  vacation: "bg-violet-50 text-violet-600",
+  special_personal: "bg-sky-50 text-sky-600",
+  holiday_swap: "bg-teal-50 text-teal-600",
+  other: "bg-gray-50 text-gray-500",
+};
+
+const LEAVE_TYPES: { id: LeaveType; label: string; desc: string }[] = [
+  { id: "sick",             label: "ลาป่วย",      desc: "เจ็บป่วย / พบแพทย์" },
+  { id: "personal",         label: "ลากิจ",       desc: "ธุระส่วนตัว / เหตุจำเป็น" },
+  { id: "vacation",         label: "ลาพักร้อน",   desc: "วันหยุดพักผ่อนประจำปี" },
+  { id: "special_personal", label: "ลากิจพิเศษ",  desc: "เหตุพิเศษตามนโยบายบริษัท" },
+  { id: "holiday_swap",     label: "แลกวันหยุด",  desc: "สะสมจากทำงานในวันหยุด" },
+  { id: "other",            label: "ลาอื่นๆ",     desc: "ระบุเหตุผลเพิ่มเติม" },
 ];
 
 const OT_REASON_PRESETS = [
@@ -827,10 +865,10 @@ function LeaveForm() {
                 }`}
               >
                 {/* Icon badge */}
-                <span className={`mb-2.5 w-9 h-9 rounded-xl flex items-center justify-center text-lg ${
-                  form.leaveType === lt.id ? "bg-white/15" : lt.bg
+                <span className={`mb-2.5 w-9 h-9 rounded-xl flex items-center justify-center ${
+                  form.leaveType === lt.id ? "bg-white/15 text-white" : LEAVE_ICON_STYLE[lt.id]
                 }`}>
-                  {lt.icon}
+                  {LeaveIcons[lt.id]}
                 </span>
 
                 <p className={`text-sm font-black ${form.leaveType === lt.id ? "text-white" : "text-gray-800"}`}>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { createBrowserClient } from "@supabase/ssr";
 import UserAvatar from "@/components/UserAvatar";
@@ -19,6 +19,7 @@ type RequestTab = "ot" | "leave";
 type ManagerTab = "mine" | "pending";
 type ReqStatus  = "pending" | "approved" | "rejected";
 type LeaveType  = "sick" | "personal" | "vacation" | "maternity";
+type PeriodFilter = "this_month" | "last_month" | "all";
 
 interface Profile {
   id: string;
@@ -121,6 +122,28 @@ function fmtDateTime(d: string) {
   return `${dt.getDate()} ${TH_MONTHS[dt.getMonth() + 1]} ${dt.getFullYear() + 543}  ${dt.getHours().toString().padStart(2, "0")}:${dt.getMinutes().toString().padStart(2, "0")} น.`;
 }
 
+function monthKey(date = new Date()) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function shiftMonthKey(base: string, diff: number) {
+  const [year, month] = base.split("-").map(Number);
+  const d = new Date(year, month - 1 + diff, 1);
+  return monthKey(d);
+}
+
+function formatMonthLabel(key: string) {
+  const [year, month] = key.split("-").map(Number);
+  return `${TH_MONTHS[month]} ${year + 543}`;
+}
+
+function getRequestMonth(item: OTRequest | LeaveRequest, type: RequestTab) {
+  const date = type === "ot"
+    ? (item as OTRequest).request_date
+    : (item as LeaveRequest).start_date;
+  return date?.slice(0, 7) ?? "";
+}
+
 // ─── Avatar ───────────────────────────────────────────────────────────────────
 const AVATAR_COLORS = ["bg-violet-400", "bg-sky-400", "bg-rose-400", "bg-emerald-400", "bg-amber-400", "bg-indigo-400"];
 function avatarColor(userId: string) {
@@ -221,44 +244,52 @@ function OTCard({ req, showUser, onClick }: { req: OTRequest; showUser: boolean;
 // SVG icons inline สำหรับ card (ใช้ซ้ำจาก LeaveIcons config)
 const LeaveCardIcon: Record<string, React.ReactNode> = {
   sick: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-5 h-5">
-      <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+      <path d="M9 7V5a3 3 0 0 1 6 0v2" />
+      <rect x="4" y="7" width="16" height="13" rx="3" />
+      <path d="M12 11v5" />
+      <path d="M9.5 13.5h5" />
     </svg>
   ),
   personal: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-5 h-5">
-      <rect x="2" y="7" width="20" height="14" rx="2"/>
-      <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+      <path d="M9 5h6" />
+      <path d="M9 3h6a2 2 0 0 1 2 2v1H7V5a2 2 0 0 1 2-2Z" />
+      <path d="M7 5H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-1" />
+      <path d="M8 12h8" />
+      <path d="M8 16h5" />
     </svg>
   ),
   vacation: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-5 h-5">
-      <circle cx="12" cy="12" r="4"/>
-      <line x1="12" y1="2" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="22"/>
-      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
-      <line x1="2" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="22" y2="12"/>
-      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+      <path d="M4 13a8 8 0 0 1 16 0" />
+      <path d="M4 13h16" />
+      <path d="M12 13v7" />
+      <path d="M12 20a2 2 0 0 0 4 0" />
+      <path d="M8 6.5 6.5 5" />
+      <path d="M16 6.5 17.5 5" />
+      <path d="M12 5V3" />
     </svg>
   ),
   special_personal: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-5 h-5">
-      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+      <path d="M12 3 14.6 8.4 20.5 9.2 16.2 13.4 17.2 19.3 12 16.5 6.8 19.3 7.8 13.4 3.5 9.2 9.4 8.4 12 3Z" />
     </svg>
   ),
   holiday_swap: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-5 h-5">
-      <polyline points="17 1 21 5 17 9"/>
-      <path d="M3 11V9a4 4 0 0 1 4-4h14"/>
-      <polyline points="7 23 3 19 7 15"/>
-      <path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+      <path d="M17 2l4 4-4 4" />
+      <path d="M3 11V9a3 3 0 0 1 3-3h15" />
+      <path d="M7 22l-4-4 4-4" />
+      <path d="M21 13v2a3 3 0 0 1-3 3H3" />
     </svg>
   ),
   other: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-5 h-5">
-      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-      <polyline points="14 2 14 8 20 8"/>
-      <line x1="8" y1="13" x2="16" y2="13"/>
-      <line x1="8" y1="17" x2="12" y2="17"/>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+      <path d="M14 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7Z" />
+      <path d="M14 2v5h5" />
+      <path d="M9 13h6" />
+      <path d="M9 17h4" />
     </svg>
   ),
   maternity: (
@@ -607,16 +638,122 @@ function BottomSheet({
 }
 
 // ─── Summary Strip ────────────────────────────────────────────────────────────
-function SummaryStrip({ items }: { items: { label: string; value: number; unit: string; c: string; bg: string; border: string }[] }) {
+function SummaryIcon({ type }: { type: "pending" | "approved" | "hours" | "leave" }) {
+  const iconClass = "h-4 w-4";
+  if (type === "pending") {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={iconClass}>
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 7v5l3 2" />
+      </svg>
+    );
+  }
+  if (type === "approved") {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className={iconClass}>
+        <path d="M20 6 9 17l-5-5" />
+      </svg>
+    );
+  }
+  if (type === "leave") {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={iconClass}>
+        <rect x="3" y="4" width="18" height="17" rx="3" />
+        <path d="M8 2v4" />
+        <path d="M16 2v4" />
+        <path d="M3 10h18" />
+        <path d="M9 15h6" />
+      </svg>
+    );
+  }
   return (
-    <div className="grid grid-cols-3 gap-2 mb-5">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={iconClass}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 2" />
+    </svg>
+  );
+}
+
+function SummaryStrip({
+  items,
+  caption,
+}: {
+  items: {
+    label: string;
+    value: number;
+    unit: string;
+    c: string;
+    bg: string;
+    border: string;
+    icon: "pending" | "approved" | "hours" | "leave";
+  }[];
+  caption: string;
+}) {
+  return (
+    <div className="mb-5">
+      <div className="mb-2 flex items-center justify-between">
+        <p className="text-[11px] font-semibold text-gray-400">
+          แสดงข้อมูล: <span className="text-gray-600">{caption}</span>
+        </p>
+      </div>
+    <div className="grid grid-cols-3 gap-2.5">
       {items.map((it) => (
-        <div key={it.label} className={`${it.bg} rounded-2xl px-3 py-3.5 text-center`}>
-          <p className={`text-2xl font-black leading-none ${it.c}`}>{it.value}</p>
-          <p className="text-[10px] text-gray-400 font-semibold mt-1">{it.unit}</p>
-          <p className="text-[10px] text-gray-500 font-medium">{it.label}</p>
+        <div
+          key={it.label}
+          className={`relative overflow-hidden rounded-[18px] border bg-white px-3 py-3.5 shadow-sm ${it.border}`}
+        >
+          <div className={`absolute inset-x-0 top-0 h-1 ${it.bg}`} />
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <span className={`flex h-8 w-8 items-center justify-center rounded-2xl ${it.bg} ${it.c}`}>
+              <SummaryIcon type={it.icon} />
+            </span>
+            <span className="rounded-full bg-gray-50 px-2 py-1 text-[10px] font-bold text-gray-400">
+              {it.unit}
+            </span>
+          </div>
+          <p className={`text-[26px] font-black leading-none tracking-normal ${it.c}`}>
+            {Number.isInteger(it.value) ? it.value : it.value.toFixed(1)}
+          </p>
+          <p className="mt-1.5 min-h-8 text-[11px] font-bold leading-tight text-gray-700">
+            {it.label}
+          </p>
         </div>
       ))}
+    </div>
+    </div>
+  );
+}
+
+function PeriodFilterBar({
+  value,
+  onChange,
+}: {
+  value: PeriodFilter;
+  onChange: (value: PeriodFilter) => void;
+}) {
+  const options: { id: PeriodFilter; label: string }[] = [
+    { id: "this_month", label: "เดือนนี้" },
+    { id: "last_month", label: "เดือนก่อน" },
+    { id: "all", label: "ทั้งหมด" },
+  ];
+
+  return (
+    <div className="mb-4 flex items-center gap-2 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden">
+      <div className="flex min-w-max rounded-2xl bg-gray-100 p-1">
+        {options.map((option) => (
+          <button
+            key={option.id}
+            onClick={() => onChange(option.id)}
+            className={`rounded-xl px-3 py-2 text-xs font-bold transition-all ${
+              value === option.id
+                ? "bg-white text-gray-900 shadow-sm"
+                : "text-gray-400"
+            }`}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -664,6 +801,7 @@ export default function RequestsPage() {
   const [managerTab,       setManagerTab]       = useState<ManagerTab>("mine");
   const [requestTab,       setRequestTab]       = useState<RequestTab>("ot");
   const [managerPendingTab, setManagerPendingTab] = useState<RequestTab>("ot");
+  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("this_month");
 
   // My requests
   const [myOT,    setMyOT]    = useState<OTRequest[]>([]);
@@ -905,6 +1043,37 @@ const handleRejectLeave = async (id: string, reason: string) => {
   const myPendingOT      = myOT.filter((r) => r.status === "pending").length;
   const myPendingLeave   = myLeave.filter((r) => r.status === "pending").length;
 
+  const activeMonth = useMemo(() => {
+    if (periodFilter === "last_month") return shiftMonthKey(monthKey(), -1);
+    return monthKey();
+  }, [periodFilter]);
+
+  const periodCaption = useMemo(() => {
+    if (periodFilter === "all") return "ทั้งหมด";
+    if (periodFilter === "last_month") return formatMonthLabel(activeMonth);
+    return formatMonthLabel(activeMonth);
+  }, [periodFilter, activeMonth]);
+
+  const filteredMyOT = useMemo(() => {
+    if (periodFilter === "all") return myOT;
+    return myOT.filter((r) => getRequestMonth(r, "ot") === activeMonth);
+  }, [myOT, periodFilter, activeMonth]);
+
+  const filteredMyLeave = useMemo(() => {
+    if (periodFilter === "all") return myLeave;
+    return myLeave.filter((r) => getRequestMonth(r, "leave") === activeMonth);
+  }, [myLeave, periodFilter, activeMonth]);
+
+  const activeList = requestTab === "ot" ? filteredMyOT : filteredMyLeave;
+  const activeEmptyText =
+    periodFilter === "all"
+      ? requestTab === "ot"
+        ? "ยังไม่มีคำขอ OT"
+        : "ยังไม่มีใบลา"
+      : requestTab === "ot"
+        ? `ยังไม่มีคำขอ OT ใน ${periodCaption}`
+        : `ยังไม่มีใบลาใน ${periodCaption}`;
+
   const dept = profile?.department ?? "";
   const fullName = profile ? `${profile.first_name} ${profile.last_name}`.trim() : "";
 
@@ -1027,26 +1196,31 @@ const handleRejectLeave = async (id: string, reason: string) => {
         {/* MY REQUESTS */}
         {(!isManager || managerTab === "mine") && (
           <>
+            <PeriodFilterBar
+              value={periodFilter}
+              onChange={setPeriodFilter}
+            />
+
             {requestTab === "ot"
               ? <SummaryStrip items={[
-                  { label: "รออนุมัติ",  value: myPendingOT, unit: "รายการ", c: "text-amber-600",  bg: "bg-amber-50",  border: "border-amber-100" },
-                  { label: "อนุมัติแล้ว", value: myOT.filter((r) => r.status === "approved").length, unit: "รายการ", c: "text-emerald-600", bg: "bg-emerald-50", border: "border-emerald-100" },
-                  { label: "ชั่วโมง OT", value: myOT.filter((r) => r.status === "approved").reduce((s, r) => s + Number(r.hours), 0), unit: "ชม.", c: "text-sky-600", bg: "bg-sky-50", border: "border-sky-100" },
-                ]} />
+                  { label: "รออนุมัติ",  value: filteredMyOT.filter((r) => r.status === "pending").length, unit: "รายการ", c: "text-amber-600",  bg: "bg-amber-50",  border: "border-amber-100", icon: "pending" },
+                  { label: "อนุมัติแล้ว", value: filteredMyOT.filter((r) => r.status === "approved").length, unit: "รายการ", c: "text-emerald-600", bg: "bg-emerald-50", border: "border-emerald-100", icon: "approved" },
+                  { label: "ชั่วโมง OT", value: filteredMyOT.filter((r) => r.status === "approved").reduce((s, r) => s + Number(r.hours), 0), unit: "ชม.", c: "text-sky-600", bg: "bg-sky-50", border: "border-sky-100", icon: "hours" },
+                ]} caption={periodCaption} />
               : <SummaryStrip items={[
-                  { label: "รออนุมัติ",  value: myPendingLeave, unit: "รายการ", c: "text-amber-600",  bg: "bg-amber-50",  border: "border-amber-100" },
-                  { label: "อนุมัติแล้ว", value: myLeave.filter((r) => r.status === "approved").length, unit: "รายการ", c: "text-emerald-600", bg: "bg-emerald-50", border: "border-emerald-100" },
-                  { label: "วันลาที่ใช้", value: myLeave.filter((r) => r.status === "approved").reduce((s, r) => s + r.days, 0), unit: "วัน", c: "text-sky-600", bg: "bg-sky-50", border: "border-sky-100" },
-                ]} />
+                  { label: "รออนุมัติ",  value: filteredMyLeave.filter((r) => r.status === "pending").length, unit: "รายการ", c: "text-amber-600",  bg: "bg-amber-50",  border: "border-amber-100", icon: "pending" },
+                  { label: "อนุมัติแล้ว", value: filteredMyLeave.filter((r) => r.status === "approved").length, unit: "รายการ", c: "text-emerald-600", bg: "bg-emerald-50", border: "border-emerald-100", icon: "approved" },
+                  { label: "วันลาที่ใช้", value: filteredMyLeave.filter((r) => r.status === "approved").reduce((s, r) => s + r.days, 0), unit: "วัน", c: "text-sky-600", bg: "bg-sky-50", border: "border-sky-100", icon: "leave" },
+                ]} caption={periodCaption} />
             }
 
             {loading ? <LoadingState /> : (
               <div className="space-y-3">
                 {requestTab === "ot"
-                  ? myOT.length === 0 ? <EmptyState text="ยังไม่มีคำขอ OT" />
-                    : myOT.map((r) => <OTCard key={r.id} req={r} showUser={false} onClick={() => setSelectedOT(r)} />)
-                  : myLeave.length === 0 ? <EmptyState text="ยังไม่มีใบลา" />
-                    : myLeave.map((r) => <LeaveCard key={r.id} req={r} showUser={false} onClick={() => setSelectedLeave(r)} />)
+                  ? activeList.length === 0 ? <EmptyState text={activeEmptyText} />
+                    : filteredMyOT.map((r) => <OTCard key={r.id} req={r} showUser={false} onClick={() => setSelectedOT(r)} />)
+                  : activeList.length === 0 ? <EmptyState text={activeEmptyText} />
+                    : filteredMyLeave.map((r) => <LeaveCard key={r.id} req={r} showUser={false} onClick={() => setSelectedLeave(r)} />)
                 }
               </div>
             )}

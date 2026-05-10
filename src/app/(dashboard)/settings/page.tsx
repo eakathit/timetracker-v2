@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import type { LeavePolicy } from "@/types/leave";
 import type { LeaveBalanceWithPolicy } from "@/types/leave";
@@ -70,7 +70,7 @@ const SETTINGS_TABS = [
   },
   {
     id: "leave",
-    label: "วันลา",
+    label: "นโยบายวันลา",
     icon: (
       <svg
         viewBox="0 0 24 24"
@@ -2389,13 +2389,128 @@ function HolidaysSection() {
 
 // ─── Leave Policy Section ─────────────────────────────────────────────────────
 
-const LEAVE_ICON: Record<string, string> = {
-  vacation: "🌴",
-  sick: "🤒",
-  personal: "📋",
-  special_personal: "⭐",
-  other: "📝",
+const LEAVE_POLICY_ICON_STYLE: Record<string, string> = {
+  vacation: "bg-violet-50 text-violet-600",
+  sick: "bg-rose-50 text-rose-600",
+  personal: "bg-amber-50 text-amber-600",
+  special_personal: "bg-sky-50 text-sky-600",
+  holiday_swap: "bg-teal-50 text-teal-600",
+  other: "bg-gray-50 text-gray-500",
 };
+
+const HOURS_PER_LEAVE_DAY = 8;
+
+function LeavePolicyIcon({ type }: { type: string }) {
+  const iconClass = "h-4 w-4";
+  const icons: Record<string, React.ReactNode> = {
+    sick: (
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className={iconClass}
+      >
+        <path d="M14 14.76V5a4 4 0 0 0-8 0v9.76a6 6 0 1 0 8 0Z" />
+        <path d="M10 5v10" />
+        <path d="M10 19a2 2 0 0 0 0-4" />
+        <path d="M16 6h3" />
+        <path d="M16 10h2" />
+      </svg>
+    ),
+    personal: (
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className={iconClass}
+      >
+        <path d="M9 5h6" />
+        <path d="M9 3h6a2 2 0 0 1 2 2v1H7V5a2 2 0 0 1 2-2Z" />
+        <path d="M7 5H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-1" />
+        <path d="M8 12h8" />
+        <path d="M8 16h5" />
+      </svg>
+    ),
+    vacation: (
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className={iconClass}
+      >
+        <rect x="3" y="4" width="18" height="17" rx="3" />
+        <path d="M8 2v4" />
+        <path d="M16 2v4" />
+        <path d="M3 10h18" />
+        <path d="m9 16 2 2 4-5" />
+      </svg>
+    ),
+    special_personal: (
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className={iconClass}
+      >
+        <path d="M12 3 14.6 8.4 20.5 9.2 16.2 13.4 17.2 19.3 12 16.5 6.8 19.3 7.8 13.4 3.5 9.2 9.4 8.4 12 3Z" />
+      </svg>
+    ),
+    holiday_swap: (
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className={iconClass}
+      >
+        <path d="M17 2l4 4-4 4" />
+        <path d="M3 11V9a3 3 0 0 1 3-3h15" />
+        <path d="M7 22l-4-4 4-4" />
+        <path d="M21 13v2a3 3 0 0 1-3 3H3" />
+      </svg>
+    ),
+    other: (
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className={iconClass}
+      >
+        <path d="M14 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7Z" />
+        <path d="M14 2v5h5" />
+        <path d="M9 13h6" />
+        <path d="M9 17h4" />
+      </svg>
+    ),
+  };
+
+  return (
+    <span
+      className={`flex h-9 w-9 items-center justify-center rounded-xl ${
+        LEAVE_POLICY_ICON_STYLE[type] ?? LEAVE_POLICY_ICON_STYLE.other
+      }`}
+    >
+      {icons[type] ?? icons.other}
+    </span>
+  );
+}
 
 function LeavePolicySection() {
   const [policies, setPolicies] = useState<LeavePolicy[]>([]);
@@ -2453,39 +2568,50 @@ function LeavePolicySection() {
 
   return (
     <div className="space-y-4">
-      {/* header note */}
-      <div className="flex items-start gap-2.5 px-4 py-3 bg-sky-50 border border-sky-100 rounded-2xl">
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          className="w-4 h-4 text-sky-500 mt-0.5 flex-shrink-0"
-        >
-          <circle cx="12" cy="12" r="10" />
-          <line x1="12" y1="8" x2="12" y2="12" />
-          <line x1="12" y1="16" x2="12.01" y2="16" />
-        </svg>
-        <p className="text-xs text-sky-700 leading-relaxed">
-          การแก้ไขจะมีผลกับพนักงานที่สมัครใหม่ในปีถัดไป · พนักงานที่มี balance
-          อยู่แล้วจะไม่ถูกกระทบ
-        </p>
+      <div className="rounded-2xl border border-sky-100 bg-sky-50/80 px-4 py-3">
+        <div className="flex items-start gap-3">
+          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl bg-white text-sky-500 shadow-sm">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              className="h-4 w-4"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+          </div>
+          <div>
+            <p className="text-sm font-bold text-sky-800">นโยบายวันลา</p>
+            <p className="mt-0.5 text-xs leading-relaxed text-sky-700">
+              ใช้ตั้งค่าสิทธิ์เริ่มต้นสำหรับพนักงานใหม่และการสร้างสิทธิ์ปีใหม่
+              ไม่แก้ยอดรายคนย้อนหลังที่สร้างไว้แล้ว
+            </p>
+            <p className="mt-1 text-[11px] font-semibold text-sky-600">
+              หน่วยตั้งค่าใช้เป็นวันตามกติกาบริษัท และระบบจะแปลงเป็นชั่วโมงในหน้า balance โดยคิด 1 วัน = {HOURS_PER_LEAVE_DAY} ชม.
+            </p>
+          </div>
+        </div>
       </div>
 
       {policies.map((policy) => {
         const isSaving = saving === policy.id;
         const isSaved = saved === policy.id;
+        const yearlyHours = Number(policy.days_per_year) * HOURS_PER_LEAVE_DAY;
+        const carryOverHours =
+          Number(policy.max_carry_over) * HOURS_PER_LEAVE_DAY;
+        const isVacation = policy.leave_type === "vacation";
         return (
           <div
             key={policy.id}
-            className={`bg-white rounded-2xl border shadow-sm overflow-hidden transition-all ${policy.is_active ? "border-gray-100" : "border-gray-100 opacity-60"}`}
+            className={`overflow-hidden rounded-2xl border bg-white shadow-sm transition-all ${policy.is_active ? "border-gray-100" : "border-gray-100 opacity-60"}`}
           >
             {/* card header */}
-            <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-50">
+            <div className="flex items-center justify-between gap-3 border-b border-gray-50 px-5 py-3.5">
               <div className="flex items-center gap-2.5">
-                <span className="text-lg">
-                  {LEAVE_ICON[policy.leave_type] ?? "📅"}
-                </span>
+                <LeavePolicyIcon type={policy.leave_type} />
                 <div>
                   <p className="text-sm font-bold text-gray-700">
                     {policy.label_th}
@@ -2514,17 +2640,23 @@ function LeavePolicySection() {
             </div>
 
             {/* fields */}
-            <div className="px-5 py-4 grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid gap-3 px-5 py-4 md:grid-cols-2">
               {/* days_per_year */}
-              <div>
-                <p className="text-[11px] font-bold text-gray-400 mb-1.5">
-                  วัน/ปี
-                </p>
+              <div className="rounded-xl border border-gray-100 bg-gray-50/60 p-3">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <p className="text-[11px] font-bold text-gray-400">
+                    สิทธิ์ต่อปี
+                  </p>
+                  <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-gray-400">
+                    {yearlyHours} ชม./ปี
+                  </span>
+                </div>
                 <div className="flex items-center gap-1.5">
                   <input
                     type="number"
                     min={0}
                     max={365}
+                    step={0.5}
                     value={policy.days_per_year}
                     onChange={(e) =>
                       update(policy.id, "days_per_year", Number(e.target.value))
@@ -2540,18 +2672,27 @@ function LeavePolicySection() {
                     0 = ไม่จำกัด
                   </p>
                 )}
+                <p className="mt-1 text-[10px] text-gray-400">
+                  ใช้เป็นฐานตอนสร้าง balance ของปีนั้น
+                </p>
               </div>
 
               {/* max_carry_over */}
-              <div>
-                <p className="text-[11px] font-bold text-gray-400 mb-1.5">
-                  สะสมสูงสุด
-                </p>
+              <div className="rounded-xl border border-gray-100 bg-gray-50/60 p-3">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <p className="text-[11px] font-bold text-gray-400">
+                    สะสมสูงสุด
+                  </p>
+                  <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-gray-400">
+                    {carryOverHours} ชม. สูงสุด
+                  </span>
+                </div>
                 <div className="flex items-center gap-1.5">
                   <input
                     type="number"
                     min={0}
                     max={365}
+                    step={0.5}
                     value={policy.max_carry_over}
                     onChange={(e) =>
                       update(
@@ -2568,6 +2709,15 @@ function LeavePolicySection() {
                 </div>
                 {policy.max_carry_over === 0 && (
                   <p className="text-[10px] text-gray-400 mt-1">0 = ไม่สะสม</p>
+                )}
+                {isVacation ? (
+                  <p className="mt-1 text-[10px] font-semibold text-violet-500">
+                    ใช้คำนวณทบลาพักร้อนข้ามปี
+                  </p>
+                ) : (
+                  <p className="mt-1 text-[10px] text-gray-400">
+                    ตั้งเป็น 0 หากไม่ต้องการให้สะสมข้ามปี
+                  </p>
                 )}
               </div>
 
@@ -2639,6 +2789,19 @@ interface UserWithBalances {
   balances: LeaveBalanceWithPolicy[];
 }
 
+interface VacationCarryOverPreview {
+  user_id: string;
+  first_name: string;
+  last_name: string;
+  department: string | null;
+  previous_year: number;
+  target_year: number;
+  previous_remaining_hours: number;
+  carry_over_hours: number;
+  total_hours: number;
+  already_initialized: boolean;
+}
+
 const LEAVE_ORDER = [
   "vacation",
   "sick",
@@ -2649,6 +2812,11 @@ const LEAVE_ORDER = [
 
 function LeaveBalanceAdminSection() {
   const currentYear = new Date().getFullYear();
+  const [rolloverYear, setRolloverYear] = useState(currentYear + 1);
+  const [rolloverPreview, setRolloverPreview] = useState<VacationCarryOverPreview[]>([]);
+  const [rolloverLoading, setRolloverLoading] = useState(false);
+  const [rolloverApplying, setRolloverApplying] = useState(false);
+  const [rolloverMessage, setRolloverMessage] = useState<string | null>(null);
   const [users, setUsers] = useState<UserWithBalances[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedUser, setSelectedUser] = useState<UserWithBalances | null>(
@@ -2661,9 +2829,8 @@ function LeaveBalanceAdminSection() {
   const [saved, setSaved] = useState(false);
   const [search, setSearch] = useState("");
 
-  // ── โหลด users + balances ───────────────────────────────────────────────────
-  useEffect(() => {
-    (async () => {
+  const loadUsers = useCallback(async () => {
+      setLoading(true);
       const [{ data: profiles }, { data: balances }] = await Promise.all([
         supabase
           .from("profiles_with_avatar")
@@ -2676,7 +2843,10 @@ function LeaveBalanceAdminSection() {
           .eq("year", currentYear),
       ]);
 
-      if (!profiles) return;
+      if (!profiles) {
+        setLoading(false);
+        return;
+      }
 
       const balanceMap = new Map<string, LeaveBalanceWithPolicy[]>();
       (balances ?? []).forEach((b) => {
@@ -2696,8 +2866,40 @@ function LeaveBalanceAdminSection() {
 
       setUsers(result);
       setLoading(false);
+  }, [currentYear]);
+
+  // ── โหลด users + balances ───────────────────────────────────────────────────
+  useEffect(() => {
+    loadUsers();
+  }, [loadUsers]);
+
+  useEffect(() => {
+    let active = true;
+
+    (async () => {
+      setRolloverLoading(true);
+      setRolloverMessage(null);
+
+      const { data, error } = await supabase.rpc("preview_vacation_carry_over", {
+        p_year: rolloverYear,
+      });
+
+      if (!active) return;
+
+      if (error) {
+        setRolloverPreview([]);
+        setRolloverMessage(error.message);
+      } else {
+        setRolloverPreview((data ?? []) as VacationCarryOverPreview[]);
+      }
+
+      setRolloverLoading(false);
     })();
-  }, []);
+
+    return () => {
+      active = false;
+    };
+  }, [rolloverYear]);
 
   // ── เปิด drawer แก้ไขพนักงาน ────────────────────────────────────────────────
   const openEdit = (user: UserWithBalances) => {
@@ -2754,6 +2956,55 @@ function LeaveBalanceAdminSection() {
     setTimeout(() => setSaved(false), 2000);
   };
 
+  const handleInitializeYear = async () => {
+    const ok = window.confirm(
+      `สร้างสิทธิ์วันลาปี ${rolloverYear} ให้พนักงานทั้งหมดหรือไม่? ระบบจะไม่เขียนทับรายการที่มีอยู่แล้ว`,
+    );
+    if (!ok) return;
+
+    setRolloverApplying(true);
+    setRolloverMessage(null);
+
+    const { data, error } = await supabase.rpc("initialize_leave_balances_for_year", {
+      p_year: rolloverYear,
+    });
+
+    if (error) {
+      setRolloverMessage(error.message);
+    } else {
+      setRolloverMessage(`สร้าง/ตรวจสิทธิ์ปี ${rolloverYear} แล้ว ${data ?? 0} คน`);
+      const previewRes = await supabase.rpc("preview_vacation_carry_over", {
+        p_year: rolloverYear,
+      });
+      if (!previewRes.error) {
+        setRolloverPreview((previewRes.data ?? []) as VacationCarryOverPreview[]);
+      }
+    }
+
+    setRolloverApplying(false);
+  };
+
+  const handleInitializeCurrentYear = async () => {
+    if (!selectedUser) return;
+    setSaving(true);
+    setSaved(false);
+
+    const { error } = await supabase.rpc("initialize_leave_balances_for_year", {
+      p_year: currentYear,
+    });
+
+    if (!error) {
+      await loadUsers();
+      setSelectedUser(null);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } else {
+      console.error(error);
+    }
+
+    setSaving(false);
+  };
+
   const filtered = users.filter((u) => {
     const name = `${u.first_name} ${u.last_name}`.toLowerCase();
     return (
@@ -2778,6 +3029,168 @@ function LeaveBalanceAdminSection() {
 
   return (
     <div className="space-y-4">
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-gray-50 flex items-center justify-between gap-3">
+          <div>
+            <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest">
+              ทบลาพักร้อนข้ามปี
+            </h3>
+            <p className="text-xs text-gray-400 mt-1">
+              ลาพักร้อนปีละ 48 ชม. รวมยอดสะสมได้สูงสุด 96 ชม.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              min={currentYear}
+              value={rolloverYear}
+              onChange={(e) => setRolloverYear(Number(e.target.value))}
+              className="w-24 px-3 py-2 text-sm font-semibold text-gray-700 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-sky-300 focus:ring-2 focus:ring-sky-50"
+            />
+            <button
+              onClick={handleInitializeYear}
+              disabled={rolloverApplying || rolloverLoading}
+              className="px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-bold disabled:opacity-50 active:scale-95 transition-all"
+            >
+              {rolloverApplying ? "กำลังสร้าง..." : "สร้างสิทธิ์ปีใหม่"}
+            </button>
+          </div>
+        </div>
+
+        <div className="px-5 py-4">
+          <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+            <div className="flex items-start gap-3">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-600"
+              >
+                <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                <line x1="12" y1="9" x2="12" y2="13" />
+                <line x1="12" y1="17" x2="12.01" y2="17" />
+              </svg>
+              <div className="space-y-1">
+                <p className="text-xs font-bold text-amber-800">
+                  แนะนำให้กดช่วง 30-31 ธ.ค. หรือต้นปี หลังปิดรอบลาพักร้อนแล้ว
+                </p>
+                <p className="text-xs leading-relaxed text-amber-700">
+                  ก่อนกดสร้างสิทธิ์ปีใหม่ ให้ตรวจว่าไม่มีใบลาพักร้อนของปีก่อนค้างอนุมัติแล้ว
+                  เพื่อให้ยอดทบปีใหม่คำนวณจากยอดคงเหลือล่าสุด
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {rolloverMessage && (
+            <p className="mb-3 text-xs font-semibold text-sky-600 bg-sky-50 border border-sky-100 rounded-xl px-3 py-2">
+              {rolloverMessage}
+            </p>
+          )}
+
+          {rolloverLoading ? (
+            <div className="mb-4 h-20 rounded-xl bg-gray-50 animate-pulse" />
+          ) : (
+            <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+              <div className="rounded-xl border border-violet-100 bg-white px-4 py-3 shadow-sm">
+                <p className="text-[11px] font-semibold text-gray-400">
+                  ยอดทบรวมทั้งบริษัท
+                </p>
+                <div className="mt-1 flex items-end gap-1">
+                  <span className="text-2xl font-black leading-none text-violet-600">
+                    {rolloverPreview.reduce((s, r) => s + Number(r.carry_over_hours), 0)}
+                  </span>
+                  <span className="text-xs font-semibold text-gray-400">ชม.</span>
+                </div>
+                <p className="mt-1 text-[11px] text-gray-400">
+                  รวมจากพนักงานทั้งหมดในตาราง preview
+                </p>
+              </div>
+              <div className="rounded-xl border border-emerald-100 bg-white px-4 py-3 shadow-sm">
+                <p className="text-[11px] font-semibold text-gray-400">
+                  พนักงานที่สร้างแล้ว
+                </p>
+                <div className="mt-1 flex items-end gap-1">
+                  <span className="text-2xl font-black leading-none text-emerald-600">
+                    {rolloverPreview.filter((r) => r.already_initialized).length}
+                  </span>
+                  <span className="text-xs font-semibold text-gray-400">คน</span>
+                </div>
+                <p className="mt-1 text-[11px] text-gray-400">
+                  มีสิทธิ์วันลาของปี {rolloverYear} แล้ว
+                </p>
+              </div>
+              <div className="rounded-xl border border-gray-100 bg-white px-4 py-3 shadow-sm">
+                <p className="text-[11px] font-semibold text-gray-400">
+                  พนักงานทั้งหมด
+                </p>
+                <div className="mt-1 flex items-end gap-1">
+                  <span className="text-2xl font-black leading-none text-gray-800">
+                    {rolloverPreview.length}
+                  </span>
+                  <span className="text-xs font-semibold text-gray-400">คน</span>
+                </div>
+                <p className="mt-1 text-[11px] text-gray-400">
+                  เฉพาะพนักงานที่สถานะใช้งานได้
+                </p>
+              </div>
+            </div>
+          )}
+
+          <div className="overflow-hidden rounded-xl border border-gray-100 bg-white">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 text-[11px] text-gray-400">
+                <tr>
+                  <th className="px-4 py-3 text-left font-bold">พนักงาน</th>
+                  <th className="px-4 py-3 text-right font-bold">เหลือปีก่อน</th>
+                  <th className="px-4 py-3 text-right font-bold">ยอดทบ</th>
+                  <th className="px-4 py-3 text-right font-bold">สิทธิ์ปีใหม่</th>
+                  <th className="px-4 py-3 text-right font-bold">สถานะ</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {rolloverPreview.slice(0, 20).map((row) => {
+                  const name =
+                    `${row.first_name ?? ""} ${row.last_name ?? ""}`.trim() ||
+                    "ไม่ระบุชื่อ";
+                  return (
+                    <tr key={row.user_id} className="hover:bg-gray-50/60">
+                      <td className="px-4 py-3">
+                        <p className="font-semibold text-gray-800">{name}</p>
+                        {row.department && (
+                          <p className="text-[11px] text-gray-400">{row.department}</p>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-right text-gray-500">
+                        {Number(row.previous_remaining_hours)} ชม.
+                      </td>
+                      <td className="px-4 py-3 text-right font-bold text-violet-600">
+                        {Number(row.carry_over_hours)} ชม.
+                      </td>
+                      <td className="px-4 py-3 text-right font-bold text-gray-800">
+                        {Number(row.total_hours)} ชม.
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <span
+                          className={`inline-flex min-w-16 justify-center rounded-full px-2.5 py-1 text-[10px] font-bold ${
+                            row.already_initialized
+                              ? "bg-emerald-50 text-emerald-600"
+                              : "bg-amber-50 text-amber-600"
+                          }`}
+                        >
+                          {row.already_initialized ? "สร้างแล้ว" : "รอสร้าง"}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
       {/* search */}
       <div className="relative">
         <svg
@@ -2876,6 +3289,23 @@ function LeaveBalanceAdminSection() {
                       แก้ไขสิทธิ์วันลา — {name}
                     </p>
 
+                    {selectedUser.balances.length === 0 ? (
+                      <div className="rounded-xl border border-amber-100 bg-amber-50 px-4 py-4">
+                        <p className="text-sm font-bold text-amber-700">
+                          ยังไม่มีสิทธิ์วันลาปี {currentYear}
+                        </p>
+                        <p className="text-xs text-amber-600 mt-1">
+                          กดสร้างสิทธิ์ปีปัจจุบันเพื่อเติมรายการวันลาให้พนักงาน แล้วค่อยแก้ไขสิทธิ์ได้
+                        </p>
+                        <button
+                          onClick={handleInitializeCurrentYear}
+                          disabled={saving}
+                          className="mt-3 px-4 py-2 rounded-xl bg-amber-500 text-white text-xs font-bold disabled:opacity-50 active:scale-95 transition-all"
+                        >
+                          {saving ? "กำลังสร้าง..." : "สร้างสิทธิ์ปีปัจจุบัน"}
+                        </button>
+                      </div>
+                    ) : (
                     <div className="space-y-3">
                       {selectedUser.balances.map((b) => {
                         const cfg =
@@ -2959,6 +3389,7 @@ function LeaveBalanceAdminSection() {
                         );
                       })}
                     </div>
+                    )}
 
                     {/* save button */}
                     <div className="flex justify-end mt-4">
