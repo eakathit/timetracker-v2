@@ -17,6 +17,14 @@ interface ChangelogEntry {
 // ─── Changelog Data (Dev/Admin) ────────────
 const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "3.3.1",
+    date: "2026-05-12",
+    items: [
+      { tag: "improvement", text: "ปรับหน้าแก้ไขสิทธิ์วันลาให้แยกคำว่า 'สิทธิ์ประจำปี' ออกจากยอดยกมา และแสดง 'สิทธิ์รวมปีนี้' เมื่อพนักงานมียอดยกมา" },
+      { tag: "improvement", text: "ปรับตาราง preview ทบลาพักร้อนข้ามปีให้ scroll ภายในกล่อง พร้อม header sticky เพื่อไม่ให้รายชื่อพนักงานดันหน้าจอยาวเกินไป" },
+    ],
+  },
+  {
     version: "3.3.0",
     date: "2026-05-11",
     items: [

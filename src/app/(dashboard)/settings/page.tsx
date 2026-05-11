@@ -3138,9 +3138,9 @@ function LeaveBalanceAdminSection() {
             </div>
           )}
 
-          <div className="overflow-hidden rounded-xl border border-gray-100 bg-white">
+          <div className="max-h-[420px] overflow-auto rounded-xl border border-gray-100 bg-white">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 text-[11px] text-gray-400">
+              <thead className="sticky top-0 z-10 bg-gray-50 text-[11px] text-gray-400 shadow-[0_1px_0_0_rgba(229,231,235,0.8)]">
                 <tr>
                   <th className="px-4 py-3 text-left font-bold">พนักงาน</th>
                   <th className="px-4 py-3 text-right font-bold">เหลือปีก่อน</th>
@@ -3150,7 +3150,7 @@ function LeaveBalanceAdminSection() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {rolloverPreview.slice(0, 20).map((row) => {
+                {rolloverPreview.map((row) => {
                   const name =
                     `${row.first_name ?? ""} ${row.last_name ?? ""}`.trim() ||
                     "ไม่ระบุชื่อ";
@@ -3313,6 +3313,14 @@ function LeaveBalanceAdminSection() {
                             b.leave_type as keyof typeof LEAVE_TYPE_CONFIG
                           ];
                         const v = editValues[b.leave_type];
+                        const annualHours = v?.entitled_days ?? 0;
+                        const carriedOverHours = Number(b.carried_over_days) * 8;
+                        const usedHours = v?.used_days ?? 0;
+                        const totalYearHours = annualHours + carriedOverHours;
+                        const remainingHours = Math.max(
+                          0,
+                          totalYearHours - usedHours,
+                        );
                         return (
                           <div
                             key={b.leave_type}
@@ -3327,7 +3335,7 @@ function LeaveBalanceAdminSection() {
                               {/* entitled_days */}
                               <div>
                                 <p className="text-[11px] text-gray-400 mb-1.5">
-                                  สิทธิ์ (ชม./ปี)
+                                  สิทธิ์ประจำปี (ชม.)
                                 </p>
                                 <input
                                   type="number"
@@ -3367,21 +3375,31 @@ function LeaveBalanceAdminSection() {
                                 />
                               </div>
                             </div>
+                            {carriedOverHours > 0 && (
+                              <div className="mt-3 rounded-xl border border-violet-100 bg-violet-50/60 px-3 py-2">
+                                <div className="flex items-center justify-between gap-3">
+                                  <p className="text-[11px] font-semibold text-violet-500">
+                                    สิทธิ์รวมปีนี้
+                                  </p>
+                                  <p className="text-sm font-black text-violet-700">
+                                    {totalYearHours} ชม.
+                                  </p>
+                                </div>
+                                <p className="mt-0.5 text-[10px] text-violet-500">
+                                  สิทธิ์ประจำปี {annualHours} ชม. + ยกยอด {carriedOverHours} ชม.
+                                </p>
+                              </div>
+                            )}
                             {/* remaining preview */}
                             <p className="text-[11px] text-gray-400 mt-2">
                               คงเหลือ:{" "}
                               <span className="font-bold text-emerald-600">
-                                {Math.max(
-                                  0,
-                                  (v?.entitled_days ?? 0) +
-                                    Number(b.carried_over_days) * 8 -
-                                    (v?.used_days ?? 0),
-                                )}{" "}
+                                {remainingHours}{" "}
                                 ชม.
                               </span>
-                              {Number(b.carried_over_days) > 0 && (
+                              {carriedOverHours > 0 && (
                                 <span className="ml-1 text-violet-500">
-                                  (รวมยกยอด {Number(b.carried_over_days) * 8} ชม.)
+                                  (รวมยกยอด {carriedOverHours} ชม.)
                                 </span>
                               )}
                             </p>
