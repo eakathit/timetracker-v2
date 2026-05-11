@@ -691,35 +691,35 @@ function SummaryStrip({
 }) {
   return (
     <div className="mb-5">
-      <div className="mb-2 flex items-center justify-between">
-        <p className="text-[11px] font-semibold text-gray-400">
-          แสดงข้อมูล: <span className="text-gray-600">{caption}</span>
-        </p>
-      </div>
-    <div className="grid grid-cols-3 gap-2.5">
-      {items.map((it) => (
-        <div
-          key={it.label}
-          className={`relative overflow-hidden rounded-[18px] border bg-white px-3 py-3.5 shadow-sm ${it.border}`}
-        >
-          <div className={`absolute inset-x-0 top-0 h-1 ${it.bg}`} />
-          <div className="mb-3 flex items-center justify-between gap-2">
-            <span className={`flex h-8 w-8 items-center justify-center rounded-2xl ${it.bg} ${it.c}`}>
+      <p className="mb-3 text-[11px] font-medium text-gray-400">
+        แสดงข้อมูล: <span className="font-semibold text-gray-500">{caption}</span>
+      </p>
+      <div className="grid grid-cols-3 gap-2">
+        {items.map((it) => (
+          <div
+            key={it.label}
+            className="flex flex-col rounded-2xl bg-white p-3.5 shadow-[0_1px_6px_rgba(0,0,0,0.06)] border border-gray-100"
+          >
+            {/* Icon circle */}
+            <span className={`mb-3 flex h-8 w-8 items-center justify-center rounded-xl ${it.bg} ${it.c}`}>
               <SummaryIcon type={it.icon} />
             </span>
-            <span className="rounded-full bg-gray-50 px-2 py-1 text-[10px] font-bold text-gray-400">
-              {it.unit}
-            </span>
+
+            {/* Value */}
+            <p className={`text-[26px] font-black leading-none tabular-nums ${it.c}`}>
+              {Number.isInteger(it.value) ? it.value : it.value.toFixed(1)}
+            </p>
+
+            {/* Label */}
+            <p className="mt-1.5 text-[11px] font-semibold leading-snug text-gray-600">
+              {it.label}
+            </p>
+
+            {/* Unit */}
+            <p className="mt-0.5 text-[10px] font-medium text-gray-400">{it.unit}</p>
           </div>
-          <p className={`text-[26px] font-black leading-none tracking-normal ${it.c}`}>
-            {Number.isInteger(it.value) ? it.value : it.value.toFixed(1)}
-          </p>
-          <p className="mt-1.5 min-h-8 text-[11px] font-bold leading-tight text-gray-700">
-            {it.label}
-          </p>
-        </div>
-      ))}
-    </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -847,7 +847,7 @@ export default function RequestsPage() {
         .eq("user_id", profile.id)
         .order("request_date", { ascending: false }),
       supabase
-        .from("leave_requests")
+        .from("leave_requests_with_profile")
         .select("*")
         .eq("user_id", profile.id)
         .order("start_date", { ascending: false }),
