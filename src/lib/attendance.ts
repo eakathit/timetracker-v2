@@ -119,7 +119,7 @@ export async function getEffectiveThreshold(
     .from("leave_requests")
     .select("period_label")
     .eq("user_id", userId)
-    .eq("status", "approved")
+    .in("status", ["approved", "cancel_requested"])
     .lte("start_date", logDate)
     .gte("end_date", logDate);
 

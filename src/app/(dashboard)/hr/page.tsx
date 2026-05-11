@@ -946,7 +946,7 @@ export default function HRAttendancePage() {
           .from("leave_requests")
           .select("user_id, start_date, end_date")
           .in("user_id", userIds)
-          .eq("status", "approved")
+          .in("status", ["approved", "cancel_requested"])
           .lte("start_date", end)
           .gte("end_date", start),
 

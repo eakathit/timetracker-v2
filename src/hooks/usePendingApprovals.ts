@@ -31,7 +31,7 @@ export function usePendingApprovals() {
       supabase
         .from("leave_requests")
         .select("id", { count: "exact", head: true })
-        .eq("status", "pending"),
+        .in("status", ["pending", "cancel_requested"]),
     ]);
 
     const isManager =

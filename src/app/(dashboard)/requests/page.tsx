@@ -17,7 +17,7 @@ const supabase = createBrowserClient(
 type UserRole   = "user" | "manager" | "admin" | "viewer";
 type RequestTab = "ot" | "leave";
 type ManagerTab = "mine" | "pending";
-type ReqStatus  = "pending" | "approved" | "rejected";
+type ReqStatus  = "pending" | "approved" | "rejected" | "cancel_requested" | "cancelled";
 type LeaveType  = "sick" | "personal" | "vacation" | "maternity";
 type PeriodFilter = "this_month" | "last_month" | "all";
 
@@ -67,11 +67,17 @@ interface LeaveRequest {
   reject_reason: string | null;
   actioned_at: string | null;
   created_at: string;
+  cancel_reason: string | null;
+  cancel_requested_at: string | null;
+  cancel_actioned_by: string | null;
+  cancel_actioned_at: string | null;
+  cancel_reject_reason: string | null;
   // จาก View (manager เห็น)
   full_name?: string;
   department?: string;
   avatar_url?: string | null;
   actioned_by_name?: string | null;
+  cancel_actioned_by_name?: string | null;
 }
 
 // ─── Config ───────────────────────────────────────────────────────────────────
@@ -79,6 +85,8 @@ const STATUS_CFG: Record<ReqStatus, { label: string; bg: string; border: string;
   pending:  { label: "รออนุมัติ",  bg: "bg-amber-50",   border: "border-amber-200",  bar: "bg-amber-400",  text: "text-amber-600" },
   approved: { label: "อนุมัติแล้ว", bg: "bg-emerald-50", border: "border-emerald-200", bar: "bg-emerald-400", text: "text-emerald-600" },
   rejected: { label: "ไม่อนุมัติ",  bg: "bg-rose-50",   border: "border-rose-200",   bar: "bg-rose-400",   text: "text-rose-500" },
+  cancel_requested: { label: "รอยกเลิก", bg: "bg-orange-50", border: "border-orange-200", bar: "bg-orange-400", text: "text-orange-600" },
+  cancelled: { label: "ยกเลิกแล้ว", bg: "bg-gray-100", border: "border-gray-200", bar: "bg-gray-400", text: "text-gray-500" },
 };
 
 const LEAVE_CFG: Record<string, { label: string; icon: string; bg: string; text: string }> = {
@@ -94,17 +102,13 @@ const LEAVE_CFG: Record<string, { label: string; icon: string; bg: string; text:
 const TH_MONTHS = ["", "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
 
 // ── สร้าง array ของ date string ทุกวันระหว่าง start ถึง end ──────────────────
-function getDatesInRange(startDate: string, endDate: string): string[] {
+function getCalendarDatesInRange(startDate: string, endDate: string): string[] {
   const dates: string[] = [];
   const current = new Date(startDate + "T00:00:00");
   const end = new Date(endDate + "T00:00:00");
 
   while (current <= end) {
-    // ข้ามเสาร์-อาทิตย์ (ลาเฉพาะวันทำงาน)
-    const dow = current.getDay();
-    if (dow !== 0 && dow !== 6) {
-      dates.push(current.toISOString().slice(0, 10));
-    }
+    dates.push(current.toISOString().slice(0, 10));
     current.setDate(current.getDate() + 1);
   }
   return dates;
@@ -142,6 +146,52 @@ function getRequestMonth(item: OTRequest | LeaveRequest, type: RequestTab) {
     ? (item as OTRequest).request_date
     : (item as LeaveRequest).start_date;
   return date?.slice(0, 7) ?? "";
+}
+
+async function revertApprovedLeaveAttendance(leaveReq: Pick<LeaveRequest, "user_id" | "start_date" | "end_date" | "period_label" | "hours">) {
+  const leaveDates = getCalendarDatesInRange(leaveReq.start_date, leaveReq.end_date);
+  if (leaveDates.length === 0) return;
+
+  const wasFullDay = thresholdFromLeave(leaveReq) === null;
+
+  if (wasFullDay) {
+    const { count, error } = await supabase.from("daily_time_logs")
+      .delete({ count: "exact" })
+      .eq("user_id", leaveReq.user_id)
+      .eq("status", "leave")
+      .in("log_date", leaveDates);
+
+    if (error || (count ?? 0) < leaveDates.length) {
+      await supabase.from("daily_time_logs")
+        .update({ work_type: null, status: "absent" })
+        .eq("user_id", leaveReq.user_id)
+        .eq("status", "leave")
+        .is("first_check_in", null)
+        .is("last_check_out", null)
+        .in("log_date", leaveDates);
+    }
+    return;
+  }
+
+  for (const date of leaveDates) {
+    const { data: log } = await supabase
+      .from("daily_time_logs")
+      .select("first_check_in, status")
+      .eq("user_id", leaveReq.user_id)
+      .eq("log_date", date)
+      .maybeSingle();
+
+    if (log?.first_check_in) {
+      const newStatus = computeAttendanceStatus(log.first_check_in, 8 * 60 + 30);
+      if (newStatus !== log.status) {
+        await supabase
+          .from("daily_time_logs")
+          .update({ status: newStatus })
+          .eq("user_id", leaveReq.user_id)
+          .eq("log_date", date);
+      }
+    }
+  }
 }
 
 // ─── Avatar ───────────────────────────────────────────────────────────────────
@@ -365,17 +415,34 @@ function LeaveCard({ req, showUser, onClick }: { req: LeaveRequest; showUser: bo
 // ─── Bottom Sheet ─────────────────────────────────────────────────────────────
 // ─── Bottom Sheet ─────────────────────────────────────────────────────────────
 function BottomSheet({
-  item, type, canAct, onClose, onApprove, onReject,
+  item,
+  type,
+  canAct,
+  canActCancel = false,
+  canRequestCancel = false,
+  onClose,
+  onApprove,
+  onReject,
+  onApproveCancel,
+  onRejectCancel,
+  onRequestCancel,
 }: {
   item: OTRequest | LeaveRequest;
   type: "ot" | "leave";
   canAct: boolean;
+  canActCancel?: boolean;
+  canRequestCancel?: boolean;
   onClose: () => void;
   onApprove: (id: string) => Promise<void>;
   onReject: (id: string, reason: string) => Promise<void>;
+  onApproveCancel?: (id: string) => Promise<void>;
+  onRejectCancel?: (id: string, reason: string) => Promise<void>;
+  onRequestCancel?: (id: string, reason: string) => Promise<void>;
 }) {
   const [showRejectInput, setShowRejectInput] = useState(false);
   const [rejectReason, setRejectReason]       = useState("");
+  const [showCancelInput, setShowCancelInput] = useState(false);
+  const [cancelReason, setCancelReason]       = useState("");
   const [loading, setLoading]                 = useState(false);
   const st = STATUS_CFG[item.status];
 
@@ -383,6 +450,7 @@ function BottomSheet({
   const dept     = (item as OTRequest).department ?? "";
   const avatarUrl = (item as OTRequest).avatar_url ?? null;
   const actionedByName = (item as OTRequest).actioned_by_name ?? null;
+  const cancelActionedByName = (item as LeaveRequest).cancel_actioned_by_name ?? null;
 
   const handleApprove = async () => {
     setLoading(true);
@@ -395,6 +463,30 @@ function BottomSheet({
     if (!rejectReason.trim()) return;
     setLoading(true);
     await onReject(item.id, rejectReason);
+    setLoading(false);
+    onClose();
+  };
+
+  const handleApproveCancel = async () => {
+    if (!onApproveCancel) return;
+    setLoading(true);
+    await onApproveCancel(item.id);
+    setLoading(false);
+    onClose();
+  };
+
+  const handleRejectCancel = async () => {
+    if (!rejectReason.trim() || !onRejectCancel) return;
+    setLoading(true);
+    await onRejectCancel(item.id, rejectReason);
+    setLoading(false);
+    onClose();
+  };
+
+  const handleRequestCancel = async () => {
+    if (!cancelReason.trim() || !onRequestCancel) return;
+    setLoading(true);
+    await onRequestCancel(item.id, cancelReason);
     setLoading(false);
     onClose();
   };
@@ -506,40 +598,62 @@ function BottomSheet({
           </div>
 
           {/* ── Actioned by (อนุมัติ/ไม่อนุมัติโดยใคร) ── */}
-          {(item.status === "approved" || item.status === "rejected") && (
+          {(item.status === "approved" || item.status === "rejected" || item.status === "cancelled") && (
             <div className={`flex items-center gap-3 px-4 py-3 rounded-2xl border mb-4 ${
               item.status === "approved"
                 ? "bg-emerald-50 border-emerald-100"
-                : "bg-rose-50 border-rose-100"
+                : item.status === "cancelled"
+                  ? "bg-gray-50 border-gray-100"
+                  : "bg-rose-50 border-rose-100"
             }`}>
               <span className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center ${
-                item.status === "approved" ? "bg-emerald-100" : "bg-rose-100"
+                item.status === "approved" ? "bg-emerald-100" : item.status === "cancelled" ? "bg-gray-100" : "bg-rose-100"
               }`}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
-                  className={`w-4 h-4 ${item.status === "approved" ? "text-emerald-600" : "text-rose-500"}`}>
+                  className={`w-4 h-4 ${item.status === "approved" ? "text-emerald-600" : item.status === "cancelled" ? "text-gray-500" : "text-rose-500"}`}>
                   {item.status === "approved"
                     ? <polyline points="20 6 9 17 4 12" />
+                    : item.status === "cancelled"
+                      ? <path d="M18 6 6 18M6 6l12 12" />
                     : <><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></>
                   }
                 </svg>
               </span>
               <div className="flex-1 min-w-0">
                 <p className={`text-[11px] font-semibold uppercase tracking-wide mb-0.5 ${
-                  item.status === "approved" ? "text-emerald-500" : "text-rose-400"
+                  item.status === "approved" ? "text-emerald-500" : item.status === "cancelled" ? "text-gray-400" : "text-rose-400"
                 }`}>
-                  {item.status === "approved" ? "อนุมัติโดย" : "ไม่อนุมัติโดย"}
+                  {item.status === "approved" ? "อนุมัติโดย" : item.status === "cancelled" ? "ยกเลิกโดย" : "ไม่อนุมัติโดย"}
                 </p>
                 <p className={`text-sm font-black ${
-                  item.status === "approved" ? "text-emerald-700" : "text-rose-600"
+                  item.status === "approved" ? "text-emerald-700" : item.status === "cancelled" ? "text-gray-700" : "text-rose-600"
                 }`}>
-                  {actionedByName ?? "—"}
+                  {item.status === "cancelled" ? (cancelActionedByName ?? "—") : (actionedByName ?? "—")}
                 </p>
-                {item.actioned_at && (
+                {(item.status === "cancelled" ? (item as LeaveRequest).cancel_actioned_at : item.actioned_at) && (
                   <p className={`text-[11px] mt-0.5 ${
-                    item.status === "approved" ? "text-emerald-400" : "text-rose-300"
+                    item.status === "approved" ? "text-emerald-400" : item.status === "cancelled" ? "text-gray-400" : "text-rose-300"
                   }`}>
-                    {fmtDateTime(item.actioned_at)}
+                    {fmtDateTime((item.status === "cancelled" ? (item as LeaveRequest).cancel_actioned_at : item.actioned_at)!)}
                   </p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {type === "leave" && (leaveItem.status === "cancel_requested" || leaveItem.status === "cancelled") && leaveItem.cancel_reason && (
+            <div className="flex items-start gap-3 px-4 py-3 rounded-2xl bg-orange-50 border border-orange-100 mb-4">
+              <span className="flex-shrink-0 w-8 h-8 rounded-lg bg-white flex items-center justify-center text-orange-500">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4 h-4">
+                  <path d="M12 5v7l4 2" />
+                  <circle cx="12" cy="12" r="9" />
+                </svg>
+              </span>
+              <div>
+                <p className="text-[11px] font-semibold text-orange-500 uppercase tracking-wide mb-0.5">เหตุผลขอยกเลิก</p>
+                <p className="text-sm font-semibold text-gray-800">{leaveItem.cancel_reason}</p>
+                {leaveItem.cancel_requested_at && (
+                  <p className="text-[11px] text-orange-400 mt-1">{fmtDateTime(leaveItem.cancel_requested_at)}</p>
                 )}
               </div>
             </div>
@@ -563,15 +677,28 @@ function BottomSheet({
           )}
 
           {/* ── Manager: Reject input ── */}
-          {canAct && showRejectInput && (
+          {(canAct || canActCancel) && showRejectInput && (
             <div className="mb-4 space-y-2">
               <textarea
                 autoFocus
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value)}
-                placeholder="ระบุเหตุผลที่ไม่อนุมัติ..."
+                placeholder={canActCancel ? "ระบุเหตุผลที่ไม่อนุมัติการยกเลิก..." : "ระบุเหตุผลที่ไม่อนุมัติ..."}
                 rows={3}
                 className="w-full px-4 py-3 text-sm bg-gray-50 border border-gray-200 rounded-2xl outline-none focus:border-rose-300 focus:ring-2 focus:ring-rose-50 placeholder-gray-300 resize-none transition-all"
+              />
+            </div>
+          )}
+
+          {canRequestCancel && showCancelInput && (
+            <div className="mb-4 space-y-2">
+              <textarea
+                autoFocus
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                placeholder="ระบุเหตุผลที่ต้องการยกเลิกใบลานี้..."
+                rows={3}
+                className="w-full px-4 py-3 text-sm bg-orange-50 border border-orange-100 rounded-2xl outline-none focus:border-orange-300 focus:ring-2 focus:ring-orange-50 placeholder-orange-300 resize-none transition-all"
               />
             </div>
           )}
@@ -622,6 +749,65 @@ function BottomSheet({
                 className="flex-1 py-3.5 rounded-2xl bg-rose-500 text-white font-bold text-sm hover:bg-rose-600 disabled:opacity-40 transition-all flex items-center justify-center gap-2"
               >
                 ยืนยันไม่อนุมัติ
+              </button>
+            </div>
+          )}
+          {canActCancel && !showRejectInput && (
+            <div className="flex gap-2.5">
+              <button
+                onClick={() => setShowRejectInput(true)}
+                className="flex-1 py-3.5 rounded-2xl border-2 border-gray-200 text-gray-500 font-bold text-sm hover:bg-gray-50 transition-all flex items-center justify-center gap-2"
+              >
+                ไม่อนุมัติยกเลิก
+              </button>
+              <button
+                onClick={handleApproveCancel}
+                disabled={loading}
+                className="flex-1 py-3.5 rounded-2xl bg-orange-500 text-white font-bold text-sm hover:bg-orange-600 disabled:opacity-60 transition-all shadow-lg shadow-orange-200 flex items-center justify-center gap-2"
+              >
+                อนุมัติยกเลิก
+              </button>
+            </div>
+          )}
+          {canActCancel && showRejectInput && (
+            <div className="flex gap-2.5">
+              <button
+                onClick={() => { setShowRejectInput(false); setRejectReason(""); }}
+                className="flex-1 py-3.5 rounded-2xl border border-gray-200 text-gray-500 font-bold text-sm hover:bg-gray-50 transition-all"
+              >
+                ยกเลิก
+              </button>
+              <button
+                onClick={handleRejectCancel}
+                disabled={!rejectReason.trim() || loading}
+                className="flex-1 py-3.5 rounded-2xl bg-gray-800 text-white font-bold text-sm hover:bg-gray-900 disabled:opacity-40 transition-all"
+              >
+                ยืนยันไม่อนุมัติยกเลิก
+              </button>
+            </div>
+          )}
+          {canRequestCancel && !showCancelInput && (
+            <button
+              onClick={() => setShowCancelInput(true)}
+              className="w-full py-3.5 rounded-2xl border-2 border-orange-200 bg-orange-50 text-orange-600 font-bold text-sm hover:bg-orange-100 transition-all"
+            >
+              ขอยกเลิกใบลา
+            </button>
+          )}
+          {canRequestCancel && showCancelInput && (
+            <div className="flex gap-2.5">
+              <button
+                onClick={() => { setShowCancelInput(false); setCancelReason(""); }}
+                className="flex-1 py-3.5 rounded-2xl border border-gray-200 text-gray-500 font-bold text-sm hover:bg-gray-50 transition-all"
+              >
+                ยกเลิก
+              </button>
+              <button
+                onClick={handleRequestCancel}
+                disabled={!cancelReason.trim() || loading}
+                className="flex-1 py-3.5 rounded-2xl bg-orange-500 text-white font-bold text-sm hover:bg-orange-600 disabled:opacity-40 transition-all"
+              >
+                ส่งคำขอยกเลิก
               </button>
             </div>
           )}
@@ -874,7 +1060,7 @@ export default function RequestsPage() {
   let lvQuery = supabase
     .from("leave_requests_with_profile")
     .select("*")
-    .eq("status", "pending")
+    .in("status", ["pending", "cancel_requested"])
     .order("created_at", { ascending: true });
 
   // Manager เห็นแค่แผนกตัวเอง, Admin เห็นทั้งหมด
@@ -997,41 +1183,7 @@ const handleRejectLeave = async (id: string, reason: string) => {
 
   // ถ้าเคย approve แล้ว → revert daily_time_logs
   if (leaveReq && leaveReq.status === "approved") {
-    const leaveDates = getDatesInRange(leaveReq.start_date, leaveReq.end_date);
-    if (leaveDates.length > 0) {
-      const wasFullDay = thresholdFromLeave(leaveReq) === null;
-
-      if (wasFullDay) {
-        // ลาทั้งวัน → ลบ rows ที่สร้างจากใบลา (ไม่มี check-in จริง)
-        await supabase.from("daily_time_logs")
-          .delete()
-          .eq("user_id", leaveReq.user_id)
-          .eq("status", "leave")
-          .in("log_date", leaveDates);
-      } else {
-        // ลาครึ่งวัน/ชั่วโมง → recalc กลับเป็น threshold ปกติ (08:30)
-        for (const date of leaveDates) {
-          const { data: log } = await supabase
-            .from("daily_time_logs")
-            .select("first_check_in, status")
-            .eq("user_id", leaveReq.user_id)
-            .eq("log_date", date)
-            .maybeSingle();
-
-          if (log?.first_check_in) {
-            // ใช้ WORK_START_MINUTES (08:30) เพราะใบลาถูก reject แล้ว
-            const newStatus = computeAttendanceStatus(log.first_check_in, 8 * 60 + 30);
-            if (newStatus !== log.status) {
-              await supabase
-                .from("daily_time_logs")
-                .update({ status: newStatus })
-                .eq("user_id", leaveReq.user_id)
-                .eq("log_date", date);
-            }
-          }
-        }
-      }
-    }
+    await revertApprovedLeaveAttendance(leaveReq);
   }
 
   await Promise.all([fetchMyRequests(), fetchDeptRequests()]);
@@ -1039,9 +1191,50 @@ const handleRejectLeave = async (id: string, reason: string) => {
 };
 
   // ── Computed counts ───────────────────────────────────────────────────────────
+const handleRequestLeaveCancel = async (id: string, reason: string) => {
+  await supabase.from("leave_requests").update({
+    status: "cancel_requested",
+    cancel_reason: reason,
+    cancel_requested_at: new Date().toISOString(),
+    cancel_actioned_by: null,
+    cancel_actioned_at: null,
+    cancel_reject_reason: null,
+  }).eq("id", id).eq("status", "approved");
+
+  await Promise.all([fetchMyRequests(), fetchDeptRequests()]);
+  dispatchRefresh();
+};
+
+const handleApproveLeaveCancel = async (id: string) => {
+  const { error } = await supabase.rpc("cancel_leave_request", {
+    p_request_id: id,
+  });
+
+  if (error) {
+    console.error("cancel_leave_request error:", error);
+    alert(error.message || "ไม่สามารถอนุมัติยกเลิกใบลาได้");
+    return;
+  }
+
+  await Promise.all([fetchMyRequests(), fetchDeptRequests()]);
+  dispatchRefresh();
+};
+
+const handleRejectLeaveCancel = async (id: string, reason: string) => {
+  await supabase.from("leave_requests").update({
+    status: "approved",
+    cancel_actioned_by: profile!.id,
+    cancel_actioned_at: new Date().toISOString(),
+    cancel_reject_reason: reason,
+  }).eq("id", id).eq("status", "cancel_requested");
+
+  await Promise.all([fetchMyRequests(), fetchDeptRequests()]);
+  dispatchRefresh();
+};
+
   const totalDeptPending = deptOT.length + deptLeave.length;
   const myPendingOT      = myOT.filter((r) => r.status === "pending").length;
-  const myPendingLeave   = myLeave.filter((r) => r.status === "pending").length;
+  const myPendingLeave   = myLeave.filter((r) => r.status === "pending" || r.status === "cancel_requested").length;
 
   const activeMonth = useMemo(() => {
     if (periodFilter === "last_month") return shiftMonthKey(monthKey(), -1);
@@ -1208,7 +1401,7 @@ const handleRejectLeave = async (id: string, reason: string) => {
                   { label: "ชั่วโมง OT", value: filteredMyOT.filter((r) => r.status === "approved").reduce((s, r) => s + Number(r.hours), 0), unit: "ชม.", c: "text-sky-600", bg: "bg-sky-50", border: "border-sky-100", icon: "hours" },
                 ]} caption={periodCaption} />
               : <SummaryStrip items={[
-                  { label: "รออนุมัติ",  value: filteredMyLeave.filter((r) => r.status === "pending").length, unit: "รายการ", c: "text-amber-600",  bg: "bg-amber-50",  border: "border-amber-100", icon: "pending" },
+                  { label: "รออนุมัติ",  value: filteredMyLeave.filter((r) => r.status === "pending" || r.status === "cancel_requested").length, unit: "รายการ", c: "text-amber-600",  bg: "bg-amber-50",  border: "border-amber-100", icon: "pending" },
                   { label: "อนุมัติแล้ว", value: filteredMyLeave.filter((r) => r.status === "approved").length, unit: "รายการ", c: "text-emerald-600", bg: "bg-emerald-50", border: "border-emerald-100", icon: "approved" },
                   { label: "วันลาที่ใช้", value: filteredMyLeave.filter((r) => r.status === "approved").reduce((s, r) => s + r.days, 0), unit: "วัน", c: "text-sky-600", bg: "bg-sky-50", border: "border-sky-100", icon: "leave" },
                 ]} caption={periodCaption} />
@@ -1254,9 +1447,14 @@ const handleRejectLeave = async (id: string, reason: string) => {
         <BottomSheet
           item={selectedLeave} type="leave"
           canAct={isManager && selectedLeave.status === "pending"}
+          canActCancel={isManager && selectedLeave.status === "cancel_requested"}
+          canRequestCancel={selectedLeave.user_id === profile?.id && selectedLeave.status === "approved"}
           onClose={() => setSelectedLeave(null)}
           onApprove={handleApproveLeave}
           onReject={handleRejectLeave}
+          onApproveCancel={handleApproveLeaveCancel}
+          onRejectCancel={handleRejectLeaveCancel}
+          onRequestCancel={handleRequestLeaveCancel}
         />
       )}
     </div>

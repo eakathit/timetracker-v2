@@ -945,6 +945,24 @@ export default function ProfilePage() {
     if (userId) fetchMonthLogs();
   }, [fetchMonthLogs]);
 
+  useEffect(() => {
+    if (!userId) return;
+
+    const refreshVisibleProfile = () => {
+      if (document.visibilityState === "visible") {
+        fetchMonthLogs();
+      }
+    };
+
+    window.addEventListener("focus", fetchMonthLogs);
+    document.addEventListener("visibilitychange", refreshVisibleProfile);
+
+    return () => {
+      window.removeEventListener("focus", fetchMonthLogs);
+      document.removeEventListener("visibilitychange", refreshVisibleProfile);
+    };
+  }, [userId, fetchMonthLogs]);
+
   // ─── 3. บันทึก Profile ───────────────────────────────────────────────────────
   const handleSaveProfile = async () => {
     if (!userId) return;

@@ -8,7 +8,7 @@ export type LeaveType =
   | "other"
   | "holiday_swap"
 
-export type LeaveStatus = "pending" | "approved" | "rejected";
+export type LeaveStatus = "pending" | "approved" | "rejected" | "cancel_requested" | "cancelled";
 
 // ─── leave_policies ───────────────────────────────────────────
 export interface LeavePolicy {
@@ -64,6 +64,11 @@ export interface LeaveRequest {
   approved_by: string | null;
   reject_reason: string | null;
   actioned_at: string | null;
+  cancel_reason: string | null;
+  cancel_requested_at: string | null;
+  cancel_actioned_by: string | null;
+  cancel_actioned_at: string | null;
+  cancel_reject_reason: string | null;
   created_at: string;
 }
 
