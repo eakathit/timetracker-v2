@@ -9,6 +9,7 @@ interface HolidayProgressCardProps {
   holidayName: string | null;
   dayType?: string | null;
   payMultiplier?: number;
+  isManager?: boolean;
 }
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
@@ -45,6 +46,7 @@ export default function HolidayProgressCard({
   holidayName,
   dayType,
   payMultiplier = 2.0,
+  isManager = false,
 }: HolidayProgressCardProps) {
   const [elapsed, setElapsed] = useState(() => getElapsedSeconds(checkInIso));
 
@@ -53,9 +55,9 @@ export default function HolidayProgressCard({
     return () => clearInterval(id);
   }, [checkInIso]);
 
-  const progressPercent = Math.min(100, (elapsed / TOTAL_SECONDS_REQUIRED) * 100);
-  const remaining       = Math.max(0, TOTAL_SECONDS_REQUIRED - elapsed);
-  const hasEarned       = elapsed >= TOTAL_SECONDS_REQUIRED;
+  const progressPercent = isManager ? 100 : Math.min(100, (elapsed / TOTAL_SECONDS_REQUIRED) * 100);
+  const remaining       = isManager ? 0 : Math.max(0, TOTAL_SECONDS_REQUIRED - elapsed);
+  const hasEarned       = isManager || elapsed >= TOTAL_SECONDS_REQUIRED;
   const targetTime      = getTargetTime(checkInIso);
   const label           = resolveHolidayLabel(holidayName, dayType);
 
@@ -84,6 +86,11 @@ export default function HolidayProgressCard({
 
       {/* ── Body ── */}
       <div className="px-4 pt-3 pb-4 space-y-3">
+        {isManager && (
+          <p className="text-[11px] text-emerald-700 text-center font-medium bg-emerald-100 rounded-xl py-2 px-3">
+            Manager holiday swap: eligible without the 8-hour minimum.
+          </p>
+        )}
 
         {/* ── 2 Stats ── */}
         <div className="grid grid-cols-2 gap-3">

@@ -152,6 +152,11 @@ const calcOtHours = (otStart: string | null, otEnd: string | null): number => {
   return Math.round((mins / 60) * 100) / 100;
 };
 
+const HOLIDAY_SWAP_MIN_NET_HOURS = 8;
+
+const canClaimHolidayDayoff = (role: string | undefined, netHours: number) =>
+  role === "manager" || netHours >= HOLIDAY_SWAP_MIN_NET_HOURS;
+
 // นับเวลาผ่านไปแบบ live
 const elapsedStr = (isoStart: string | null): string => {
   if (!isoStart) return "00:00:00";
@@ -500,6 +505,13 @@ export default function DashboardUI({
         if (data.holiday_name) setHolidayName(data.holiday_name);
         if (data.pay_multiplier) setPayMultiplier(data.pay_multiplier);
         if (data.day_type) setDayType(data.day_type as string);
+        if (
+          data.work_type === "in_factory" ||
+          data.work_type === "on_site" ||
+          data.work_type === "mixed"
+        ) {
+          setWorkType(data.work_type);
+        }
 
         if (data.timeline_events && data.timeline_events.length > 0) {
           const otStartEvent = data.timeline_events.find(
@@ -835,7 +847,7 @@ export default function DashboardUI({
       (new Date(now).getTime() - new Date(effectiveCheckIn).getTime()) /
         3_600_000 - 1;
 
-    if (netHours >= 8) {
+    if (canClaimHolidayDayoff(userRole, netHours)) {
       setPendingCheckoutIso(now);
       setPendingCheckoutLog(log);
       setShowHolidayCheckout(true);
@@ -871,10 +883,6 @@ export default function DashboardUI({
     const extraUpdate: Record<string, unknown> = { last_check_out: checkoutIso };
  
     if ((fetchedLog?.shift_type ?? shiftType) === "holiday" && fetchedLog?.first_check_in) {
-      const netHours =
-        (new Date(checkoutIso).getTime() - new Date(fetchedLog.first_check_in).getTime()) /
-          3_600_000 -
-        1;
       // claimDayoff = undefined → ไม่ครบ → forfeited
       // claimDayoff = true  → ครบ + user ยืนยัน → earned
       // claimDayoff = false → ครบ + user ไม่ต้องการ → forfeited
@@ -1138,6 +1146,7 @@ export default function DashboardUI({
     holidayName={holidayName}
     dayType={dayType}
     payMultiplier={payMultiplier}
+    isManager={userRole === "manager"}
   />
 )}
   </div>

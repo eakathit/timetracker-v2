@@ -17,6 +17,15 @@ interface ChangelogEntry {
 // ─── Changelog Data (Dev/Admin) ────────────
 const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "3.4.1",
+    date: "2026-05-13",
+    items: [
+      { tag: "improvement", text: "เพิ่มกติกา Manager Holiday Swap: Manager ที่มาทำงานในวันหยุดสามารถเก็บสิทธิ์แลกวันหยุดได้โดยไม่ต้องครบ 8 ชั่วโมง" },
+      { tag: "fix", text: "ปรับหน้า Check-out วันหยุดให้โหลดประเภทการทำงานเดิมจากบันทึกประจำวัน เพื่อไม่บังคับตรวจ GPS โรงงานผิดกรณี On-site/Mixed" },
+      { tag: "improvement", text: "ปรับนโยบายสิทธิ์แลกวันหยุดให้แสดงและจัดการเป็นชั่วโมงให้ตรงกับระบบ Production" },
+    ],
+  },
+  {
     version: "3.4.0",
     date: "2026-05-12",
     items: [
