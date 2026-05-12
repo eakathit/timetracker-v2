@@ -121,6 +121,18 @@ export interface EarlyLeaveInput {
   note:       string;
 }
 
+export interface OnsiteReportDetail {
+  id:        string;
+  title:     string;
+  value_key: string;
+}
+
+export interface CreateOnsiteReportInput {
+  session_id: string;
+  detail_id:  string;
+  member_ids: string[];
+}
+
 // ─── Response Types ────────────────────────────────────────────────────────────
 
 export interface ActionResult<T = void> {

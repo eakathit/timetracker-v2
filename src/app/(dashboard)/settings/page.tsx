@@ -1103,8 +1103,9 @@ const END_USER_COLORS = [
 
 function ReportManagementSection() {
   const [details, setDetails] = useState<
-    { id: string; label: string; active: boolean }[]
+    { id: string; label: string; active: boolean; category: "daily" | "onsite" }[]
   >([]);
+  const [detailCategory, setDetailCategory] = useState<"daily" | "onsite">("daily");
   const [endUsers, setEndUsers] = useState<EndUser[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -1133,6 +1134,7 @@ function ReportManagementSection() {
             id: d.id,
             label: d.title,
             active: d.is_active,
+            category: d.category === "onsite" ? "onsite" : "daily",
           })),
         );
       }
@@ -1170,13 +1172,13 @@ function ReportManagementSection() {
       trimmed.toLowerCase().replace(/[^a-z0-9]/g, "_") + "_" + Date.now();
     const { data, error } = await supabase
       .from("work_details")
-      .insert({ title: trimmed, value_key: valueKey, is_active: true })
+      .insert({ title: trimmed, value_key: valueKey, is_active: true, category: detailCategory })
       .select()
       .single();
     if (!error && data) {
       setDetails((prev) => [
         ...prev,
-        { id: data.id, label: data.title, active: data.is_active },
+        { id: data.id, label: data.title, active: data.is_active, category: data.category === "onsite" ? "onsite" : "daily" },
       ]);
       setNewDetail("");
     }
@@ -1400,6 +1402,12 @@ function ReportManagementSection() {
     }
   };
 
+  const currentDetails = details.filter((d) => d.category === detailCategory);
+  const filteredDetails = currentDetails.filter((d) =>
+    d.label.toLowerCase().includes(detailSearch.toLowerCase()),
+  );
+  const activeCurrentDetails = currentDetails.filter((d) => d.active).length;
+
   if (loading)
     return (
       <div className="py-10 text-center text-sm text-gray-400 animate-pulse">
@@ -1419,17 +1427,39 @@ function ReportManagementSection() {
               ประเภทงาน (Detail)
             </h3>
             <p className="text-xs text-gray-400 mt-0.5">
-              แสดงใน dropdown หน้า Report ·{" "}
-              {details.filter((d) => d.active).length}/{details.length} เปิดอยู่
+              {detailCategory === "daily" ? "แสดงใน dropdown หน้า Report" : "แสดงใน Report On-site"} ·{" "}
+              {activeCurrentDetails}/{currentDetails.length} เปิดอยู่
             </p>
           </div>
           <span className="text-xs font-bold text-sky-500 bg-sky-50 px-2.5 py-1 rounded-full">
-            {details.filter((d) => d.active).length} รายการ
+            {activeCurrentDetails} รายการ
           </span>
         </div>
 
+        <div className="grid grid-cols-2 gap-2 px-5 py-3 border-b border-gray-50 bg-gray-50/40">
+          {[
+            { value: "daily" as const, label: "Daily Detail" },
+            { value: "onsite" as const, label: "On-site Detail" },
+          ].map((item) => (
+            <button
+              key={item.value}
+              onClick={() => {
+                setDetailCategory(item.value);
+                setDetailSearch("");
+              }}
+              className={`py-2.5 rounded-xl text-xs font-bold border transition-colors ${
+                detailCategory === item.value
+                  ? "bg-sky-500 text-white border-sky-500 shadow-sm shadow-sky-100"
+                  : "bg-white text-gray-500 border-gray-200 hover:bg-gray-50"
+              }`}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+
         {/* Search — แสดงเมื่อมีมากกว่า 6 รายการ */}
-        {details.length > 6 && (
+        {currentDetails.length > 6 && (
           <div className="px-5 py-2.5 border-b border-gray-50">
             <div className="relative">
               <svg
@@ -1458,11 +1488,7 @@ function ReportManagementSection() {
           className="divide-y divide-gray-50 overflow-y-auto"
           style={{ maxHeight: "320px" }}
         >
-          {details
-            .filter((d) =>
-              d.label.toLowerCase().includes(detailSearch.toLowerCase()),
-            )
-            .map((d) => (
+          {filteredDetails.map((d) => (
               <div
                 key={d.id}
                 className={`flex items-center gap-3 px-5 py-3 transition-colors ${!d.active ? "bg-gray-50/60" : ""}`}
@@ -1528,10 +1554,7 @@ function ReportManagementSection() {
               </div>
             ))}
           {/* Empty search result */}
-          {detailSearch &&
-            details.filter((d) =>
-              d.label.toLowerCase().includes(detailSearch.toLowerCase()),
-            ).length === 0 && (
+          {detailSearch && filteredDetails.length === 0 && (
               <div className="px-5 py-6 text-center text-xs text-gray-400">
                 ไม่พบประเภทงาน "{detailSearch}"
               </div>
@@ -1543,7 +1566,7 @@ function ReportManagementSection() {
             value={newDetail}
             onChange={(e) => setNewDetail(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && addDetail()}
-            placeholder="เพิ่มประเภทงานใหม่ เช่น QUOTATION.."
+            placeholder={detailCategory === "daily" ? "เพิ่มประเภทงานใหม่ เช่น QUOTATION.." : "เพิ่ม Detail On-site เช่น Wiring, Testing..."}
             className="flex-1 px-3 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-sky-300 focus:ring-2 focus:ring-sky-50 placeholder-gray-300 transition-colors"
           />
           <button

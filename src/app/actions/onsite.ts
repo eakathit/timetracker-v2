@@ -10,6 +10,8 @@ import type {
   ActionResult,
   OnsiteTimelineEvent,
   MemberProfile,
+  OnsiteReportDetail,
+  CreateOnsiteReportInput,
 } from "@/types/onsite";
 import { getEffectiveThreshold, computeAttendanceStatus } from "@/lib/attendance";
 
@@ -831,6 +833,150 @@ export async function getAvailableEmployees(
 // 10. ตั้งคนขับรถ On-site (ขาไป / ขากลับ)
 // เฉพาะ Leader เท่านั้น, Session ยังไม่ปิด
 // ─────────────────────────────────────────────────────────────────────────────
+export async function getOnsiteReportDetails(): Promise<ActionResult<OnsiteReportDetail[]>> {
+  try {
+    const supabase = await getSupabaseServer();
+    const { data, error } = await supabase
+      .from("work_details")
+      .select("id, title, value_key")
+      .eq("category", "onsite")
+      .eq("is_active", true)
+      .order("created_at", { ascending: true });
+
+    if (error) return { success: false, error: error.message };
+    return { success: true, data: (data ?? []) as OnsiteReportDetail[] };
+  } catch (err) {
+    return { success: false, error: String(err) };
+  }
+}
+
+function getBangkokTimeValue(iso: string): string {
+  return new Date(iso).toLocaleTimeString("en-GB", {
+    timeZone: "Asia/Bangkok",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
+
+export async function createOnsiteReportForSession(
+  input: CreateOnsiteReportInput,
+): Promise<ActionResult<{ inserted_count: number }>> {
+  try {
+    const supabase = await getSupabaseServer();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { success: false, error: "Unauthorized" };
+
+    const memberIds = Array.from(new Set(input.member_ids)).filter(Boolean);
+    if (memberIds.length === 0)
+      return { success: false, error: "กรุณาเลือกสมาชิกอย่างน้อย 1 คน" };
+
+    const { data: detail, error: detailErr } = await supabase
+      .from("work_details")
+      .select("id")
+      .eq("id", input.detail_id)
+      .eq("category", "onsite")
+      .eq("is_active", true)
+      .maybeSingle();
+
+    if (detailErr) return { success: false, error: detailErr.message };
+    if (!detail) return { success: false, error: "ไม่พบ Detail On-site ที่เปิดใช้งาน" };
+
+    const { data: sessions, error: sessionErr } = await supabase
+      .from("onsite_sessions")
+      .select(
+        `
+        id, leader_id, site_name, session_date, project_id, group_check_in, group_check_out,
+        project:projects ( end_user_id ),
+        members:onsite_session_members ( user_id )
+      `,
+      )
+      .eq("id", input.session_id)
+      .limit(1);
+
+    if (sessionErr) return { success: false, error: sessionErr.message };
+    const session = sessions?.[0] as any;
+    if (!session) return { success: false, error: "ไม่พบ Session" };
+    if (session.leader_id !== user.id)
+      return { success: false, error: "เฉพาะ Leader เท่านั้น" };
+    if (!session.group_check_in)
+      return { success: false, error: "ต้อง Check-in On-site ก่อนสร้าง Report" };
+    if (!session.group_check_out)
+      return { success: false, error: "ต้อง Check-out On-site ก่อนสร้าง Report" };
+
+    const sessionMemberIds = new Set(
+      ((session.members ?? []) as { user_id: string }[]).map((m) => m.user_id),
+    );
+    const targetIds = memberIds.filter((id) => sessionMemberIds.has(id));
+    if (targetIds.length === 0)
+      return { success: false, error: "ไม่พบสมาชิกที่เลือกใน Session นี้" };
+
+    const periodStart = getBangkokTimeValue(session.group_check_in);
+    const periodEnd = getBangkokTimeValue(session.group_check_out);
+    const periodLabel = `${periodStart} - ${periodEnd} น.`;
+    const endUserId = session.project?.end_user_id ?? null;
+    const projectId = session.project_id ?? null;
+    const customEndUserText = projectId ? null : (session.site_name ?? null);
+
+    const reportIds: string[] = [];
+    for (const uid of targetIds) {
+      const { error: upsertErr } = await supabase
+        .from("daily_reports")
+        .upsert(
+          { user_id: uid, report_date: session.session_date },
+          { onConflict: "user_id,report_date", ignoreDuplicates: true },
+        );
+      if (upsertErr) return { success: false, error: upsertErr.message };
+
+      const { data: report, error: reportErr } = await supabase
+        .from("daily_reports")
+        .select("id")
+        .eq("user_id", uid)
+        .eq("report_date", session.session_date)
+        .maybeSingle();
+
+      if (reportErr) return { success: false, error: reportErr.message };
+      if (report?.id) reportIds.push(report.id);
+    }
+
+    if (reportIds.length === 0)
+      return { success: false, error: "สร้างหัว Report ไม่สำเร็จ" };
+
+    await supabase
+      .from("daily_report_items")
+      .delete()
+      .eq("onsite_session_id", input.session_id)
+      .in("report_id", reportIds);
+
+    const items = reportIds.map((reportId) => ({
+      report_id: reportId,
+      end_user_id: endUserId,
+      project_id: projectId,
+      custom_end_user_text: customEndUserText,
+      custom_project_no_text: null,
+      detail_id: input.detail_id,
+      period_type: "some_time",
+      period_label: periodLabel,
+      period_start: periodStart,
+      period_end: periodEnd,
+      onsite_session_id: input.session_id,
+      created_by: user.id,
+      source: "onsite_leader",
+    }));
+
+    const { error: insertErr } = await supabase
+      .from("daily_report_items")
+      .insert(items);
+
+    if (insertErr) return { success: false, error: insertErr.message };
+    return { success: true, data: { inserted_count: items.length } };
+  } catch (err) {
+    return { success: false, error: String(err) };
+  }
+}
+
 export async function setSessionDriver(
   sessionId: string,
   trip:       "to" | "from",

@@ -17,6 +17,16 @@ interface ChangelogEntry {
 // ─── Changelog Data (Dev/Admin) ────────────
 const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "3.5.0",
+    date: "2026-05-13",
+    items: [
+      { tag: "feature", text: "เพิ่ม Report On-site: Leader สามารถสร้างรายงานให้สมาชิกในห้อง On-site ได้หลัง Check-out โดยใช้เวลา Check-in/Check-out จากห้องจริง" },
+      { tag: "feature", text: "เพิ่มประเภทงานสำหรับ On-site แยกจาก Daily Report ปกติในหน้า Settings > จัดการรายงาน" },
+      { tag: "improvement", text: "รองรับเคส Factory + On-site ในวันเดียวกัน โดยเพิ่ม On-site เป็นรายการงานใหม่และไม่แก้รายงานเดิมของพนักงาน" },
+      { tag: "improvement", text: "รองรับห้อง On-site ที่เลือก End User เป็น Other ให้ชื่อที่กรอกแสดงในรายงานได้ถูกต้อง" },
+    ],
+  },
+  {
     version: "3.4.1",
     date: "2026-05-13",
     items: [
