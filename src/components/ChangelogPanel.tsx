@@ -17,6 +17,14 @@ interface ChangelogEntry {
 // ─── Changelog Data (Dev/Admin) ────────────
 const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "3.5.1",
+    date: "2026-05-13",
+    items: [
+      { tag: "improvement", text: "ปรับระบบยกเลิกใบลาให้พนักงานสามารถยกเลิกใบลาที่อนุมัติแล้วได้เองทันที โดยไม่ต้องรอ Admin/Manager อนุมัติคำขอยกเลิก" },
+      { tag: "fix", text: "เมื่อยกเลิกใบลา ระบบจะคืนสิทธิ์วันลาและล้าง/คำนวณสถานะปฏิทินเข้างานทันทีผ่านฐานข้อมูล เพื่อให้จุดลาและ balance ตรงกัน" },
+    ],
+  },
+  {
     version: "3.5.0",
     date: "2026-05-13",
     items: [

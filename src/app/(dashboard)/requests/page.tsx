@@ -791,7 +791,7 @@ function BottomSheet({
               onClick={() => setShowCancelInput(true)}
               className="w-full py-3.5 rounded-2xl border-2 border-orange-200 bg-orange-50 text-orange-600 font-bold text-sm hover:bg-orange-100 transition-all"
             >
-              ขอยกเลิกใบลา
+              ยกเลิกใบลา
             </button>
           )}
           {canRequestCancel && showCancelInput && (
@@ -807,7 +807,7 @@ function BottomSheet({
                 disabled={!cancelReason.trim() || loading}
                 className="flex-1 py-3.5 rounded-2xl bg-orange-500 text-white font-bold text-sm hover:bg-orange-600 disabled:opacity-40 transition-all"
               >
-                ส่งคำขอยกเลิก
+                ยืนยันยกเลิกใบลา
               </button>
             </div>
           )}
@@ -1192,14 +1192,16 @@ const handleRejectLeave = async (id: string, reason: string) => {
 
   // ── Computed counts ───────────────────────────────────────────────────────────
 const handleRequestLeaveCancel = async (id: string, reason: string) => {
-  await supabase.from("leave_requests").update({
-    status: "cancel_requested",
-    cancel_reason: reason,
-    cancel_requested_at: new Date().toISOString(),
-    cancel_actioned_by: null,
-    cancel_actioned_at: null,
-    cancel_reject_reason: null,
-  }).eq("id", id).eq("status", "approved");
+  const { error } = await supabase.rpc("cancel_leave_request", {
+    p_request_id: id,
+    p_cancel_reason: reason,
+  });
+
+  if (error) {
+    console.error("cancel_leave_request error:", error);
+    alert(error.message || "ไม่สามารถยกเลิกใบลาได้");
+    return;
+  }
 
   await Promise.all([fetchMyRequests(), fetchDeptRequests()]);
   dispatchRefresh();
@@ -1208,6 +1210,7 @@ const handleRequestLeaveCancel = async (id: string, reason: string) => {
 const handleApproveLeaveCancel = async (id: string) => {
   const { error } = await supabase.rpc("cancel_leave_request", {
     p_request_id: id,
+    p_cancel_reason: null,
   });
 
   if (error) {
