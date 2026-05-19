@@ -24,6 +24,8 @@ export async function middleware(request: NextRequest) {
   const isPendingApprovalPage = url.pathname === "/pending-approval";
   const isAccessSuspendedPage = url.pathname === "/access-suspended";
   const isQRDisplayPage = url.pathname === "/qr-display";
+  const isQRDisplayInstallPage = url.pathname === "/qr-display-install";
+  const isQRDisplayManifest = url.pathname === "/qr-display-manifest.webmanifest";
 
   if (isQRDisplayPage && hasValidDisplayAccess(request)) {
     if (url.searchParams.has(DISPLAY_ACCESS_PARAM)) {
@@ -32,7 +34,14 @@ export async function middleware(request: NextRequest) {
     return supabaseResponse;
   }
 
-  if (isQRTokenAPI || isRecentCheckinsAPI || isCronRoute || isAuthCallback) {
+  if (
+    isQRTokenAPI ||
+    isRecentCheckinsAPI ||
+    isCronRoute ||
+    isAuthCallback ||
+    isQRDisplayInstallPage ||
+    isQRDisplayManifest
+  ) {
     return supabaseResponse;
   }
 
