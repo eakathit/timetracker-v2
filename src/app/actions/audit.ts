@@ -28,15 +28,12 @@ async function getSupabaseServer() {
   );
 }
 
-function getLocalToday(): string {
-  return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Bangkok" });
-}
-
 // ── Admin: Force Check-in ──────────────────────────────────────────────────
 export async function adminForceCheckIn(
   targetUserId: string,
   logDate: string,
   timeHHMM: string,
+  reason = "",
 ): Promise<ActionResult> {
   try {
     const supabase = await getSupabaseServer();
@@ -50,12 +47,14 @@ export async function adminForceCheckIn(
       .single();
     if (profile?.role !== "admin") return { success: false, error: "Admin only" };
 
+    const trimmedReason = reason.trim();
+
     const iso = new Date(`${logDate}T${timeHHMM}:00+07:00`).toISOString();
 
     // ดึง log เดิมก่อนเสมอ
     const { data: log } = await supabase
       .from("daily_time_logs")
-      .select("timeline_events, work_type, shift_type")
+      .select("timeline_events, work_type, shift_type, first_check_in")
       .eq("user_id", targetUserId)
       .eq("log_date", logDate)
       .maybeSingle();
@@ -65,7 +64,12 @@ export async function adminForceCheckIn(
       event: "admin_checkin_override",
       timestamp: iso,
       by: user.id,
-      note: `Admin force check-in → ${timeHHMM}`,
+      note: trimmedReason
+        ? `Admin force check-in → ${timeHHMM} (${trimmedReason})`
+        : `Admin force check-in → ${timeHHMM}`,
+      reason: trimmedReason || null,
+      previous_first_check_in: log?.first_check_in ?? null,
+      new_first_check_in: iso,
     };
 
     // วันหยุดไม่นับสาย — ดู shift_type จาก log เดิม หรือ fallback เสาร์/อาทิตย์
@@ -116,6 +120,7 @@ export async function adminForceCheckOut(
   targetUserId: string,
   logDate: string,
   timeHHMM: string,
+  reason = "",
 ): Promise<ActionResult> {
   try {
     const supabase = await getSupabaseServer();
@@ -129,21 +134,32 @@ export async function adminForceCheckOut(
       .single();
     if (profile?.role !== "admin") return { success: false, error: "Admin only" };
 
+    const trimmedReason = reason.trim();
+
     const iso = new Date(`${logDate}T${timeHHMM}:00+07:00`).toISOString();
 
     const { data: log } = await supabase
       .from("daily_time_logs")
-      .select("timeline_events, first_check_in")
+      .select("timeline_events, first_check_in, last_check_out")
       .eq("user_id", targetUserId)
       .eq("log_date", logDate)
       .maybeSingle();
+
+    if (!log?.first_check_in) {
+      return { success: false, error: "ต้องบันทึกเวลา Check-in ก่อนจึงจะเพิ่ม Check-out ได้" };
+    }
 
     const prevEvents: object[] = log?.timeline_events ?? [];
     const adminEvent = {
       event: "admin_checkout_override",
       timestamp: iso,
       by: user.id,
-      note: `Admin force check-out → ${timeHHMM}`,
+      note: trimmedReason
+        ? `Admin force check-out → ${timeHHMM} (${trimmedReason})`
+        : `Admin force check-out → ${timeHHMM}`,
+      reason: trimmedReason || null,
+      previous_last_check_out: log?.last_check_out ?? null,
+      new_last_check_out: iso,
     };
 
     // คำนวณ regular_hours

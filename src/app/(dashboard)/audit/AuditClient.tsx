@@ -264,8 +264,9 @@ function AdminActions({
 }: {
   userId: string; logDate: string; currentCheckIn: string | null; currentCheckOut: string | null;
 }) {
-  const [ciTime, setCiTime] = useState(currentCheckIn ?? "08:00");
-  const [coTime, setCoTime] = useState(currentCheckOut ?? "17:00");
+  const router = useRouter();
+  const [ciTime, setCiTime] = useState(currentCheckIn ?? "08:30");
+  const [coTime, setCoTime] = useState(currentCheckOut ?? "17:30");
   const [loading, setLoading] = useState<"ci" | "co" | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
@@ -277,6 +278,9 @@ function AdminActions({
       : await adminForceCheckOut(userId, logDate, coTime);
     setLoading(null);
     setMsg({ ok: res.success, text: res.success ? "บันทึกสำเร็จ ✓" : (res.error ?? "เกิดข้อผิดพลาด") });
+    if (res.success) {
+      router.refresh();
+    }
   };
 
   return (
@@ -341,7 +345,7 @@ function AdminActions({
 
 // ─── Employee Card ────────────────────────────────────────────────────────────
 
-function EmployeeCard({ emp }: { emp: AuditEmployee }) {
+function EmployeeCard({ emp, auditDate }: { emp: AuditEmployee; auditDate: string }) {
   const [expanded, setExpanded] = useState(false);
   const [activeTab, setActiveTab] = useState<"timeline" | "report" | "onsite" | "admin">("timeline");
 
@@ -373,8 +377,8 @@ function EmployeeCard({ emp }: { emp: AuditEmployee }) {
 
       {/* ── Card Header ─────────────────────────────────────────────────── */}
       <button
-        onClick={() => !isAbsent && setExpanded((v) => !v)}
-        className={`w-full text-left p-4 ${isAbsent ? "cursor-default" : "cursor-pointer"}`}
+        onClick={() => emp.attendanceStatus !== "leave" && setExpanded((v) => !v)}
+        className={`w-full text-left p-4 ${emp.attendanceStatus === "leave" ? "cursor-default" : "cursor-pointer"}`}
       >
         <div className="flex items-start gap-3">
 
@@ -509,7 +513,7 @@ function EmployeeCard({ emp }: { emp: AuditEmployee }) {
           </div>
 
           {/* Chevron */}
-          {!isAbsent && (
+          {emp.attendanceStatus !== "leave" && (
             <span className={`text-slate-300 text-lg mt-1 transition-transform duration-200 flex-shrink-0 ${expanded ? "rotate-180" : ""}`}>
               ▾
             </span>
@@ -526,7 +530,7 @@ function EmployeeCard({ emp }: { emp: AuditEmployee }) {
       </button>
 
       {/* ── Expanded Section ── */}
-      {expanded && !isAbsent && (
+      {expanded && emp.attendanceStatus !== "leave" && (
         <div className="border-t border-slate-100">
 
           {/* Time Chips */}
@@ -729,7 +733,7 @@ function EmployeeCard({ emp }: { emp: AuditEmployee }) {
             {activeTab === "admin" && (
               <AdminActions
                 userId={emp.id}
-                logDate={emp.rawCheckIn ? emp.rawCheckIn.split("T")[0] : new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Bangkok" })}
+                logDate={auditDate}
                 currentCheckIn={emp.checkIn}
                 currentCheckOut={emp.checkOut}
               />
@@ -881,7 +885,7 @@ export default function AuditClient({
           </div>
         ) : (
           <div className="space-y-2.5">
-            {filtered.map((emp) => <EmployeeCard key={emp.id} emp={emp} />)}
+            {filtered.map((emp) => <EmployeeCard key={emp.id} emp={emp} auditDate={auditDate} />)}
           </div>
         )}
 

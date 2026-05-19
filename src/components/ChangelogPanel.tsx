@@ -17,6 +17,15 @@ interface ChangelogEntry {
 // ─── Changelog Data (Dev/Admin) ────────────
 const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "3.5.2",
+    date: "2026-05-19",
+    items: [
+      { tag: "feature", text: "หน้า Daily Audit สามารถเปิดแท็บ Admin ให้พนักงานที่ขาดงาน และเพิ่มเวลา Check-in ย้อนหลังได้ เพื่อรองรับกรณีระบบล่มหรือไม่มีข้อมูลการเข้างาน" },
+      { tag: "improvement", text: "ปรับค่าเริ่มต้น Force Check-in / Force Check-out เป็น 08:30 และ 17:30 พร้อมใช้วันที่ที่เลือกใน Daily Audit ให้ถูกต้อง" },
+      { tag: "improvement", text: "บันทึกประวัติการแก้ไขเวลาโดย Admin พร้อมค่าเดิมและค่าใหม่ใน Timeline เพื่อใช้ตรวจสอบย้อนหลัง" },
+    ],
+  },
+  {
     version: "3.5.1",
     date: "2026-05-13",
     items: [
