@@ -17,6 +17,14 @@ interface ChangelogEntry {
 // ─── Changelog Data (Dev/Admin) ────────────
 const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "3.5.3",
+    date: "2026-05-19",
+    items: [
+      { tag: "fix", text: "แก้การคำนวณเบี้ยเลี้ยง On-site สำหรับพนักงานที่ Check-in Factory ก่อน แล้วถูกดึงเข้า On-site ให้ใช้เวลาเข้างานแรกของวันในการตัดสิทธิ์เบี้ยเลี้ยง" },
+      { tag: "fix", text: "เพิ่ม migration ซ่อมข้อมูลย้อนหลังให้พนักงานที่เป็น On-site/Mixed มี Timeline On-site และ Check-in ก่อน 08:30 ได้รับเบี้ยเลี้ยงถูกต้อง" },
+    ],
+  },
+  {
     version: "3.5.2",
     date: "2026-05-19",
     items: [

@@ -371,6 +371,8 @@ export async function groupCheckIn(sessionId: string): Promise<ActionResult> {
           const ex = existingMap.get(uid)!;
           // ✅ ถ้าเคย in_factory → เปลี่ยนเป็น mixed, ถ้าอื่นๆ → on_site
           const newWorkType = ex.work_type === "in_factory" ? "mixed" : "on_site";
+          const dailyAllowance =
+            ex.daily_allowance || calcDailyAllowance(ex.first_check_in ?? now);
 
           return supabase
             .from("daily_time_logs")
@@ -378,8 +380,9 @@ export async function groupCheckIn(sessionId: string): Promise<ActionResult> {
               work_type:         newWorkType,       // ✅ mixed หรือ on_site
               onsite_session_id: sessionId,
               last_check_out:    null,              // ✅ clear checkout เก่า
+              daily_allowance:   dailyAllowance,
               timeline_events:   [...ex.timeline_events, newEvent],
-              // ❌ ห้ามแตะ first_check_in, status, daily_allowance
+              // ห้ามแตะ first_check_in/status: คนที่เช็คอินโรงงานมาก่อนให้คงเวลาแรกและสถานะเดิมไว้
             })
             .eq("user_id", uid)
             .eq("log_date", today);
@@ -716,13 +719,12 @@ export async function addMidSessionMember(
       ? !holidayRecordOnsite.is_workday
       : new Date(today).getDay() === 0 || new Date(today).getDay() === 6;
 
-    // ✅ ใช้ now เป็น effective check-in เสมอ
-    // เพราะพนักงานที่เพิ่มกลางวันไม่ควรได้ daily_allowance เหมือนคนที่เข้าก่อน 08:30
+    // ใช้ now เป็น effective On-site check-in; ถ้ามี factory check-in เดิม
+    // ให้ใช้เวลาแรกของวันตัดสิทธิ์เบี้ยเลี้ยงแทน
     // วันหยุดไม่นับสาย
     const attendanceStatus = isHolidayOnsite
       ? ("on_time" as const)
       : await calcAttendanceStatusForUser(supabase, targetUserId, today, now);
-    const dailyAllowance = calcDailyAllowance(now);
 
     // Insert member
     const { data: newMember, error: mErr } = await supabase
@@ -751,12 +753,15 @@ export async function addMidSessionMember(
     // ดึง existing log ของพนักงานวันนี้
     const { data: existingRows } = await supabase
       .from("daily_time_logs")
-      .select("id, timeline_events, work_type")
+      .select("id, timeline_events, work_type, first_check_in, daily_allowance")
       .eq("user_id", targetUserId)
       .eq("log_date", today)
       .limit(1);
 
     const existingLog = existingRows?.[0];
+    const dailyAllowance =
+      (existingLog?.daily_allowance ?? false) ||
+      calcDailyAllowance(existingLog?.first_check_in ?? now);
 
     if (existingLog) {
       // ✅ FIX: ถ้าเคย in_factory → mixed, ไม่ใช่ → on_site
