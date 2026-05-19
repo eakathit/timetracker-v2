@@ -1,7 +1,8 @@
 // src/app/api/qr-token/route.ts
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { buildQRPayload } from "@/lib/qr-token";
+import { hasValidDisplayAccess } from "@/lib/display-access";
 
 // Service role client — เขียน qr_nonces ได้โดยไม่ผ่าน RLS
 const supabaseAdmin = createClient(
@@ -9,8 +10,12 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    if (!hasValidDisplayAccess(request)) {
+      return NextResponse.json({ error: "Unauthorized display" }, { status: 401 });
+    }
+
     const payload = buildQRPayload();
 
     // ── Cleanup nonces เก่าเกิน 5 นาที (fire-and-forget) ─────────────────

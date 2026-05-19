@@ -1,5 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { hasValidDisplayAccess } from "@/lib/display-access";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -10,8 +11,12 @@ function getLocalToday(): string {
   return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Bangkok" });
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    if (!hasValidDisplayAccess(request)) {
+      return NextResponse.json({ error: "Unauthorized display" }, { status: 401 });
+    }
+
     const today = getLocalToday();
 
     // ── Step 1: ดึง time logs วันนี้ก่อน ──────────────────────────────────

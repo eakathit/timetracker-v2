@@ -1,6 +1,12 @@
 // src/middleware.ts
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import {
+  DISPLAY_ACCESS_PARAM,
+  hasValidDisplayAccess,
+  redirectToCleanDisplayUrl,
+  setDisplayAccessCookie,
+} from "@/lib/display-access";
 
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
@@ -17,6 +23,14 @@ export async function middleware(request: NextRequest) {
   const isAuthCallback      = url.pathname.startsWith("/auth/callback");
   const isPendingApprovalPage = url.pathname === "/pending-approval";
   const isAccessSuspendedPage = url.pathname === "/access-suspended";
+  const isQRDisplayPage = url.pathname === "/qr-display";
+
+  if (isQRDisplayPage && hasValidDisplayAccess(request)) {
+    if (url.searchParams.has(DISPLAY_ACCESS_PARAM)) {
+      return redirectToCleanDisplayUrl(request);
+    }
+    return supabaseResponse;
+  }
 
   if (isQRTokenAPI || isRecentCheckinsAPI || isCronRoute || isAuthCallback) {
     return supabaseResponse;
@@ -101,6 +115,10 @@ export async function middleware(request: NextRequest) {
     if (!profile || profile.role !== "admin") {
       url.pathname = "/";
       return NextResponse.redirect(url);
+    }
+
+    if (isQRDisplayPage) {
+      setDisplayAccessCookie(supabaseResponse);
     }
   }
 
