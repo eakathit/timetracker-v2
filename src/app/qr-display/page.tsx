@@ -256,6 +256,23 @@ function CheckinToast({ entry, onDone }: { entry: CheckinEntry; onDone: () => vo
 export default function QRDisplayPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
+  useEffect(() => {
+    document.title = "TimeTracker QR Display";
+
+    document.querySelectorAll('link[rel="manifest"]').forEach((link) => {
+      link.remove();
+    });
+
+    const manifestLink = document.createElement("link");
+    manifestLink.rel = "manifest";
+    manifestLink.href = "/qr-display-manifest.webmanifest";
+    document.head.appendChild(manifestLink);
+
+    return () => {
+      manifestLink.remove();
+    };
+  }, []);
+
   // ✅ KEY FIX: อ่าน viewport จริงจาก JS — ไม่ใช้ CSS units ที่ TV browser อาจคำนวณผิด
   const { w: vpW, h: vpH } = useViewport();
 
