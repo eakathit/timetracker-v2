@@ -290,27 +290,40 @@ export default function QRDisplayPage() {
 
   // ── Layout calculations (JS-based, ไม่ใช้ CSS units) ─────────────────────────
   // คำนวณจาก viewport จริง ทำงานถูกต้องทั้ง fullscreen / non-fullscreen / TV zoom
-  const HEADER_H   = 60;   // header approx height px
-  const FOOTER_H   = 36;   // footer approx height px
-  const mainH      = vpH - HEADER_H - FOOTER_H;
+  const HEADER_H   = 68;
+  const FOOTER_H   = 34;
+  const mainH      = Math.max(420, vpH - HEADER_H - FOOTER_H);
 
   // Side column: 22% ของ viewport width, min 220, max 340
   const colW       = Math.min(Math.max(Math.round(vpW * 0.22), 220), 340);
 
-  // QR card: ขนาดไม่เกิน 62% ของ mainH และไม่เกิน centerW * 0.85
+  const centerPy = mainH < 650 ? 12 : 18;
+  const centerGap = mainH < 650 ? 8 : 12;
+  const showLegend = mainH >= 610;
+
+  // QR card: reserve real vertical space for clock, progress, padding, and legend first.
   const centerW    = vpW - colW * 2;
+  const clockFontSize = Math.min(Math.max(Math.round(mainH * 0.065), 40), 64);
+  const dateFontSize  = Math.min(Math.max(Math.round(mainH * 0.018), 12), 15);
+  const clockBlockH = clockFontSize + dateFontSize + 12;
+  const legendH = showLegend ? 26 : 0;
+  const progressH = 34;
+  const reservedCenterH =
+    centerPy * 2 +
+    clockBlockH +
+    progressH +
+    legendH +
+    centerGap * (showLegend ? 2 : 1) +
+    34;
+  const maxQrByHeight = Math.max(300, mainH - reservedCenterH);
   const qrSize     = Math.min(
-    Math.round(mainH * 0.62),   // ไม่เกิน 62% ของความสูง main
-    Math.round(centerW * 0.85), // ไม่เกิน 85% ของความกว้าง center
-    560,                         // max absolute size
+    maxQrByHeight,
+    Math.round(centerW * 0.74),
+    520,
   );
 
-  // Clock font: สัดส่วนกับ mainH
-  const clockFontSize = Math.min(Math.round(mainH * 0.09), 72);  // max 72px
-  const dateFontSize  = Math.min(Math.round(mainH * 0.02), 16);  // max 16px
-
   // QR card padding
-  const qrPadding = Math.round(qrSize * 0.045);
+  const qrPadding = Math.min(Math.max(Math.round(qrSize * 0.04), 14), 20);
 
   // ── QR Refresh ────────────────────────────────────────────────────────────────
   const refreshQR = useCallback(async () => {
@@ -510,14 +523,14 @@ export default function QRDisplayPage() {
           HEADER
       ═════════════════════════════════════════════════════════════════════ */}
       <header
-        className="flex items-center justify-between px-6 py-3 flex-shrink-0"
+        className="h-[68px] flex items-center justify-between px-5 flex-shrink-0"
         style={{
           background: "linear-gradient(135deg, #0c1a3d 0%, #1a3570 100%)",
           boxShadow: "0 2px 12px rgba(12,26,61,0.3)",
         }}
       >
-        <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-xl bg-white p-1 flex-shrink-0 shadow-md ring-2 ring-white/20">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-10 h-10 rounded-xl bg-white p-1 flex-shrink-0 shadow-md ring-2 ring-white/20">
             <Image
               src="/logo.jpg"
               alt="HSD Logo"
@@ -528,7 +541,7 @@ export default function QRDisplayPage() {
             />
           </div>
           <div>
-            <p className="text-white font-bold text-xs xl:text-sm tracking-wide leading-tight">
+            <p className="text-white font-bold text-xs xl:text-sm tracking-wide leading-tight truncate">
               HARU SYSTEM DEVELOPMENT (THAILAND) CO., LTD.
             </p>
             <p className="text-blue-300/70 text-[10px] tracking-widest uppercase mt-0.5">
@@ -542,7 +555,7 @@ export default function QRDisplayPage() {
           title={isFullscreen ? "ออกจาก Fullscreen" : "เปิด Fullscreen"}
           className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20
                      text-white/70 hover:text-white text-xs font-medium transition-all duration-200
-                     border border-white/10 hover:border-white/20"
+                     border border-white/10 hover:border-white/20 flex-shrink-0"
         >
           {isFullscreen ? (
             <>
@@ -594,18 +607,21 @@ export default function QRDisplayPage() {
         </div>
 
         {/* ── CENTER: QR ────────────────────────────────────────────────────── */}
-        <div className="flex-1 flex flex-col items-center justify-center gap-3 py-4 border-r border-slate-200 bg-slate-50 overflow-hidden min-h-0">
+        <div
+          className="flex-1 flex flex-col items-center justify-center border-r border-slate-200 bg-slate-50 overflow-hidden min-h-0"
+          style={{ gap: centerGap, paddingTop: centerPy, paddingBottom: centerPy }}
+        >
 
           {/* Clock — ขนาดคำนวณจาก JS mainH */}
           <div className="text-center flex-shrink-0 mx-auto">
             <p
-              className="text-slate-800 font-mono font-bold leading-none tracking-tight"
+              className="text-slate-800 font-mono font-bold leading-none"
               style={{ fontSize: clockFontSize }}
             >
               {currentTime}
             </p>
             <p
-              className="text-slate-500 mt-1.5"
+              className="text-slate-500 mt-1"
               style={{ fontSize: dateFontSize }}
             >
               {currentDate}
@@ -614,12 +630,12 @@ export default function QRDisplayPage() {
 
           {/* QR Card — ขนาดคำนวณจาก JS qrSize */}
           <div
-            className="flex-shrink-0 relative bg-white rounded-3xl"
+            className="flex-shrink-0 relative bg-white rounded-[22px]"
             style={{
               width: qrSize,
               padding: qrPadding,
               boxShadow:
-                "0 0 0 1px rgba(12,26,61,0.07), 0 4px 8px rgba(12,26,61,0.07), 0 20px 40px rgba(12,26,61,0.1)",
+                "0 0 0 1px rgba(12,26,61,0.07), 0 8px 24px rgba(12,26,61,0.10)",
             }}
           >
             {/* Accent top */}
@@ -630,7 +646,7 @@ export default function QRDisplayPage() {
 
             {/* Loading overlay */}
             {isLoading && (
-              <div className="absolute inset-0 flex items-center justify-center bg-white rounded-3xl z-10">
+              <div className="absolute inset-0 flex items-center justify-center bg-white rounded-[22px] z-10">
                 <div className="w-10 h-10 border-4 border-slate-200 border-t-blue-600 rounded-full animate-spin" />
               </div>
             )}
@@ -642,7 +658,7 @@ export default function QRDisplayPage() {
             />
 
             {/* Progress bar */}
-            <div className="mt-3">
+            <div className="mt-2.5">
               <div className="flex justify-between items-center mb-1.5">
                 <span className={`text-xs font-medium ${isExpiringSoon ? "text-rose-500" : "text-slate-400"}`}>
                   {isExpiringSoon ? "⚠ กำลังหมดอายุ!" : "QR Code จะเปลี่ยนทุก 15 วินาที"}
@@ -663,16 +679,18 @@ export default function QRDisplayPage() {
           </div>
 
           {/* Factory / On-site legend pills */}
-          <div className="flex gap-3 flex-shrink-0 mx-auto">
-            <span className="flex items-center gap-1.5 text-xs text-blue-700 font-semibold bg-blue-50 border border-blue-200 rounded-full px-3 py-1">
-              <span className="w-2 h-2 rounded-full bg-blue-600 inline-block" />
-              Factory
-            </span>
-            <span className="flex items-center gap-1.5 text-xs text-emerald-700 font-semibold bg-emerald-50 border border-emerald-200 rounded-full px-3 py-1">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
-              On-site
-            </span>
-          </div>
+          {showLegend && (
+            <div className="flex gap-3 flex-shrink-0 mx-auto">
+              <span className="flex items-center gap-1.5 text-xs text-blue-700 font-semibold bg-blue-50 border border-blue-200 rounded-full px-3 py-1">
+                <span className="w-2 h-2 rounded-full bg-blue-600 inline-block" />
+                Factory
+              </span>
+              <span className="flex items-center gap-1.5 text-xs text-emerald-700 font-semibold bg-emerald-50 border border-emerald-200 rounded-full px-3 py-1">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
+                On-site
+              </span>
+            </div>
+          )}
 
         </div>
 
@@ -705,7 +723,7 @@ export default function QRDisplayPage() {
       {/* ══════════════════════════════════════════════════════════════════════
           FOOTER
       ═════════════════════════════════════════════════════════════════════ */}
-      <footer className="flex items-center justify-between px-6 py-2 border-t border-slate-200 bg-white flex-shrink-0">
+      <footer className="h-[34px] flex items-center justify-between px-6 border-t border-slate-200 bg-white flex-shrink-0">
         <p className="text-slate-400 text-xs">อัปเดตล่าสุด: {currentTime}</p>
         <div className="flex items-center gap-1.5">
           <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
