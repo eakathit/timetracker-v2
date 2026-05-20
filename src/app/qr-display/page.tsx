@@ -294,8 +294,8 @@ export default function QRDisplayPage() {
   const FOOTER_H   = 34;
   const mainH      = Math.max(420, vpH - HEADER_H - FOOTER_H);
 
-  // Side column: 22% ของ viewport width, min 220, max 340
-  const colW       = Math.min(Math.max(Math.round(vpW * 0.22), 220), 340);
+  // Side columns stay compact so TV browsers with coarse zoom leave enough room for QR.
+  const colW       = Math.min(Math.max(Math.round(vpW * 0.20), 220), 300);
 
   const centerPy = mainH < 650 ? 12 : 18;
   const centerGap = mainH < 650 ? 8 : 12;
@@ -318,8 +318,8 @@ export default function QRDisplayPage() {
   const maxQrByHeight = Math.max(300, mainH - reservedCenterH);
   const qrSize     = Math.min(
     maxQrByHeight,
-    Math.round(centerW * 0.74),
-    520,
+    Math.round(centerW * 0.66),
+    460,
   );
 
   // QR card padding
@@ -634,6 +634,7 @@ export default function QRDisplayPage() {
             style={{
               width: qrSize,
               padding: qrPadding,
+              boxSizing: "border-box",
               boxShadow:
                 "0 0 0 1px rgba(12,26,61,0.07), 0 8px 24px rgba(12,26,61,0.10)",
             }}
