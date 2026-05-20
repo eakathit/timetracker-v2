@@ -371,8 +371,7 @@ export async function groupCheckIn(sessionId: string): Promise<ActionResult> {
           const ex = existingMap.get(uid)!;
           // ✅ ถ้าเคย in_factory → เปลี่ยนเป็น mixed, ถ้าอื่นๆ → on_site
           const newWorkType = ex.work_type === "in_factory" ? "mixed" : "on_site";
-          const dailyAllowance =
-            ex.daily_allowance || calcDailyAllowance(ex.first_check_in ?? now);
+          const dailyAllowance = calcDailyAllowance(now);
 
           return supabase
             .from("daily_time_logs")
@@ -719,8 +718,7 @@ export async function addMidSessionMember(
       ? !holidayRecordOnsite.is_workday
       : new Date(today).getDay() === 0 || new Date(today).getDay() === 6;
 
-    // ใช้ now เป็น effective On-site check-in; ถ้ามี factory check-in เดิม
-    // ให้ใช้เวลาแรกของวันตัดสิทธิ์เบี้ยเลี้ยงแทน
+    // ใช้ now เป็น effective On-site check-in และตัดสิทธิ์เบี้ยเลี้ยงจากเวลา On-site เท่านั้น
     // วันหยุดไม่นับสาย
     const attendanceStatus = isHolidayOnsite
       ? ("on_time" as const)
@@ -759,9 +757,7 @@ export async function addMidSessionMember(
       .limit(1);
 
     const existingLog = existingRows?.[0];
-    const dailyAllowance =
-      (existingLog?.daily_allowance ?? false) ||
-      calcDailyAllowance(existingLog?.first_check_in ?? now);
+    const dailyAllowance = calcDailyAllowance(now);
 
     if (existingLog) {
       // ✅ FIX: ถ้าเคย in_factory → mixed, ไม่ใช่ → on_site
