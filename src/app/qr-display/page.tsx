@@ -28,17 +28,26 @@ function useViewport() {
 
   useEffect(() => {
     const update = () => {
-      setSize({ w: window.innerWidth, h: window.innerHeight });
+      const viewport = window.visualViewport;
+      setSize({
+        w: Math.round(viewport?.width ?? window.innerWidth),
+        h: Math.round(viewport?.height ?? window.innerHeight),
+      });
     };
-    update();
-    window.addEventListener("resize", update);
-    // fullscreenchange → viewport เปลี่ยน → อ่านใหม่
-    document.addEventListener("fullscreenchange", () => {
+    const onFullscreenChange = () => {
       // delay เล็กน้อยให้ browser จบ transition ก่อน
       setTimeout(update, 100);
-    });
+    };
+
+    update();
+    window.addEventListener("resize", update);
+    window.visualViewport?.addEventListener("resize", update);
+    // fullscreenchange → viewport เปลี่ยน → อ่านใหม่
+    document.addEventListener("fullscreenchange", onFullscreenChange);
     return () => {
       window.removeEventListener("resize", update);
+      window.visualViewport?.removeEventListener("resize", update);
+      document.removeEventListener("fullscreenchange", onFullscreenChange);
     };
   }, []);
 
@@ -46,6 +55,9 @@ function useViewport() {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+const clamp = (value: number, min: number, max: number) =>
+  Math.min(Math.max(value, min), max);
+
 const AVATAR_COLORS = [
   "bg-blue-600", "bg-emerald-600", "bg-sky-500", "bg-amber-500",
   "bg-rose-500",  "bg-indigo-500",  "bg-teal-600", "bg-orange-500",
@@ -289,41 +301,55 @@ export default function QRDisplayPage() {
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   // ── Layout calculations (JS-based, ไม่ใช้ CSS units) ─────────────────────────
-  // คำนวณจาก viewport จริง ทำงานถูกต้องทั้ง fullscreen / non-fullscreen / TV zoom
-  const HEADER_H   = 68;
-  const FOOTER_H   = 34;
-  const mainH      = Math.max(420, vpH - HEADER_H - FOOTER_H);
+  // คำนวณจาก visualViewport จริง และเผื่อขอบสำหรับ TV overscan / browser zoom
+  const tvSafeInset = clamp(Math.round(Math.min(vpW, vpH) * 0.025), 12, 28);
+  const usableW = Math.max(320, vpW - tvSafeInset * 2);
+  const usableH = Math.max(300, vpH - tvSafeInset * 2);
 
-  // Side columns stay compact so TV browsers with coarse zoom leave enough room for QR.
-  const colW       = Math.min(Math.max(Math.round(vpW * 0.20), 220), 300);
+  const HEADER_H = clamp(Math.round(usableH * 0.085), 50, 68);
+  const showFooter = usableH >= 560;
+  const FOOTER_H = showFooter ? clamp(Math.round(usableH * 0.04), 26, 34) : 0;
+  const mainH = Math.max(240, usableH - HEADER_H - FOOTER_H);
 
-  const centerPy = mainH < 650 ? 12 : 18;
-  const centerGap = mainH < 650 ? 8 : 12;
-  const showLegend = mainH >= 610;
+  // Side columns shrink harder on TV browsers that report a small viewport.
+  const colW = clamp(
+    Math.round(usableW * (usableW < 980 ? 0.17 : 0.19)),
+    usableW < 980 ? 150 : 190,
+    290,
+  );
+
+  const centerPy = clamp(Math.round(mainH * 0.025), 6, 18);
+  const centerGap = clamp(Math.round(mainH * 0.018), 6, 12);
+  const showLegend = mainH >= 560;
 
   // QR card: reserve real vertical space for clock, progress, padding, and legend first.
-  const centerW    = vpW - colW * 2;
-  const clockFontSize = Math.min(Math.max(Math.round(mainH * 0.065), 40), 64);
-  const dateFontSize  = Math.min(Math.max(Math.round(mainH * 0.018), 12), 15);
+  const centerW = Math.max(220, usableW - colW * 2);
+  const clockFontSize = clamp(Math.round(mainH * 0.06), 28, 58);
+  const dateFontSize  = clamp(Math.round(mainH * 0.018), 10, 15);
   const clockBlockH = clockFontSize + dateFontSize + 12;
   const legendH = showLegend ? 26 : 0;
-  const progressH = 34;
+  const progressH = 32;
   const reservedCenterH =
     centerPy * 2 +
     clockBlockH +
     progressH +
     legendH +
     centerGap * (showLegend ? 2 : 1) +
-    34;
-  const maxQrByHeight = Math.max(300, mainH - reservedCenterH);
-  const qrSize     = Math.min(
+    28;
+  const maxQrByHeight = clamp(mainH - reservedCenterH, 160, 460);
+  const qrSize = Math.floor(Math.min(
     maxQrByHeight,
-    Math.round(centerW * 0.66),
+    Math.round(centerW * 0.82),
     460,
-  );
+  ));
 
   // QR card padding
-  const qrPadding = Math.min(Math.max(Math.round(qrSize * 0.04), 14), 20);
+  const qrPadding = clamp(Math.round(qrSize * 0.04), 10, 20);
+  const qrCanvasSize = Math.max(120, qrSize - qrPadding * 2);
+  const sidePanelPadding = clamp(Math.round(mainH * 0.025), 8, 16);
+  const headerPx = clamp(Math.round(usableW * 0.018), 12, 24);
+  const logoSize = clamp(HEADER_H - 26, 28, 40);
+  const compactQrMeta = qrSize < 240;
 
   // ── QR Refresh ────────────────────────────────────────────────────────────────
   const refreshQR = useCallback(async () => {
@@ -345,7 +371,7 @@ export default function QRDisplayPage() {
 
       if (canvasRef.current) {
         await QRCode.toCanvas(canvasRef.current, JSON.stringify(payload), {
-          width: 480,
+          width: qrCanvasSize,
           margin: 2,
           errorCorrectionLevel: "M",
           color: { dark: "#0c1a3d", light: "#ffffff" },
@@ -358,7 +384,7 @@ export default function QRDisplayPage() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [qrCanvasSize]);
 
   const isFirstFetchRef = useRef(true);
 
@@ -511,9 +537,16 @@ export default function QRDisplayPage() {
   const progressPct   = (timeLeft / 15) * 100;
 
   return (
-    // ✅ h-dvh: dynamic viewport height
-    // ร่วมกับ useViewport() Hook ที่ track ขนาดจริงใน JS
-    <div className="h-dvh flex flex-col overflow-hidden bg-slate-50 select-none">
+    // ใช้ visualViewport จริง + safe inset เพื่อกัน TV overscan ตัดขอบภาพ
+    <div
+      className="fixed inset-0 flex flex-col overflow-hidden bg-slate-50 select-none"
+      style={{
+        width: vpW,
+        height: vpH,
+        padding: tvSafeInset,
+        boxSizing: "border-box",
+      }}
+    >
 
       {activeToast && (
         <CheckinToast entry={activeToast} onDone={() => setActiveToast(null)} />
@@ -523,14 +556,20 @@ export default function QRDisplayPage() {
           HEADER
       ═════════════════════════════════════════════════════════════════════ */}
       <header
-        className="h-[68px] flex items-center justify-between px-5 flex-shrink-0"
+        className="flex items-center justify-between flex-shrink-0"
         style={{
+          height: HEADER_H,
+          paddingLeft: headerPx,
+          paddingRight: headerPx,
           background: "linear-gradient(135deg, #0c1a3d 0%, #1a3570 100%)",
           boxShadow: "0 2px 12px rgba(12,26,61,0.3)",
         }}
       >
         <div className="flex items-center gap-3 min-w-0">
-          <div className="w-10 h-10 rounded-xl bg-white p-1 flex-shrink-0 shadow-md ring-2 ring-white/20">
+          <div
+            className="rounded-xl bg-white p-1 flex-shrink-0 shadow-md ring-2 ring-white/20"
+            style={{ width: logoSize, height: logoSize }}
+          >
             <Image
               src="/logo.jpg"
               alt="HSD Logo"
@@ -589,7 +628,10 @@ export default function QRDisplayPage() {
           style={{ width: colW }}
         >
           <div className="h-1 bg-gradient-to-r from-blue-800 to-blue-500 flex-shrink-0" />
-          <div className="flex-1 flex flex-col p-4 min-h-0 overflow-hidden">
+          <div
+            className="flex-1 flex flex-col min-h-0 overflow-hidden"
+            style={{ padding: sidePanelPadding }}
+          >
             <CheckinColumn
               title="Check-in Factory"
               accentColor="text-blue-800"
@@ -656,14 +698,17 @@ export default function QRDisplayPage() {
             <canvas
               ref={canvasRef}
               className="block rounded-xl w-full h-auto"
+              style={{ width: qrCanvasSize, height: qrCanvasSize }}
             />
 
             {/* Progress bar */}
             <div className="mt-2.5">
               <div className="flex justify-between items-center mb-1.5">
-                <span className={`text-xs font-medium ${isExpiringSoon ? "text-rose-500" : "text-slate-400"}`}>
-                  {isExpiringSoon ? "⚠ กำลังหมดอายุ!" : "QR Code จะเปลี่ยนทุก 15 วินาที"}
-                </span>
+                {!compactQrMeta && (
+                  <span className={`text-xs font-medium ${isExpiringSoon ? "text-rose-500" : "text-slate-400"}`}>
+                    {isExpiringSoon ? "⚠ กำลังหมดอายุ!" : "QR Code จะเปลี่ยนทุก 15 วินาที"}
+                  </span>
+                )}
                 <span className={`font-mono font-bold text-xs ${isExpiringSoon ? "text-rose-500" : "text-slate-400"}`}>
                   {timeLeft}s
                 </span>
@@ -701,7 +746,10 @@ export default function QRDisplayPage() {
           style={{ width: colW }}
         >
           <div className="h-1 bg-gradient-to-r from-emerald-600 to-teal-500 flex-shrink-0" />
-          <div className="flex-1 flex flex-col p-4 min-h-0 overflow-hidden">
+          <div
+            className="flex-1 flex flex-col min-h-0 overflow-hidden"
+            style={{ padding: sidePanelPadding }}
+          >
             <CheckinColumn
               title="Check-in On-site"
               accentColor="text-emerald-800"
@@ -724,16 +772,21 @@ export default function QRDisplayPage() {
       {/* ══════════════════════════════════════════════════════════════════════
           FOOTER
       ═════════════════════════════════════════════════════════════════════ */}
-      <footer className="h-[34px] flex items-center justify-between px-6 border-t border-slate-200 bg-white flex-shrink-0">
-        <p className="text-slate-400 text-xs">อัปเดตล่าสุด: {currentTime}</p>
-        <div className="flex items-center gap-1.5">
-          <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-          <span className="text-slate-500 text-xs font-medium">ระบบทำงานปกติ</span>
-        </div>
-        <p className="text-slate-400 text-xs">
-          รวม <span className="font-bold text-slate-700">{allEntries.length}</span> คน Check-in วันนี้
-        </p>
-      </footer>
+      {showFooter && (
+        <footer
+          className="flex items-center justify-between border-t border-slate-200 bg-white flex-shrink-0"
+          style={{ height: FOOTER_H, paddingLeft: headerPx, paddingRight: headerPx }}
+        >
+          <p className="text-slate-400 text-xs">อัปเดตล่าสุด: {currentTime}</p>
+          <div className="flex items-center gap-1.5">
+            <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+            <span className="text-slate-500 text-xs font-medium">ระบบทำงานปกติ</span>
+          </div>
+          <p className="text-slate-400 text-xs">
+            รวม <span className="font-bold text-slate-700">{allEntries.length}</span> คน Check-in วันนี้
+          </p>
+        </footer>
+      )}
     </div>
   );
 }
