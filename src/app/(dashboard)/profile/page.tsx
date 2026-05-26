@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { createBrowserClient } from "@supabase/ssr";
+import LogoutButton from "@/components/LogoutButton";
 import type { LeaveBalanceWithPolicy } from "@/types/leave";
 import { LEAVE_TYPE_CONFIG } from "@/types/leave";
 import { fmtLeaveBalance, fmtNum, leaveUnit, toLeaveDisplay } from "@/lib/leave-format";
@@ -1392,6 +1393,10 @@ export default function ProfilePage() {
             {/* Leave Quota */}
             <LeaveQuotaSection userId={userId ?? ""} />
           </div>
+        </div>
+
+        <div className="md:hidden">
+          <LogoutButton />
         </div>
       </div>
     </main>

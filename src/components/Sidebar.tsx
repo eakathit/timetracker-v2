@@ -587,14 +587,17 @@ export default function Sidebar() {
 
       {/* ── Footer ─────────────────────────────────────────────────── */}
       <div className="flex-shrink-0 p-3 border-t border-gray-100">
-        <div
-          className={`flex items-center gap-2 ${collapsed ? "justify-center" : ""}`}
-        >
-          <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-          {!collapsed && (
-            <p className="text-gray-400 text-[10px]">System Online · v2.0.1</p>
-          )}
-        </div>
+        {collapsed ? (
+          <LogoutButton compact />
+        ) : (
+          <div className="space-y-3">
+            <LogoutButton />
+            <div className="flex items-center gap-2 px-1">
+              <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <p className="text-gray-400 text-[10px]">System Online · v2.0.1</p>
+            </div>
+          </div>
+        )}
       </div>
     </aside>
   );
