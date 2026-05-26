@@ -892,6 +892,7 @@ export default function HRAttendancePage() {
         .from("profiles_with_avatar")
         .select("id, first_name, last_name, department, avatar_url")
         .eq("access_status", "active")
+        .eq("is_hidden_from_app", false)
         .order("first_name");
 
       if (profileError) {

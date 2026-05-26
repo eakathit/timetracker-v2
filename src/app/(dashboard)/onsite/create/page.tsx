@@ -157,6 +157,7 @@ export default function CreateOnsiteSessionPage() {
         .from("profiles_with_avatar")
         .select("id, first_name, last_name, department, role, avatar_url")
         .eq("access_status", "active")
+        .eq("is_hidden_from_app", false)
         .neq("id", user?.id ?? "")
         .order("first_name", { ascending: true });
 

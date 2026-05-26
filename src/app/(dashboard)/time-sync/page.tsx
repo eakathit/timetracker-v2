@@ -2,6 +2,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { isManagerRole } from "@/lib/roles";
 import TimeSyncClient from "./TimeSyncClient";
 import type {
   EmployeeSyncRecord,
@@ -175,7 +176,7 @@ export default async function TimeSyncPage({
     .eq("id", user.id)
     .single();
 
-  if (!me || (me.role !== "admin" && me.role !== "manager")) {
+  if (!me || !isManagerRole(me.role)) {
     redirect("/");
   }
 
@@ -188,6 +189,7 @@ export default async function TimeSyncPage({
       .from("profiles_with_avatar")
       .select("id, first_name, last_name, department, role, avatar_url")
       .eq("access_status", "active")
+      .eq("is_hidden_from_app", false)
       .order("first_name"),
 
     supabase

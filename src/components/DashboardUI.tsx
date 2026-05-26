@@ -9,6 +9,7 @@ import HolidayProgressCard from "@/components/HolidayProgressCard";
 import HolidayCheckoutModal from "@/components/HolidayCheckoutModal";
 import { ChangelogBellButton } from "@/components/ChangelogPanel";
 import WeeklyChart from "@/components/WeeklyChart";
+import { isAdminRole } from "@/lib/roles";
 import dynamic from "next/dynamic";
 const QRScannerModal = dynamic(() => import("@/components/QRScannerModal"), {
   ssr: false,
@@ -1548,7 +1549,7 @@ export default function DashboardUI({
       )}
 
       {process.env.NEXT_PUBLIC_ENABLE_DEV_TOOLS === "true" &&
-        userRole === "admin" && (
+        isAdminRole(userRole) && (
           <div className="fixed bottom-28 right-3 z-50 flex flex-col gap-2 items-end">
             <button
               onClick={() => setOtTimeReady(true)}

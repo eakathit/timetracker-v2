@@ -7,6 +7,7 @@ import {
   redirectToCleanDisplayUrl,
   setDisplayAccessCookie,
 } from "@/lib/display-access";
+import { isAdminRole } from "@/lib/roles";
 
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
@@ -121,7 +122,7 @@ export async function middleware(request: NextRequest) {
   const ADMIN_ONLY_PATHS = ["/settings", "/audit", "/team", "/hr", "/qr-display"];
 
   if (ADMIN_ONLY_PATHS.some((p) => url.pathname.startsWith(p))) {
-    if (!profile || profile.role !== "admin") {
+    if (!profile || !isAdminRole(profile.role)) {
       url.pathname = "/";
       return NextResponse.redirect(url);
     }

@@ -46,6 +46,7 @@ export async function GET(request: NextRequest) {
       .from("profiles_with_avatar")
       .select("id, first_name, last_name, avatar_url")
       .eq("access_status", "active")
+      .eq("is_hidden_from_app", false)
       .in("id", userIds);
 
     if (profilesError) {

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { createBrowserClient } from "@supabase/ssr";
+import { isManagerRole } from "@/lib/roles";
 
 export const REFRESH_PENDING_EVENT = "refresh-pending-approvals";
 
@@ -34,9 +35,7 @@ export function usePendingApprovals() {
         .in("status", ["pending", "cancel_requested"]),
     ]);
 
-    const isManager =
-      profileRes.data?.role === "manager" ||
-      profileRes.data?.role === "admin";
+    const isManager = isManagerRole(profileRes.data?.role);
 
     setCount(isManager ? (otRes.count ?? 0) + (leaveRes.count ?? 0) : 0);
   }, []);

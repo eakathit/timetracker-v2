@@ -239,11 +239,13 @@ function TextInput({
 // ─── Role Badge ───────────────────────────────────────────────────────────────
 const ROLE_STYLES: Record<string, string> = {
   admin: "bg-rose-50 text-rose-500 border-rose-200",
+  developer: "bg-violet-50 text-violet-600 border-violet-200",
   manager: "bg-amber-50 text-amber-600 border-amber-200",
   user: "bg-sky-50 text-sky-500 border-sky-200",
 };
 const ROLE_LABELS: Record<string, string> = {
   admin: "Admin",
+  developer: "Developer",
   manager: "Manager",
   user: "User",
 };
@@ -426,7 +428,7 @@ function PermissionsSection() {
 
   // 2. ฟังก์ชันเปลี่ยนสิทธิ์และบันทึกลง Database ทันที
   const cycleRole = async (id: string, currentRole: string) => {
-    const roles = ["user", "manager", "admin"];
+    const roles = ["user", "manager", "admin", "developer"];
     const normalizedRole =
       currentRole && currentRole !== "viewer" ? currentRole : "user";
     const currentIndex = roles.indexOf(normalizedRole);
@@ -504,6 +506,36 @@ function PermissionsSection() {
     }
   };
 
+  const setHiddenFromApp = async (
+    id: string,
+    currentHidden: boolean,
+    nextHidden: boolean,
+  ) => {
+    const patch = {
+      is_hidden_from_app: nextHidden,
+      updated_at: new Date().toISOString(),
+    };
+
+    setUsers((prev) =>
+      prev.map((u) => (u.id === id ? { ...u, ...patch } : u)),
+    );
+
+    const { error } = await supabase
+      .from("profiles")
+      .update(patch)
+      .eq("id", id);
+
+    if (error) {
+      console.error("Error updating hidden profile flag:", error);
+      alert("ไม่สามารถเปลี่ยนสถานะการซ่อนผู้ใช้งานได้ กรุณาลองใหม่");
+      setUsers((prev) =>
+        prev.map((u) =>
+          u.id === id ? { ...u, is_hidden_from_app: currentHidden } : u,
+        ),
+      );
+    }
+  };
+
   if (loading) {
     return (
       <div className="py-10 text-center text-sm text-gray-400 animate-pulse">
@@ -526,6 +558,7 @@ function PermissionsSection() {
               fullName !== "ยังไม่ได้ระบุชื่อ" ? fullName.charAt(0) : "U";
             const currentRole = u.role || "user";
             const currentStatus = u.access_status || "active";
+            const isHiddenFromApp = Boolean(u.is_hidden_from_app);
 
             return (
               <div
@@ -565,6 +598,12 @@ function PermissionsSection() {
                   {ACCESS_STATUS_LABELS[currentStatus] || "ใช้งานได้"}
                 </span>
 
+                {isHiddenFromApp && (
+                  <span className="px-3 py-1.5 text-xs font-bold rounded-lg border border-violet-200 bg-violet-50 text-violet-600">
+                    ซ่อน
+                  </span>
+                )}
+
                 <button
                   onClick={() => cycleRole(u.id, currentRole)}
                   className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition-all hover:scale-105 ${ROLE_STYLES[currentRole] || ROLE_STYLES.user}`}
@@ -591,6 +630,17 @@ function PermissionsSection() {
                     ระงับ
                   </button>
                 )}
+
+                {currentStatus === "active" && (
+                  <button
+                    onClick={() =>
+                      setHiddenFromApp(u.id, isHiddenFromApp, !isHiddenFromApp)
+                    }
+                    className="px-3 py-1.5 text-xs font-bold rounded-lg border border-violet-200 bg-violet-50 text-violet-600 hover:bg-violet-100 transition-colors"
+                  >
+                    {isHiddenFromApp ? "แสดง" : "ซ่อน"}
+                  </button>
+                )}
               </div>
             );
           })}
@@ -605,6 +655,7 @@ function PermissionsSection() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
           {[
             { role: "admin", desc: "เข้าถึงได้ทุกส่วน และจัดการระบบได้" },
+            { role: "developer", desc: "Developer access, hidden from people views" },
             { role: "manager", desc: "ดูรายงานภาพรวมและอนุมัติ OT/ลา" },
             { role: "user", desc: "ผู้ใช้งานระบบทั่วไป" },
           ].map((r) => (
@@ -2859,6 +2910,7 @@ function LeaveBalanceAdminSection() {
           .from("profiles_with_avatar")
           .select("id, first_name, last_name, department, avatar_url")
           .eq("access_status", "active")
+          .eq("is_hidden_from_app", false)
           .order("first_name"),
         supabase
           .from("leave_balances_with_policy")

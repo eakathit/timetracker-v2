@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { getEffectiveThreshold, computeAttendanceStatus } from "@/lib/attendance";
+import { isAdminRole } from "@/lib/roles";
 type ActionResult = { success: boolean; error?: string };
 
 // ── Supabase Server Client (inline — same pattern as onsite.ts) ───────────
@@ -45,7 +46,7 @@ export async function adminForceCheckIn(
       .select("role")
       .eq("id", user.id)
       .single();
-    if (profile?.role !== "admin") return { success: false, error: "Admin only" };
+    if (!isAdminRole(profile?.role)) return { success: false, error: "Admin only" };
 
     const trimmedReason = reason.trim();
 
@@ -132,7 +133,7 @@ export async function adminForceCheckOut(
       .select("role")
       .eq("id", user.id)
       .single();
-    if (profile?.role !== "admin") return { success: false, error: "Admin only" };
+    if (!isAdminRole(profile?.role)) return { success: false, error: "Admin only" };
 
     const trimmedReason = reason.trim();
 

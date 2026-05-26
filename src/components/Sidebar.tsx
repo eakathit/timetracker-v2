@@ -7,6 +7,7 @@ import LogoutButton from "@/components/LogoutButton";
 import { useEffect, useState } from "react";
 import { createBrowserClient } from "@supabase/ssr";
 import { usePendingApprovals } from "@/hooks/usePendingApprovals";
+import { isAdminRole } from "@/lib/roles";
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface NavItem {
   label: string;
@@ -497,7 +498,7 @@ export default function Sidebar() {
     items: group.items
       .filter((item) => {
         if (ADMIN_ONLY_ROUTES.includes(item.href)) {
-          return userRole === "admin";
+          return isAdminRole(userRole);
         }
         return true;
       })

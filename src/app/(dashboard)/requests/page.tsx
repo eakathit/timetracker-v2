@@ -6,6 +6,7 @@ import { createBrowserClient } from "@supabase/ssr";
 import UserAvatar from "@/components/UserAvatar";
 import { REFRESH_PENDING_EVENT } from "@/hooks/usePendingApprovals";
 import { thresholdFromLeave, computeAttendanceStatus } from "@/lib/attendance";
+import { isAdminRole, isManagerRole } from "@/lib/roles";
 
 // ─── Supabase Client ──────────────────────────────────────────────────────────
 const supabase = createBrowserClient(
@@ -14,7 +15,7 @@ const supabase = createBrowserClient(
 );
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-type UserRole   = "user" | "manager" | "admin" | "viewer";
+type UserRole   = "user" | "manager" | "admin" | "developer" | "viewer";
 type RequestTab = "ot" | "leave";
 type ManagerTab = "mine" | "pending";
 type ReqStatus  = "pending" | "approved" | "rejected" | "cancel_requested" | "cancelled";
@@ -1001,7 +1002,7 @@ export default function RequestsPage() {
   const [selectedOT,    setSelectedOT]    = useState<OTRequest | null>(null);
   const [selectedLeave, setSelectedLeave] = useState<LeaveRequest | null>(null);
 
-  const isManager = profile?.role === "manager" || profile?.role === "admin";
+  const isManager = isManagerRole(profile?.role);
 
   const dispatchRefresh = () =>
     window.dispatchEvent(new Event(REFRESH_PENDING_EVENT));
@@ -1048,7 +1049,7 @@ export default function RequestsPage() {
   const fetchDeptRequests = useCallback(async () => {
   if (!profile || !isManager) return;
 
-  const isAdmin = profile.role === "admin";
+  const isAdmin = isAdminRole(profile.role);
 
   // Base query
   let otQuery = supabase
@@ -1282,14 +1283,14 @@ const handleRejectLeaveCancel = async (id: string, reason: string) => {
           <div>
             <h1 className="text-xl font-black text-gray-900 tracking-tight">Requests</h1>
             <p className="text-xs text-gray-400 mt-0.5">
-  {profile?.role === "admin"
+  {isAdminRole(profile?.role)
     ? "ทุกแผนก"
     : dept ? `แผนก ${dept}` : "กำลังโหลด..."}
   {isManager && (
     <span className={`ml-2 font-semibold ${
-      profile?.role === "admin" ? "text-rose-400" : "text-indigo-400"
+      isAdminRole(profile?.role) ? "text-rose-400" : "text-indigo-400"
     }`}>
-      · {profile?.role === "admin" ? "Admin" : "Manager"}
+      · {profile?.role === "developer" ? "Developer" : isAdminRole(profile?.role) ? "Admin" : "Manager"}
     </span>
   )}
 </p>
