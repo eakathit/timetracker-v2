@@ -890,7 +890,7 @@ export async function createOnsiteReportForSession(
       .from("onsite_sessions")
       .select(
         `
-        id, leader_id, site_name, session_date, project_id, group_check_in, group_check_out,
+        id, leader_id, site_name, session_date, project_id, status, group_check_in, group_check_out, closed_at,
         project:projects ( end_user_id ),
         members:onsite_session_members ( user_id )
       `,
@@ -899,13 +899,26 @@ export async function createOnsiteReportForSession(
       .limit(1);
 
     if (sessionErr) return { success: false, error: sessionErr.message };
-    const session = sessions?.[0] as any;
+    const session = sessions?.[0] as {
+      id: string;
+      leader_id: string;
+      site_name: string | null;
+      session_date: string;
+      project_id: string | null;
+      status: string;
+      group_check_in: string | null;
+      group_check_out: string | null;
+      closed_at: string | null;
+      project?: { end_user_id: string | null } | { end_user_id: string | null }[] | null;
+      members?: { user_id: string }[];
+    } | undefined;
     if (!session) return { success: false, error: "ไม่พบ Session" };
     if (session.leader_id !== user.id)
       return { success: false, error: "เฉพาะ Leader เท่านั้น" };
     if (!session.group_check_in)
       return { success: false, error: "ต้อง Check-in On-site ก่อนสร้าง Report" };
-    if (!session.group_check_out)
+    const reportEndAt = session.group_check_out ?? (session.status === "closed" ? session.closed_at : null);
+    if (!reportEndAt)
       return { success: false, error: "ต้อง Check-out On-site ก่อนสร้าง Report" };
 
     const sessionMemberIds = new Set(
@@ -916,9 +929,10 @@ export async function createOnsiteReportForSession(
       return { success: false, error: "ไม่พบสมาชิกที่เลือกใน Session นี้" };
 
     const periodStart = getBangkokTimeValue(session.group_check_in);
-    const periodEnd = getBangkokTimeValue(session.group_check_out);
+    const periodEnd = getBangkokTimeValue(reportEndAt);
     const periodLabel = `${periodStart} - ${periodEnd} น.`;
-    const endUserId = session.project?.end_user_id ?? null;
+    const projectData = Array.isArray(session.project) ? session.project[0] : session.project;
+    const endUserId = projectData?.end_user_id ?? null;
     const projectId = session.project_id ?? null;
     const customEndUserText = projectId ? null : (session.site_name ?? null);
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 
 // ─── Types ──────────────────
 type ChangelogTag = "feature" | "fix" | "improvement" | "breaking";
@@ -16,6 +16,13 @@ interface ChangelogEntry {
 
 // ─── Changelog Data (Dev/Admin) ────────────
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: "3.5.4",
+    date: "2026-05-28",
+    items: [
+      { tag: "fix", text: "แก้ไข Report On-site ให้ Leader สามารถสร้างรายงานได้หลังเลือกกลับโรงงาน โดยใช้เวลา Check-in On-site เป็นเวลาเริ่ม และใช้เวลาปิด On-site เป็นเวลาสิ้นสุดของรายงาน" },
+    ],
+  },
   {
     version: "3.5.3",
     date: "2026-05-19",
@@ -401,14 +408,13 @@ export function ChangelogPanel({ isOpen, onClose }: ChangelogPanelProps) {
 // ─── Bell Button with Unread Dot ──────────────────────────────────────────────
 export function ChangelogBellButton() {
   const [isOpen, setIsOpen]       = useState(false);
-  const [hasUnread, setHasUnread] = useState(false);
+  const [hasUnread, setHasUnread] = useState(() => {
+    if (typeof window === "undefined") return false;
+    const lastRead = localStorage.getItem(LAST_READ_KEY);
+    return lastRead !== CHANGELOG[0].version;
+  });
 
   // เช็ค version ล่าสุดกับที่ User อ่านแล้ว
-  useEffect(() => {
-    const lastRead = localStorage.getItem(LAST_READ_KEY);
-    setHasUnread(lastRead !== CHANGELOG[0].version);
-  }, []);
-
   const handleOpen = () => {
     setIsOpen(true);
     setHasUnread(false);

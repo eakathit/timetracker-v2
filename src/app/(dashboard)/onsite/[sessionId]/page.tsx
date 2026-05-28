@@ -999,6 +999,7 @@ const handleSetDriver = async (trip: "to" | "from", userId: string | null) => {
   const myMembership = session?.members.find((m) => m.user_id === currentUserId);
   const pendingMembers = session?.members.filter((m) => m.checkout_type === "pending") ?? [];
   const statusInfo = session ? STATUS_MAP[session.status] : null;
+  const canCreateOnsiteReport = !!session?.group_check_out || (!!session?.closed_at && session.status === "closed");
 
   // ─── Handlers ──────────────────────────────────────────
   const handleGroupCheckIn = () => {
@@ -1258,17 +1259,17 @@ const handleCheckOutClick = () => {
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-extrabold text-gray-800">Report On-site</p>
                 <p className="text-xs text-gray-400 truncate">
-                  {session.group_check_out
+                  {canCreateOnsiteReport
                     ? "สร้างรายงานให้สมาชิกใน session นี้"
                     : "รอ Check-out เพื่อใช้เวลาเริ่ม/จบจากห้องนี้"}
                 </p>
               </div>
               <button
                 onClick={() => setShowOnsiteReport(true)}
-                disabled={!session.group_check_out}
+                disabled={!canCreateOnsiteReport}
                 className="px-3 py-2 rounded-xl bg-sky-500 text-white text-xs font-bold hover:bg-sky-600 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors"
               >
-                {session.group_check_out ? "สร้าง" : "รอ Check-out"}
+                {canCreateOnsiteReport ? "สร้าง" : "รอ Check-out"}
               </button>
             </div>
           )}
