@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 
 // ─── Types ──────────────────
 type ChangelogTag = "feature" | "fix" | "improvement" | "breaking";
@@ -408,17 +408,33 @@ export function ChangelogPanel({ isOpen, onClose }: ChangelogPanelProps) {
 // ─── Bell Button with Unread Dot ──────────────────────────────────────────────
 export function ChangelogBellButton() {
   const [isOpen, setIsOpen]       = useState(false);
-  const [hasUnread, setHasUnread] = useState(() => {
-    if (typeof window === "undefined") return false;
+  const hasUnread = useSyncExternalStore(
+    (onStoreChange) => {
+      window.addEventListener("storage", onStoreChange);
+      window.addEventListener("changelog-read", onStoreChange);
+      return () => {
+        window.removeEventListener("storage", onStoreChange);
+        window.removeEventListener("changelog-read", onStoreChange);
+      };
+    },
+    () => {
+      const lastRead = localStorage.getItem(LAST_READ_KEY);
+      return lastRead !== CHANGELOG[0].version;
+    },
+    () => false,
+  );
+
+  const markAsRead = () => {
     const lastRead = localStorage.getItem(LAST_READ_KEY);
-    return lastRead !== CHANGELOG[0].version;
-  });
+    if (lastRead === CHANGELOG[0].version) return;
+    localStorage.setItem(LAST_READ_KEY, CHANGELOG[0].version);
+    window.dispatchEvent(new Event("changelog-read"));
+  };
 
   // เช็ค version ล่าสุดกับที่ User อ่านแล้ว
   const handleOpen = () => {
     setIsOpen(true);
-    setHasUnread(false);
-    localStorage.setItem(LAST_READ_KEY, CHANGELOG[0].version);
+    markAsRead();
   };
 
   return (

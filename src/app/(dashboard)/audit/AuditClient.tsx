@@ -12,6 +12,7 @@ import type {
 import {
   adminForceCheckIn,
   adminForceCheckOut,
+  adminForceOnsiteCheckOut,
 } from "@/app/actions/audit";
 
 // ─── Config ───────────────────────────────────────────────────────────────────
@@ -60,6 +61,7 @@ const TIMELINE_CONFIG: Record<
   break_end:           { label: "กลับมาทำงาน",          icon: "▶️", color: "text-slate-600",   dot: "bg-slate-400"   },
   admin_checkin_override:  { label: "Admin แก้ Check-in",  icon: "🔧", color: "text-rose-700", dot: "bg-rose-400" },
   admin_checkout_override: { label: "Admin แก้ Check-out", icon: "🔧", color: "text-rose-700", dot: "bg-rose-400" },
+  admin_onsite_checkout_override: { label: "Admin ปิด On-site", icon: "🔧", color: "text-blue-700", dot: "bg-blue-400" },
 };
 
 const ROLE_CONFIG: Record<string, { label: string; color: string }> = {
@@ -260,14 +262,15 @@ function ReportTable({ items }: { items: ReportItem[] }) {
 // ─── Admin Actions ────────────────────────────────────────────────────────────
 
 function AdminActions({
-  userId, logDate, currentCheckIn, currentCheckOut,
+  userId, logDate, currentCheckIn, currentCheckOut, onsiteSession,
 }: {
   userId: string; logDate: string; currentCheckIn: string | null; currentCheckOut: string | null;
+  onsiteSession: AuditEmployee["onsiteSession"];
 }) {
   const router = useRouter();
   const [ciTime, setCiTime] = useState(currentCheckIn ?? "08:30");
   const [coTime, setCoTime] = useState(currentCheckOut ?? "17:30");
-  const [loading, setLoading] = useState<"ci" | "co" | null>(null);
+  const [loading, setLoading] = useState<"ci" | "co" | "onsite" | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   const handle = async (type: "ci" | "co") => {
@@ -281,6 +284,26 @@ function AdminActions({
     if (res.success) {
       router.refresh();
     }
+  };
+
+  const handleOnsiteCheckout = async () => {
+    if (!onsiteSession) return;
+    const ok = window.confirm(
+      `Force On-site Check-out เวลา ${coTime} ใช่หรือไม่? ระบบจะปิดห้อง On-site และ Check-out สมาชิกที่ยังค้างอยู่ทั้งหมด`,
+    );
+    if (!ok) return;
+
+    setLoading("onsite");
+    setMsg(null);
+    const res = await adminForceOnsiteCheckOut(onsiteSession.id, logDate, coTime);
+    setLoading(null);
+    setMsg({
+      ok: res.success,
+      text: res.success
+        ? "ปิด On-site session สำเร็จ ✓"
+        : (res.error ?? "เกิดข้อผิดพลาด"),
+    });
+    if (res.success) router.refresh();
   };
 
   return (
@@ -333,6 +356,24 @@ function AdminActions({
           <p className="text-[11px] text-slate-400">ค่าปัจจุบัน: <span className="font-mono text-slate-600">{currentCheckOut}</span></p>
         )}
       </div>
+
+      {onsiteSession && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 space-y-2.5">
+          <p className="text-xs font-bold text-blue-700 uppercase tracking-wide">
+            Force On-site Check-out
+          </p>
+          <p className="text-[11px] leading-relaxed text-blue-600">
+            ใช้เมื่อ Leader ลืม Check-out หรือต้องแก้เวลา On-site ระบบจะอัปเดตสมาชิกแบบกลุ่มตามเวลาที่เลือกด้านบน
+          </p>
+          <button
+            onClick={handleOnsiteCheckout}
+            disabled={loading === "onsite"}
+            className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-semibold rounded-xl transition-colors"
+          >
+            {loading === "onsite" ? "กำลังปิด On-site..." : "ปิด On-site ตามเวลาที่เลือก"}
+          </button>
+        </div>
+      )}
 
       {msg && (
         <div className={`text-xs font-semibold px-3 py-2 rounded-xl border ${msg.ok ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-red-50 text-red-600 border-red-200"}`}>
@@ -736,6 +777,7 @@ function EmployeeCard({ emp, auditDate }: { emp: AuditEmployee; auditDate: strin
                 logDate={auditDate}
                 currentCheckIn={emp.checkIn}
                 currentCheckOut={emp.checkOut}
+                onsiteSession={emp.onsiteSession}
               />
             )}
 

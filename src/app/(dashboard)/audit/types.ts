@@ -7,8 +7,9 @@ export interface OnsiteSessionRow {
   group_check_in: string | null;
   group_check_out: string | null;
   session_code: string | null;
-  driver_to_id:   string | null;
-  driver_from_id: string | null;
+  driver_to_id?:   string | null;
+  driver_from_id?: string | null;
+  members?: { user_id: string }[];
   projects: {
     project_no: string;
     name: string | null;

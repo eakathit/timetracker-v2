@@ -2875,6 +2875,8 @@ const LEAVE_ORDER = [
   "other",
 ];
 
+const YEAR_ROLLOVER_ENABLED = false;
+
 function LeaveBalanceAdminSection() {
   const currentYear = new Date().getFullYear();
   const [rolloverYear, setRolloverYear] = useState(currentYear + 1);
@@ -3023,6 +3025,8 @@ function LeaveBalanceAdminSection() {
   };
 
   const handleInitializeYear = async () => {
+    if (!YEAR_ROLLOVER_ENABLED) return;
+
     const ok = window.confirm(
       `สร้างสิทธิ์วันลาปี ${rolloverYear} ให้พนักงานทั้งหมดหรือไม่? ระบบจะไม่เขียนทับรายการที่มีอยู่แล้ว`,
     );
@@ -3115,10 +3119,21 @@ function LeaveBalanceAdminSection() {
             />
             <button
               onClick={handleInitializeYear}
-              disabled={rolloverApplying || rolloverLoading}
+              disabled={
+                !YEAR_ROLLOVER_ENABLED || rolloverApplying || rolloverLoading
+              }
+              title={
+                YEAR_ROLLOVER_ENABLED
+                  ? undefined
+                  : "ปิดใช้งานชั่วคราว กรุณาเปิดใช้งานช่วงใกล้สิ้นปี"
+              }
               className="px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-bold disabled:opacity-50 active:scale-95 transition-all"
             >
-              {rolloverApplying ? "กำลังสร้าง..." : "สร้างสิทธิ์ปีใหม่"}
+              {rolloverApplying
+                ? "กำลังสร้าง..."
+                : YEAR_ROLLOVER_ENABLED
+                  ? "สร้างสิทธิ์ปีใหม่"
+                  : "ปิดใช้งานชั่วคราว"}
             </button>
           </div>
         </div>

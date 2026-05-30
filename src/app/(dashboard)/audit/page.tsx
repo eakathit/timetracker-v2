@@ -112,27 +112,29 @@ export default async function AuditPage({
   const otRequests = otReqRes.data ?? [];
 
   // ── Fetch onsite sessions referenced in logs ────────────────────────────
-  const sessionIds = timeLogs
-    .map((l) => l.onsite_session_id)
-    .filter(Boolean) as string[];
-
-  let onsiteSessions: OnsiteSessionRow[] = [];
-  if (sessionIds.length > 0) {
-    const { data } = await supabase
-      .from("onsite_sessions")
-      .select(
-  `id, site_name, status, group_check_in, group_check_out, session_code,
-   driver_to_id, driver_from_id,
-   projects ( project_no, name, end_users ( name ) )`
-)
-      .in("id", sessionIds);
-    onsiteSessions = (data as unknown as OnsiteSessionRow[]) ?? [];
-  }
+  const { data: onsiteSessionRows } = await supabase
+    .from("onsite_sessions")
+    .select(
+      `id, site_name, status, group_check_in, group_check_out, session_code,
+       members:onsite_session_members ( user_id ),
+       projects ( project_no, name, end_users ( name ) )`
+    )
+    .eq("session_date", auditDate);
+  const onsiteSessions = (onsiteSessionRows as unknown as OnsiteSessionRow[]) ?? [];
 
   // ── Build session map ───────────────────────────────────────────────────
   const sessionMap = new Map<string, OnsiteSessionRow>(
     onsiteSessions.map((s) => [s.id, s])
   );
+  const memberSessionMap = new Map<string, OnsiteSessionRow>();
+  onsiteSessions.forEach((session) => {
+    session.members?.forEach((member) => {
+      const previous = memberSessionMap.get(member.user_id);
+      if (!previous || (previous.status !== "checked_in" && session.status === "checked_in")) {
+        memberSessionMap.set(member.user_id, session);
+      }
+    });
+  });
 
   // ── Build lookup maps ───────────────────────────────────────────────────
   const logMap = new Map(timeLogs.map((l) => [l.user_id, l]));
@@ -163,8 +165,8 @@ const otEnd = (log?.timeline_events as Record<string, string>[])
     if (log?.ot_intent && !otStart) anomalies.push("ot_no_start");
 
     const onsiteSession = log?.onsite_session_id
-      ? sessionMap.get(log.onsite_session_id) ?? null
-      : null;
+      ? sessionMap.get(log.onsite_session_id) ?? memberSessionMap.get(p.id) ?? null
+      : memberSessionMap.get(p.id) ?? null;
 
     return {
       id: p.id,

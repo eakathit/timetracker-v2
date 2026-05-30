@@ -7,6 +7,11 @@ const prompt = Prompt({ subsets: ["thai", "latin"], weight: ["300", "400", "500"
 
 export const metadata = {
   title: "TimeTracker",
+  icons: {
+    icon: "/icon-192x192.png",
+    shortcut: "/icon-192x192.png",
+    apple: "/icon-192x192.png",
+  },
   description: "ระบบบันทึกเวลาเข้า-ออกงาน",
 };
 
