@@ -262,6 +262,40 @@ const ACCESS_STATUS_LABELS: Record<string, string> = {
   suspended: "ระงับสิทธิ์",
 };
 
+const UNKNOWN_USER_LABEL = "ยังไม่ได้ระบุชื่อ";
+
+type PermissionUser = {
+  id: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  auth_display_name?: string | null;
+  email?: string | null;
+  department?: string | null;
+  role?: string | null;
+  avatar_url?: string | null;
+  access_status?: string | null;
+  approved_at?: string | null;
+  approved_by?: string | null;
+  suspended_at?: string | null;
+  suspended_by?: string | null;
+  suspend_reason?: string | null;
+  updated_at?: string | null;
+};
+
+function getPermissionUserDisplayName(user: PermissionUser) {
+  const profileName = [user.first_name, user.last_name]
+    .map((part) => part?.trim())
+    .filter(Boolean)
+    .join(" ");
+
+  return (
+    profileName ||
+    user.auth_display_name?.trim() ||
+    user.email?.trim() ||
+    UNKNOWN_USER_LABEL
+  );
+}
+
 // ─── Tab Sections ─────────────────────────────────────────────────────────────
 
 function SystemSection() {
@@ -400,7 +434,7 @@ function SystemSection() {
 }
 
 function PermissionsSection() {
-  const [users, setUsers] = useState<any[]>([]);
+  const [users, setUsers] = useState<PermissionUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
@@ -413,13 +447,10 @@ function PermissionsSection() {
       } = await supabase.auth.getUser();
       setCurrentUserId(user?.id ?? null);
 
-      const { data, error } = await supabase
-        .from("profiles_with_avatar")
-        .select("*")
-        .order("first_name", { ascending: true }); // เรียงตามชื่อ
+      const { data, error } = await supabase.rpc("get_permission_users");
 
       if (data && !error) {
-        setUsers(data);
+        setUsers(data as PermissionUser[]);
       }
       setLoading(false);
     };
@@ -522,12 +553,9 @@ function PermissionsSection() {
         <div className="max-h-[420px] overflow-y-auto divide-y divide-gray-50 scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent">
           {users.map((u) => {
             // จัดการแสดงผลชื่อและแผนก
-            const fullName =
-              u.first_name || u.last_name
-                ? `${u.first_name || ""} ${u.last_name || ""}`.trim()
-                : "ยังไม่ได้ระบุชื่อ";
+            const fullName = getPermissionUserDisplayName(u);
             const initial =
-              fullName !== "ยังไม่ได้ระบุชื่อ" ? fullName.charAt(0) : "U";
+              fullName !== UNKNOWN_USER_LABEL ? fullName.charAt(0) : "U";
             const currentRole = u.role || "user";
             const currentStatus = u.access_status || "active";
             const isDeveloper = currentRole === "developer";
