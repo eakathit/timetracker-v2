@@ -112,15 +112,47 @@ export default async function AuditPage({
   const otRequests = otReqRes.data ?? [];
 
   // ── Fetch onsite sessions referenced in logs ────────────────────────────
-  const { data: onsiteSessionRows } = await supabase
-    .from("onsite_sessions")
-    .select(
-      `id, site_name, status, group_check_in, group_check_out, session_code,
-       members:onsite_session_members ( user_id ),
-       projects ( project_no, name, end_users ( name ) )`
-    )
-    .eq("session_date", auditDate);
-  const onsiteSessions = (onsiteSessionRows as unknown as OnsiteSessionRow[]) ?? [];
+  // Include IDs stored in logs because older sessions may have a shifted date.
+  const referencedSessionIds = Array.from(
+    new Set(
+      timeLogs.flatMap((log) => {
+        const timelineSessionIds = (
+          (log.timeline_events ?? []) as { session_id?: string }[]
+        )
+          .map((event) => event.session_id)
+          .filter((id): id is string => !!id);
+        return [
+          ...(log.onsite_session_id ? [log.onsite_session_id] : []),
+          ...timelineSessionIds,
+        ];
+      }),
+    ),
+  );
+  const onsiteSessionSelect = `
+    id, site_name, status, group_check_in, group_check_out, session_code,
+    members:onsite_session_members ( user_id ),
+    projects ( project_no, name, end_users ( name ) )
+  `;
+  const [datedSessionsRes, referencedSessionsRes] = await Promise.all([
+    supabase
+      .from("onsite_sessions")
+      .select(onsiteSessionSelect)
+      .eq("session_date", auditDate),
+    referencedSessionIds.length > 0
+      ? supabase
+          .from("onsite_sessions")
+          .select(onsiteSessionSelect)
+          .in("id", referencedSessionIds)
+      : Promise.resolve({ data: [] }),
+  ]);
+  const onsiteSessions = Array.from(
+    new Map(
+      [
+        ...((datedSessionsRes.data as unknown as OnsiteSessionRow[]) ?? []),
+        ...((referencedSessionsRes.data as unknown as OnsiteSessionRow[]) ?? []),
+      ].map((session) => [session.id, session]),
+    ).values(),
+  );
 
   // ── Build session map ───────────────────────────────────────────────────
   const sessionMap = new Map<string, OnsiteSessionRow>(
