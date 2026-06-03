@@ -52,6 +52,36 @@ function getLocalToday(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+type ShiftType = "regular" | "holiday";
+
+async function getOnsiteShiftInfo(
+  supabase: Awaited<ReturnType<typeof getSupabaseServer>>,
+  logDate: string,
+): Promise<{ shiftType: ShiftType; dayoffCredit: "pending" | null }> {
+  const { data: holidayRecord } = await supabase
+    .from("holidays")
+    .select("holiday_type")
+    .eq("holiday_date", logDate)
+    .maybeSingle();
+
+  if (holidayRecord) {
+    const shiftType: ShiftType =
+      holidayRecord.holiday_type === "working_sat" ? "regular" : "holiday";
+    return {
+      shiftType,
+      dayoffCredit: shiftType === "holiday" ? "pending" : null,
+    };
+  }
+
+  const dayOfWeek = new Date(logDate).getDay();
+  const shiftType: ShiftType =
+    dayOfWeek === 0 || dayOfWeek === 6 ? "holiday" : "regular";
+  return {
+    shiftType,
+    dayoffCredit: shiftType === "holiday" ? "pending" : null,
+  };
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 1. สร้าง Session ใหม่
 // ─────────────────────────────────────────────────────────────────────────────
@@ -255,7 +285,9 @@ async function calcAttendanceStatusForUser(
   userId: string,
   logDate: string,
   checkInIso: string,
+  shiftType: ShiftType = "regular",
 ): Promise<"on_time" | "late" | "leave"> {
+  if (shiftType === "holiday") return "on_time";
   const threshold = await getEffectiveThreshold(supabase, userId, logDate);
   return computeAttendanceStatus(checkInIso, threshold);
 }
@@ -302,6 +334,7 @@ export async function groupCheckIn(sessionId: string): Promise<ActionResult> {
 
     const now = new Date().toISOString();
     const today = getLocalToday();
+    const { shiftType, dayoffCredit } = await getOnsiteShiftInfo(supabase, today);
 
     const { data: sessions, error: sessionErr } = await supabase
       .from("onsite_sessions")
@@ -378,10 +411,13 @@ export async function groupCheckIn(sessionId: string): Promise<ActionResult> {
             .update({
               work_type:         newWorkType,       // ✅ mixed หรือ on_site
               onsite_session_id: sessionId,
+              shift_type:        shiftType,
+              dayoff_credit:     dayoffCredit,
               last_check_out:    null,              // ✅ clear checkout เก่า
               daily_allowance:   dailyAllowance,
               timeline_events:   [...ex.timeline_events, newEvent],
-              // ห้ามแตะ first_check_in/status: คนที่เช็คอินโรงงานมาก่อนให้คงเวลาแรกและสถานะเดิมไว้
+              ...(shiftType === "holiday" ? { status: "on_time" as const } : {}),
+              // วันปกติคง first_check_in/status เดิมไว้; วันหยุดไม่นับสาย
             })
             .eq("user_id", uid)
             .eq("log_date", today);
@@ -401,7 +437,13 @@ export async function groupCheckIn(sessionId: string): Promise<ActionResult> {
       const statusMap = new Map<string, string>();
       await Promise.all(
         newUids.map(async (uid) => {
-          const s = await calcAttendanceStatusForUser(supabase, uid, today, now);
+          const s = await calcAttendanceStatusForUser(
+            supabase,
+            uid,
+            today,
+            now,
+            shiftType,
+          );
           statusMap.set(uid, s);
         }),
       );
@@ -415,6 +457,8 @@ export async function groupCheckIn(sessionId: string): Promise<ActionResult> {
             work_type:         "on_site",
             first_check_in:    now,
             onsite_session_id: sessionId,
+            shift_type:        shiftType,
+            dayoff_credit:     dayoffCredit,
             timeline_events:   [newEvent],
             status:            statusMap.get(uid) ?? "on_time",
             daily_allowance:   dailyAllowance,
@@ -707,22 +751,17 @@ export async function addMidSessionMember(
 
     const now = new Date().toISOString();
     const today = getLocalToday();
-
-    // ตรวจวันหยุด (holidays table หรือ เสาร์/อาทิตย์)
-    const { data: holidayRecordOnsite } = await supabase
-      .from("holidays")
-      .select("is_workday")
-      .eq("date", today)
-      .maybeSingle();
-    const isHolidayOnsite = holidayRecordOnsite
-      ? !holidayRecordOnsite.is_workday
-      : new Date(today).getDay() === 0 || new Date(today).getDay() === 6;
+    const { shiftType, dayoffCredit } = await getOnsiteShiftInfo(supabase, today);
 
     // ใช้ now เป็น effective On-site check-in และตัดสิทธิ์เบี้ยเลี้ยงจากเวลา On-site เท่านั้น
     // วันหยุดไม่นับสาย
-    const attendanceStatus = isHolidayOnsite
-      ? ("on_time" as const)
-      : await calcAttendanceStatusForUser(supabase, targetUserId, today, now);
+    const attendanceStatus = await calcAttendanceStatusForUser(
+      supabase,
+      targetUserId,
+      today,
+      now,
+      shiftType,
+    );
 
     // Insert member
     const { data: newMember, error: mErr } = await supabase
@@ -761,30 +800,35 @@ export async function addMidSessionMember(
 
     if (existingLog) {
       // ✅ FIX: ถ้าเคย in_factory → mixed, ไม่ใช่ → on_site
-       const newWorkType = existingLog.work_type === "in_factory" ? "mixed" : "on_site";
+      const newWorkType =
+        existingLog.work_type === "in_factory" ? "mixed" : "on_site";
       // ✅ อัปเดต status + daily_allowance ด้วย (เดิมไม่มี)
       await supabase
-    .from("daily_time_logs")
-    .update({
-      work_type:         newWorkType,
-      onsite_session_id: sessionId,
-      status:            attendanceStatus,
-      daily_allowance:   dailyAllowance,
-      timeline_events:   [...(existingLog.timeline_events ?? []), newEvent],
-    })
-    .eq("id", existingLog.id);
-} else {
-  await supabase.from("daily_time_logs").insert({
-    user_id:           targetUserId,
-    log_date:          today,
-    work_type:         "on_site",   //  ไม่มี row เดิม = on_site ปกติ
-    first_check_in:    now,
-    onsite_session_id: sessionId,
-    timeline_events:   [newEvent],
-    status:            attendanceStatus,
-    daily_allowance:   dailyAllowance,
-  });
-}
+        .from("daily_time_logs")
+        .update({
+          work_type:         newWorkType,
+          onsite_session_id: sessionId,
+          shift_type:        shiftType,
+          dayoff_credit:     dayoffCredit,
+          status:            attendanceStatus,
+          daily_allowance:   dailyAllowance,
+          timeline_events:   [...(existingLog.timeline_events ?? []), newEvent],
+        })
+        .eq("id", existingLog.id);
+    } else {
+      await supabase.from("daily_time_logs").insert({
+        user_id:           targetUserId,
+        log_date:          today,
+        work_type:         "on_site",   //  ไม่มี row เดิม = on_site ปกติ
+        first_check_in:    now,
+        onsite_session_id: sessionId,
+        shift_type:        shiftType,
+        dayoff_credit:     dayoffCredit,
+        timeline_events:   [newEvent],
+        status:            attendanceStatus,
+        daily_allowance:   dailyAllowance,
+      });
+    }
 
     return { success: true, data: { member: newMember } };
   } catch (err) {
