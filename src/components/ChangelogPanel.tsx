@@ -20,7 +20,7 @@ const CHANGELOG: ChangelogEntry[] = [
     version: "3.5.5",
     date: "2026-06-03",
     items: [
-      { tag: "fix", text: "แก้ Check-in On-site ในวันหยุดตามปฏิทินบริษัทให้ขึ้นสถานะปกติ ไม่ถูกนับสาย พร้อมบันทึกข้อมูลวันหยุดให้สอดคล้องกับ Check-in Factory" },
+      { tag: "fix", text: "แก้ Check-in On-site ในวันหยุดตามปฏิทินบริษัทให้ขึ้นสถานะปกติ ไม่ถูกนับสาย" },
     ],
   },
   {
