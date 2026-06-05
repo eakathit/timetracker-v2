@@ -48,8 +48,7 @@ async function getSupabaseServer() {
 }
 
 function getLocalToday(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Bangkok" });
 }
 
 type ShiftType = "regular" | "holiday";
