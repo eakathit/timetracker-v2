@@ -400,24 +400,31 @@ export async function groupCheckIn(sessionId: string): Promise<ActionResult> {
     // ── UPDATE existing rows (เคย checkin factory มาก่อน) ────────────────
     if (existingUids.length > 0) {
       const results = await Promise.all(
-        existingUids.map((uid) => {
+        existingUids.map(async (uid) => {
           const ex = existingMap.get(uid)!;
           // ✅ ถ้าเคย in_factory → เปลี่ยนเป็น mixed, ถ้าอื่นๆ → on_site
           const newWorkType = ex.work_type === "in_factory" ? "mixed" : "on_site";
           const dailyAllowance = calcDailyAllowance(now);
+          const missingCheckIn = !ex.first_check_in;
+          const status = missingCheckIn
+            ? await calcAttendanceStatusForUser(supabase, uid, today, now, shiftType)
+            : null;
 
           return supabase
             .from("daily_time_logs")
             .update({
               work_type:         newWorkType,       // ✅ mixed หรือ on_site
+              first_check_in:    ex.first_check_in ?? now,
               onsite_session_id: sessionId,
               shift_type:        shiftType,
               dayoff_credit:     dayoffCredit,
               last_check_out:    null,              // ✅ clear checkout เก่า
               daily_allowance:   dailyAllowance,
               timeline_events:   [...ex.timeline_events, newEvent],
-              ...(shiftType === "holiday" ? { status: "on_time" as const } : {}),
-              // วันปกติคง first_check_in/status เดิมไว้; วันหยุดไม่นับสาย
+              ...(shiftType === "holiday" || missingCheckIn
+                ? { status: shiftType === "holiday" ? "on_time" as const : status }
+                : {}),
+              // วันปกติคง status เดิมไว้ถ้ามี check-in แล้ว; ถ้า row เดิมว่างให้ใช้เวลา On-site
             })
             .eq("user_id", uid)
             .eq("log_date", today);
@@ -807,6 +814,7 @@ export async function addMidSessionMember(
         .from("daily_time_logs")
         .update({
           work_type:         newWorkType,
+          first_check_in:    existingLog.first_check_in ?? now,
           onsite_session_id: sessionId,
           shift_type:        shiftType,
           dayoff_credit:     dayoffCredit,
