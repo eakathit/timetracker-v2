@@ -51,6 +51,24 @@ function getLocalToday(): string {
   return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Bangkok" });
 }
 
+function getBangkokDateFromIso(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-CA", { timeZone: "Asia/Bangkok" });
+}
+
+function getCrossDayCheckoutError(
+  groupCheckIn: string | null,
+  today: string,
+): string | null {
+  if (!groupCheckIn) return "Session has no group check-in time";
+
+  const sessionCheckInDate = getBangkokDateFromIso(groupCheckIn);
+  if (sessionCheckInDate !== today) {
+    return `ห้อง On-site นี้เปิดค้างจากวันที่ ${sessionCheckInDate} กรุณาให้ Admin ปิดห้องด้วยวันที่และเวลาที่ถูกต้อง`;
+  }
+
+  return null;
+}
+
 type ShiftType = "regular" | "holiday";
 
 async function getOnsiteShiftInfo(
@@ -502,7 +520,7 @@ export async function groupCheckOut(
     const { data: sessions, error: sessionErr } = await supabase
       .from("onsite_sessions")
       .select(
-        "id, status, members:onsite_session_members(user_id, checkout_type)",
+        "id, status, group_check_in, members:onsite_session_members(user_id, checkout_type)",
       )
       .eq("id", sessionId)
       .eq("leader_id", user.id)
@@ -514,6 +532,9 @@ export async function groupCheckOut(
     const session = sessions[0];
     if (session.status !== "checked_in")
       return { success: false, error: "Session ยังไม่ได้ Check-in" };
+
+    const crossDayError = getCrossDayCheckoutError(session.group_check_in, today);
+    if (crossDayError) return { success: false, error: crossDayError };
 
     const pendingUids = (
       session.members as { user_id: string; checkout_type: string }[]
@@ -607,6 +628,20 @@ export async function earlyLeave(
 
     const now = new Date().toISOString();
     const today = getLocalToday();
+
+    const { data: session, error: sessionErr } = await supabase
+      .from("onsite_sessions")
+      .select("id, status, group_check_in")
+      .eq("id", sessionId)
+      .maybeSingle();
+    if (sessionErr) return { success: false, error: sessionErr.message };
+    if (!session) return { success: false, error: "ไม่พบ Session" };
+    if (session.status !== "checked_in") {
+      return { success: false, error: "Session ยังไม่ได้ Check-in" };
+    }
+
+    const crossDayError = getCrossDayCheckoutError(session.group_check_in, today);
+    if (crossDayError) return { success: false, error: crossDayError };
 
     const { error: memberErr } = await supabase
       .from("onsite_session_members")
@@ -1106,7 +1141,7 @@ export async function returnToFactory(
       // ── ตรวจสิทธิ์ Leader ─────────────────────────────────────────────────
       const { data: sessions } = await supabase
         .from("onsite_sessions")
-        .select("id, status, members:onsite_session_members(user_id, checkout_type)")
+        .select("id, status, group_check_in, members:onsite_session_members(user_id, checkout_type)")
         .eq("id", sessionId)
         .eq("leader_id", user.id)
         .limit(1);
@@ -1117,6 +1152,9 @@ export async function returnToFactory(
       const session = sessions[0];
       if (session.status !== "checked_in")
         return { success: false, error: "Session ยังไม่ได้ Check-in" };
+
+      const crossDayError = getCrossDayCheckoutError(session.group_check_in, today);
+      if (crossDayError) return { success: false, error: crossDayError };
 
       // รวบ pending UIDs
       const pendingUids = (
@@ -1181,6 +1219,19 @@ export async function returnToFactory(
     }
 
     // ── scope = 'member' ──────────────────────────────────────────────────────
+    const { data: memberSession, error: memberSessionErr } = await supabase
+      .from("onsite_sessions")
+      .select("id, status, group_check_in")
+      .eq("id", sessionId)
+      .maybeSingle();
+    if (memberSessionErr) return { success: false, error: memberSessionErr.message };
+    if (!memberSession) return { success: false, error: "ไม่พบ Session" };
+    if (memberSession.status !== "checked_in")
+      return { success: false, error: "Session ยังไม่ได้ Check-in" };
+
+    const crossDayError = getCrossDayCheckoutError(memberSession.group_check_in, today);
+    if (crossDayError) return { success: false, error: crossDayError };
+
     const { error: memberErr } = await supabase
       .from("onsite_session_members")
       .update({ checkout_type: "return_to_factory" })

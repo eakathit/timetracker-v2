@@ -653,11 +653,7 @@ export default function DashboardUI({
   // ── OT Location guard (one-time GPS check) ── เพิ่มใหม่ ──────────────────
   const validateLocationForOT = useCallback((): Promise<boolean> => {
     return new Promise((resolve) => {
-      // on_site ไม่ต้องตรวจรัศมีโรงงาน
-      if (workType !== "in_factory") {
-        resolve(true);
-        return;
-      }
+      // Start/End OT ต้องอยู่ในรัศมีโรงงานเสมอ แม้วันนั้นเคยออก On-site มาก่อน
       if (!navigator.geolocation) {
         resolve(true); // fallback: อนุญาตถ้าไม่มี GPS
         return;
@@ -686,7 +682,7 @@ export default function DashboardUI({
         { timeout: 10_000, maximumAge: 30_000 },
       );
     });
-  }, [workType]);
+  }, []);
 
   // ── Push event helper ─────────────────────────────────────────────────────
   const pushEvent = async (
