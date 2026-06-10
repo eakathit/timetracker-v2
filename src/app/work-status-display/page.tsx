@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 
 type PersonProfile = {
@@ -84,6 +84,8 @@ const fmtNum = (value: number) =>
   Number.isInteger(value) ? value.toString() : parseFloat(value.toFixed(2)).toString();
 
 const cleanProjectNo = (projectNo: string) => projectNo.replace(/^#\s*/, "");
+const FALLBACK_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
+const REALTIME_REFRESH_DEBOUNCE_MS = 1500;
 
 function getDisplayDate() {
   return new Date().toLocaleDateString("th-TH", {
@@ -463,16 +465,36 @@ export default function WorkStatusDisplayPage() {
   });
   const [currentDate] = useState(getDisplayDate);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const refreshTimeoutRef = useRef<number | null>(null);
+  const isFetchingRef = useRef(false);
 
   const fetchStatus = useCallback(async () => {
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
+
     try {
       const res = await fetch("/api/display-today-status", { cache: "no-store" });
       if (!res.ok) return;
       setData(await res.json());
     } catch (err) {
       console.error("fetchStatus error:", err);
+    } finally {
+      isFetchingRef.current = false;
     }
   }, []);
+
+  const scheduleRefresh = useCallback(() => {
+    if (document.visibilityState === "hidden") return;
+
+    if (refreshTimeoutRef.current) {
+      clearTimeout(refreshTimeoutRef.current);
+    }
+
+    refreshTimeoutRef.current = window.setTimeout(() => {
+      refreshTimeoutRef.current = null;
+      void fetchStatus();
+    }, REALTIME_REFRESH_DEBOUNCE_MS);
+  }, [fetchStatus]);
 
   useEffect(() => {
     document.title = "TimeTracker Work Status Display";
@@ -493,37 +515,54 @@ export default function WorkStatusDisplayPage() {
         schema: "public",
         table: "daily_time_logs",
         filter: `log_date=eq.${today}`,
-      }, fetchStatus)
+      }, scheduleRefresh)
       .on("postgres_changes", {
         event: "*",
         schema: "public",
         table: "daily_reports",
         filter: `report_date=eq.${today}`,
-      }, fetchStatus)
+      }, scheduleRefresh)
       .on("postgres_changes", {
         event: "*",
         schema: "public",
         table: "daily_report_items",
-      }, fetchStatus)
+      }, scheduleRefresh)
       .on("postgres_changes", {
         event: "*",
         schema: "public",
         table: "onsite_sessions",
-      }, fetchStatus)
+      }, scheduleRefresh)
       .on("postgres_changes", {
         event: "*",
         schema: "public",
         table: "leave_requests",
-      }, fetchStatus)
+      }, scheduleRefresh)
       .subscribe();
 
-    const intervalId = setInterval(fetchStatus, 30_000);
+    const intervalId = setInterval(() => {
+      if (document.visibilityState === "visible") {
+        void fetchStatus();
+      }
+    }, FALLBACK_REFRESH_INTERVAL_MS);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void fetchStatus();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
     return () => {
       clearTimeout(initialFetchId);
       clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      if (refreshTimeoutRef.current) {
+        clearTimeout(refreshTimeoutRef.current);
+        refreshTimeoutRef.current = null;
+      }
       supabaseRealtime.removeChannel(channel);
     };
-  }, [fetchStatus]);
+  }, [fetchStatus, scheduleRefresh]);
 
   useEffect(() => {
     const handler = () => setIsFullscreen(!!document.fullscreenElement);
