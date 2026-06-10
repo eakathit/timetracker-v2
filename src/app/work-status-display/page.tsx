@@ -169,49 +169,49 @@ function IconReport() {
 function WorkItems({ items }: { items: WorkItem[] }) {
   if (items.length === 0) {
     return (
-      <div className="mt-3 flex items-center gap-2 rounded-lg border border-dashed border-slate-200 bg-slate-50/70 px-3 py-2 text-xs font-semibold text-slate-400">
+      <div className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50/80 px-2.5 py-1 text-[11px] font-semibold text-slate-400">
         <IconReport />
-        ยังไม่มี Daily Report
+        No report
       </div>
     );
   }
 
-  const visibleItems = items.slice(0, 3);
+  const visibleItems = items.slice(0, 2);
   const moreCount = items.length - visibleItems.length;
 
   return (
-    <div className="mt-3 space-y-2.5">
+    <div className="mt-3 space-y-2">
       {visibleItems.map((item) => (
-        <div key={item.id} className="rounded-lg border border-slate-100 bg-white px-3 py-2.5 shadow-[0_1px_2px_rgba(15,23,42,0.025)]">
-          <div className="grid min-w-0 grid-cols-3 gap-2">
+        <div key={item.id} className="rounded-lg border border-slate-100 bg-white px-3 py-2 shadow-[0_1px_2px_rgba(15,23,42,0.025)]">
+          <div className="grid min-w-0 grid-cols-[1.35fr_1fr_1fr] gap-2">
             {item.period && (
               <div className="min-w-0 rounded-md bg-slate-50 px-2.5 py-1.5">
-                <p className="text-[10px] font-bold uppercase tracking-wide text-slate-900">Time</p>
-                <p className="mt-0.5 truncate font-mono text-[11px] font-semibold text-slate-600">{item.period}</p>
+                <p className="text-[10px] font-bold tracking-wide text-slate-900">Time</p>
+                <p className="mt-0.5 whitespace-nowrap font-mono text-[11px] font-semibold text-slate-600">{item.period}</p>
               </div>
             )}
             {item.projectNo && (
               <div className="min-w-0 rounded-md bg-slate-50 px-2.5 py-1.5">
-                <p className="text-[10px] font-bold uppercase tracking-wide text-slate-900">Project No.</p>
+                <p className="text-[10px] font-bold tracking-wide text-slate-900">Project No.</p>
                 <p className="mt-0.5 truncate text-[11px] font-semibold text-slate-600">{cleanProjectNo(item.projectNo)}</p>
               </div>
             )}
             {item.customer && (
               <div className="min-w-0 rounded-md bg-slate-50 px-2.5 py-1.5">
-                <p className="text-[10px] font-bold uppercase tracking-wide text-slate-900">End User</p>
+                <p className="text-[10px] font-bold tracking-wide text-slate-900">End User</p>
                 <p className="mt-0.5 truncate text-[11px] font-medium text-slate-600">{item.customer}</p>
               </div>
             )}
           </div>
-          <div className="mt-2 border-t border-slate-100 pt-2">
-            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-900">Detail</p>
-            <p className="mt-0.5 line-clamp-2 text-xs font-medium leading-snug text-slate-700">{item.detail}</p>
+          <div className="mt-2 flex min-w-0 items-start gap-2 border-t border-slate-100 pt-2">
+            <span className="shrink-0 text-[10px] font-bold tracking-wide text-slate-900">Detail</span>
+            <p className="line-clamp-1 min-w-0 text-xs font-medium leading-snug text-slate-700">{item.detail}</p>
           </div>
         </div>
       ))}
       {moreCount > 0 && (
         <p className="px-1 text-[11px] font-semibold text-slate-400">
-          + อีก {moreCount} รายการ
+          + {moreCount} more reports
         </p>
       )}
     </div>
@@ -298,7 +298,7 @@ function WorkEntryCard({
               className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-600 transition hover:border-slate-300"
             >
               <IconReport />
-              ดู Report
+              View Report
             </a>
           )}
         </div>
@@ -388,7 +388,7 @@ function StatusPanel({
           {count}
         </span>
       </div>
-      <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto p-3 scrollbar-hide">
+      <div className="display-scrollbar min-h-0 flex-1 space-y-2.5 overflow-y-auto p-3">
         {children}
       </div>
     </section>

@@ -73,3 +73,25 @@ body {
 input, select, textarea {
   font-size: max(16px, 1em);
 }
+
+.display-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+.display-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.display-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.display-scrollbar::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 999px;
+}
+
+.display-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
