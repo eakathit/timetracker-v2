@@ -172,7 +172,7 @@ function onsiteExitInfo(log: TimeLogRow) {
       ? "กลับโรงงาน"
       : exitEvent.event === "onsite_early_leave"
         ? "ออกก่อน"
-        : "ออก On-site";
+        : null;
 
   return { time: exitEvent.timestamp, label };
 }

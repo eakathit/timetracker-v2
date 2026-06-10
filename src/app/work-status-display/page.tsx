@@ -200,13 +200,13 @@ function WorkItems({ items }: { items: WorkItem[] }) {
             {item.customer && (
               <div className="min-w-0 rounded-md bg-slate-50 px-2.5 py-1.5">
                 <p className="text-[10px] font-bold tracking-wide text-slate-900">End User</p>
-                <p className="mt-0.5 truncate text-[11px] font-medium text-slate-600">{item.customer}</p>
+                <p className="mt-0.5 truncate text-[11px] font-semibold text-slate-600">{item.customer}</p>
               </div>
             )}
           </div>
           <div className="mt-2 flex min-w-0 items-start gap-2 border-t border-slate-100 pt-2">
             <span className="shrink-0 text-[10px] font-bold tracking-wide text-slate-900">Detail</span>
-            <p className="line-clamp-1 min-w-0 text-xs font-medium leading-snug text-slate-700">{item.detail}</p>
+            <p className="line-clamp-1 min-w-0 text-xs font-semibold leading-snug text-slate-700">{item.detail}</p>
           </div>
         </div>
       ))}
@@ -272,26 +272,28 @@ function WorkEntryCard({
                   {entry.onsite_location?.replace(/\s*·\s*#?/, " · Project No. ") ?? "On-site"}
                 </p>
               </div>
-              <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-emerald-700/70">
+              <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[11px] text-emerald-700/70">
                 {entry.onsite_group_check_in && <span>เริ่ม {fmtTime(entry.onsite_group_check_in) ?? "-"}</span>}
-                {onsiteExitTime && <span>ออก {fmtTime(onsiteExitTime) ?? "-"}</span>}
-                {entry.onsite_exit_label && (
-                  <span className="rounded-full border border-emerald-200 bg-white/80 px-2 py-0.5 font-bold text-emerald-700">
-                    {entry.onsite_exit_label}
+                {onsiteExitTime && (
+                  <span>
+                    ออก {fmtTime(onsiteExitTime) ?? "-"}
+                    {entry.onsite_exit_label && (
+                      <span className="ml-1 font-bold text-emerald-700">({entry.onsite_exit_label})</span>
+                    )}
                   </span>
                 )}
+                {entry.onsite_map_url && (
+                  <a
+                    href={entry.onsite_map_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-white/80 px-2.5 py-1 text-[11px] font-bold text-emerald-700 transition hover:bg-white"
+                  >
+                    <IconPin />
+                    Google Maps
+                  </a>
+                )}
               </div>
-              {entry.onsite_map_url && (
-                <a
-                  href={entry.onsite_map_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-white/80 px-2.5 py-1 text-[11px] font-bold text-emerald-700 transition hover:bg-white"
-                >
-                  <IconPin />
-                  Google Maps
-                </a>
-              )}
             </div>
           )}
 
@@ -332,12 +334,6 @@ function LeaveRow({ entry }: { entry: LeaveEntry }) {
               <span className="whitespace-nowrap text-rose-400">({detail.duration})</span>
             )}
           </p>
-          {entry.reason && (
-            <p className="mt-2 line-clamp-2 text-[11px] leading-snug">
-              <span className="mr-1.5 font-bold text-slate-800">Reason</span>
-              <span className="font-medium text-slate-400">{entry.reason}</span>
-            </p>
-          )}
         </div>
       </div>
     </article>
