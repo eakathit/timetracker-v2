@@ -25,9 +25,10 @@ type StatusEntry = {
   last_check_out: string | null;
   onsite_location: string | null;
   onsite_status: string | null;
-  onsite_session_code: string | null;
   onsite_group_check_in: string | null;
   onsite_group_check_out: string | null;
+  onsite_exit_time: string | null;
+  onsite_exit_label: string | null;
   onsite_map_url: string | null;
   report_id: string | null;
   profiles: PersonProfile | null;
@@ -229,6 +230,7 @@ function WorkEntryCard({
 }) {
   const checkIn = fmtTime(entry.first_check_in);
   const checkOut = fmtTime(entry.last_check_out);
+  const onsiteExitTime = entry.onsite_exit_time ?? entry.onsite_group_check_out;
   const tone = mode === "factory"
     ? {
         border: "border-slate-100",
@@ -271,9 +273,13 @@ function WorkEntryCard({
                 </p>
               </div>
               <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-emerald-700/70">
-                {entry.onsite_session_code && <span>Code: {entry.onsite_session_code}</span>}
                 {entry.onsite_group_check_in && <span>เริ่ม {fmtTime(entry.onsite_group_check_in) ?? "-"}</span>}
-                {entry.onsite_group_check_out && <span>จบ {fmtTime(entry.onsite_group_check_out) ?? "-"}</span>}
+                {onsiteExitTime && <span>ออก {fmtTime(onsiteExitTime) ?? "-"}</span>}
+                {entry.onsite_exit_label && (
+                  <span className="rounded-full border border-emerald-200 bg-white/80 px-2 py-0.5 font-bold text-emerald-700">
+                    {entry.onsite_exit_label}
+                  </span>
+                )}
               </div>
               {entry.onsite_map_url && (
                 <a
@@ -327,8 +333,9 @@ function LeaveRow({ entry }: { entry: LeaveEntry }) {
             )}
           </p>
           {entry.reason && (
-            <p className="mt-2 line-clamp-2 text-[11px] leading-snug text-slate-400">
-              {entry.reason}
+            <p className="mt-2 line-clamp-2 text-[11px] leading-snug">
+              <span className="mr-1.5 font-bold text-slate-800">Reason</span>
+              <span className="font-medium text-slate-400">{entry.reason}</span>
             </p>
           )}
         </div>
@@ -416,21 +423,36 @@ function SummaryPill({
   label,
   value,
   color,
+  icon,
 }: {
   label: string;
   value: number;
-  color: "blue" | "emerald" | "rose" | "slate";
+  color: "blue" | "emerald" | "rose";
+  icon: React.ReactNode;
 }) {
-  const colors = {
-    blue: "border-slate-200 bg-white text-blue-700",
-    emerald: "border-slate-200 bg-white text-emerald-700",
-    rose: "border-slate-200 bg-white text-rose-700",
-    slate: "border-slate-200 bg-white text-slate-600",
+  const styles = {
+    blue: {
+      shell: "border-slate-200 bg-white text-blue-700",
+      icon: "border-blue-100 bg-blue-50 text-blue-700",
+    },
+    emerald: {
+      shell: "border-slate-200 bg-white text-emerald-700",
+      icon: "border-emerald-100 bg-emerald-50 text-emerald-700",
+    },
+    rose: {
+      shell: "border-slate-200 bg-white text-rose-700",
+      icon: "border-rose-100 bg-rose-50 text-rose-700",
+    },
   }[color];
 
   return (
-    <div className={`flex min-w-24 items-center justify-between gap-3 rounded-xl border px-3 py-2 shadow-[0_1px_2px_rgba(15,23,42,0.03)] ${colors}`}>
-      <span className="text-xs font-bold text-slate-500">{label}</span>
+    <div className={`flex min-w-28 items-center justify-between gap-3 rounded-xl border px-2.5 py-2 shadow-[0_1px_2px_rgba(15,23,42,0.03)] ${styles.shell}`}>
+      <div className="flex min-w-0 items-center gap-2">
+        <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border ${styles.icon}`}>
+          {icon}
+        </span>
+        <span className="truncate text-xs font-bold text-slate-500">{label}</span>
+      </div>
       <span className="text-lg font-extrabold leading-none tabular-nums tracking-normal">{value}</span>
     </div>
   );
@@ -521,10 +543,6 @@ export default function WorkStatusDisplayPage() {
     () => data.checkins.filter((entry) => entry.work_type !== "in_factory"),
     [data.checkins],
   );
-  const reportCount = useMemo(
-    () => data.checkins.filter((entry) => entry.work_items.length > 0).length,
-    [data.checkins],
-  );
 
   const toggleFullscreen = useCallback(() => {
     if (!document.fullscreenElement) {
@@ -545,10 +563,9 @@ export default function WorkStatusDisplayPage() {
           </div>
         </div>
         <div className="flex flex-wrap justify-end gap-2">
-          <SummaryPill label="Factory" value={factoryEntries.length} color="blue" />
-          <SummaryPill label="On-site" value={onsiteEntries.length} color="emerald" />
-          <SummaryPill label="Leave" value={data.leaves.length} color="rose" />
-          <SummaryPill label="Report" value={reportCount} color="slate" />
+          <SummaryPill label="Factory" value={factoryEntries.length} color="blue" icon={<IconFactory />} />
+          <SummaryPill label="On-site" value={onsiteEntries.length} color="emerald" icon={<IconPin />} />
+          <SummaryPill label="Leave" value={data.leaves.length} color="rose" icon={<IconCalendar />} />
           <button
             onClick={toggleFullscreen}
             title={isFullscreen ? "ออกจาก Fullscreen" : "เปิด Fullscreen"}

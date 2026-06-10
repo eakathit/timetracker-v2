@@ -25,6 +25,8 @@ type TimeLogRow = {
   timeline_events: {
     session_id?: string;
     event?: string;
+    timestamp?: string;
+    note?: string;
     checkout_lat?: number;
     checkout_lng?: number;
   }[] | null;
@@ -153,6 +155,28 @@ function onsiteMapUrl(log: TimeLogRow) {
   return null;
 }
 
+function onsiteExitInfo(log: TimeLogRow) {
+  const exitEvent = (log.timeline_events ?? []).find((event) =>
+    event.event === "onsite_return_to_factory" ||
+    event.event === "return_to_factory" ||
+    event.event === "onsite_checkout" ||
+    event.event === "onsite_early_leave"
+  );
+
+  if (!exitEvent?.timestamp) {
+    return { time: null, label: null };
+  }
+
+  const label =
+    exitEvent.event === "onsite_return_to_factory" || exitEvent.event === "return_to_factory"
+      ? "กลับโรงงาน"
+      : exitEvent.event === "onsite_early_leave"
+        ? "ออกก่อน"
+        : "ออก On-site";
+
+  return { time: exitEvent.timestamp, label };
+}
+
 export async function GET(request: NextRequest) {
   try {
     if (!(await hasDisplayOrAdminAccess(request))) {
@@ -269,6 +293,7 @@ export async function GET(request: NextRequest) {
           (log.onsite_session_id ? sessionMap.get(log.onsite_session_id) : undefined) ??
           memberSessionMap.get(log.user_id);
         const report = reportMap.get(log.user_id);
+        const onsiteExit = onsiteExitInfo(log);
         return {
           id: log.id,
           user_id: log.user_id,
@@ -280,6 +305,8 @@ export async function GET(request: NextRequest) {
           onsite_session_code: session?.session_code ?? null,
           onsite_group_check_in: session?.group_check_in ?? null,
           onsite_group_check_out: session?.group_check_out ?? null,
+          onsite_exit_time: log.work_type === "in_factory" ? null : onsiteExit.time,
+          onsite_exit_label: log.work_type === "in_factory" ? null : onsiteExit.label,
           onsite_map_url: log.work_type === "in_factory" ? null : onsiteMapUrl(log),
           report_id: report?.id ?? null,
           profiles: profile,
