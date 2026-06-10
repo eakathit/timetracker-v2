@@ -1,10 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { hasValidDisplayAccess } from "@/lib/display-access";
+import { hasDisplayOrAdminAccess } from "@/lib/display-api-access";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
 function getLocalToday(): string {
@@ -13,7 +13,7 @@ function getLocalToday(): string {
 
 export async function GET(request: NextRequest) {
   try {
-    if (!hasValidDisplayAccess(request)) {
+    if (!(await hasDisplayOrAdminAccess(request))) {
       return NextResponse.json({ error: "Unauthorized display" }, { status: 401 });
     }
 

@@ -20,15 +20,17 @@ export async function middleware(request: NextRequest) {
   // สำคัญ: ออกก่อนสร้าง Supabase client เพื่อไม่ให้เรียก getUser() โดยไม่จำเป็น
   const isQRTokenAPI        = url.pathname === "/api/qr-token";
   const isRecentCheckinsAPI = url.pathname === "/api/recent-checkins";
+  const isDisplayTodayStatusAPI = url.pathname === "/api/display-today-status";
   const isCronRoute         = url.pathname.startsWith("/api/cron/");
   const isAuthCallback      = url.pathname.startsWith("/auth/callback");
   const isPendingApprovalPage = url.pathname === "/pending-approval";
   const isAccessSuspendedPage = url.pathname === "/access-suspended";
   const isQRDisplayPage = url.pathname === "/qr-display";
+  const isWorkStatusDisplayPage = url.pathname === "/work-status-display";
   const isQRDisplayInstallPage = url.pathname === "/qr-display-install";
   const isQRDisplayManifest = url.pathname === "/qr-display-manifest.webmanifest";
 
-  if (isQRDisplayPage && hasValidDisplayAccess(request)) {
+  if ((isQRDisplayPage || isWorkStatusDisplayPage) && hasValidDisplayAccess(request)) {
     if (url.searchParams.has(DISPLAY_ACCESS_PARAM)) {
       return redirectToCleanDisplayUrl(request);
     }
@@ -38,6 +40,7 @@ export async function middleware(request: NextRequest) {
   if (
     isQRTokenAPI ||
     isRecentCheckinsAPI ||
+    isDisplayTodayStatusAPI ||
     isCronRoute ||
     isAuthCallback ||
     isQRDisplayInstallPage ||
@@ -119,7 +122,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // ── Admin-only paths — รวม /qr-display ไว้ในก้อนเดียว (1 DB query) ───────
-  const ADMIN_ONLY_PATHS = ["/settings", "/audit", "/team", "/hr", "/qr-display"];
+  const ADMIN_ONLY_PATHS = ["/settings", "/audit", "/team", "/hr", "/qr-display", "/work-status-display", "/work-status"];
 
   if (ADMIN_ONLY_PATHS.some((p) => url.pathname.startsWith(p))) {
     if (!profile || !isAdminRole(profile.role)) {
@@ -127,7 +130,7 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(url);
     }
 
-    if (isQRDisplayPage) {
+    if (isQRDisplayPage || isWorkStatusDisplayPage) {
       setDisplayAccessCookie(supabaseResponse);
     }
   }

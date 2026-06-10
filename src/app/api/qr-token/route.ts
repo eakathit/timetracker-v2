@@ -2,7 +2,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { buildQRPayload } from "@/lib/qr-token";
-import { hasValidDisplayAccess } from "@/lib/display-access";
+import { hasDisplayOrAdminAccess } from "@/lib/display-api-access";
 
 // Service role client — เขียน qr_nonces ได้โดยไม่ผ่าน RLS
 const supabaseAdmin = createClient(
@@ -12,7 +12,7 @@ const supabaseAdmin = createClient(
 
 export async function GET(request: NextRequest) {
   try {
-    if (!hasValidDisplayAccess(request)) {
+    if (!(await hasDisplayOrAdminAccess(request))) {
       return NextResponse.json({ error: "Unauthorized display" }, { status: 401 });
     }
 

@@ -201,6 +201,21 @@ const Icons = {
       <path d="M14 14h1v1h-1z M17 14h3 M14 17h1 M17 17h1v1 M20 17v3 M17 20h3" />
     </svg>
   ),
+  statusDisplay: (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="3" y="4" width="18" height="13" rx="2" />
+      <path d="M8 21h8" />
+      <path d="M12 17v4" />
+      <path d="M8 10l2.5 2.5L16 7" />
+    </svg>
+  ),
   location: (
     <svg
       viewBox="0 0 24 24"
@@ -357,6 +372,12 @@ const NAV_GROUPS: NavGroup[] = [
         href: "/time-sync",
         icon: Icons.syncCheck,
       },
+      {
+        label: "Work Status",
+        labelTh: "สถานะงานวันนี้",
+        href: "/work-status-display",
+        icon: Icons.statusDisplay,
+      },
     ],
   },
   {
@@ -490,6 +511,8 @@ export default function Sidebar() {
     "/team",
     "/hr",
     "/qr-display",
+    "/work-status-display",
+    "/work-status",
     "/time-sync",
   ];
 

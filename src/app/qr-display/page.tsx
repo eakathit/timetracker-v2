@@ -8,17 +8,97 @@ import { createClient } from "@supabase/supabase-js";
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface QRPayload { t: string; loc: string; exp: number; }
 
+interface PersonProfile {
+  first_name: string | null;
+  last_name: string | null;
+  avatar_url: string | null;
+}
+
 interface CheckinEntry {
   id: string;
   user_id: string;
   work_type: string;
   first_check_in: string;
-  profiles: {
-    first_name: string | null;
-    last_name: string | null;
-    avatar_url: string | null;
-  } | null;
+  profiles: PersonProfile | null;
 }
+
+interface LeaveEntry {
+  id: string;
+  user_id: string;
+  leave_type: string;
+  leave_label: string;
+  period_label: string | null;
+  hours: number | null;
+  profiles: PersonProfile | null;
+}
+
+interface DisplayStatusResponse {
+  checkins: CheckinEntry[];
+  leaves: LeaveEntry[];
+}
+
+type QRDisplayVariant = "minimal" | "focus" | "board";
+
+const QR_VARIANTS: Record<
+  QRDisplayVariant,
+  {
+    shellBg: string;
+    headerBg: string;
+    headerText: string;
+    headerSubText: string;
+    headerBorder: string;
+    mainBg: string;
+    panelClass: string;
+    panelTopBar: string;
+    rowClass: string;
+    emptyIconClass: string;
+    qrCardShadow: string;
+    footerClass: string;
+  }
+> = {
+  minimal: {
+    shellBg: "#f7f9fc",
+    headerBg: "rgba(255,255,255,0.92)",
+    headerText: "text-slate-900",
+    headerSubText: "text-slate-400",
+    headerBorder: "border-b border-slate-200",
+    mainBg: "bg-[#f7f9fc]",
+    panelClass: "bg-white/88 border border-slate-200 rounded-2xl shadow-sm",
+    panelTopBar: "hidden",
+    rowClass: "bg-white/80 border-slate-100 hover:border-slate-200",
+    emptyIconClass: "bg-slate-50 border-slate-100",
+    qrCardShadow: "0 1px 2px rgba(15,23,42,0.05), 0 16px 40px rgba(15,23,42,0.08)",
+    footerClass: "border-t border-slate-200 bg-white/80 backdrop-blur",
+  },
+  focus: {
+    shellBg: "#eef4f8",
+    headerBg: "linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%)",
+    headerText: "text-white",
+    headerSubText: "text-sky-200/70",
+    headerBorder: "",
+    mainBg: "bg-[radial-gradient(circle_at_center,#ffffff_0%,#eef4f8_62%,#e2e8f0_100%)]",
+    panelClass: "bg-white/72 border border-white/80 rounded-2xl shadow-[0_16px_40px_rgba(15,23,42,0.08)] backdrop-blur",
+    panelTopBar: "hidden",
+    rowClass: "bg-white/85 border-white/80 hover:border-slate-200",
+    emptyIconClass: "bg-white/70 border-white",
+    qrCardShadow: "0 0 0 1px rgba(255,255,255,0.9), 0 24px 70px rgba(15,23,42,0.18)",
+    footerClass: "border-t border-white/70 bg-white/70 backdrop-blur",
+  },
+  board: {
+    shellBg: "#f8fafc",
+    headerBg: "linear-gradient(135deg, #0c1a3d 0%, #1a3570 100%)",
+    headerText: "text-white",
+    headerSubText: "text-blue-300/70",
+    headerBorder: "",
+    mainBg: "bg-slate-50",
+    panelClass: "bg-white border-r border-slate-200",
+    panelTopBar: "block",
+    rowClass: "bg-white border-slate-200 hover:border-slate-300 hover:shadow-sm",
+    emptyIconClass: "bg-slate-100 border-slate-200",
+    qrCardShadow: "0 0 0 1px rgba(12,26,61,0.07), 0 8px 24px rgba(12,26,61,0.10)",
+    footerClass: "border-t border-slate-200 bg-white",
+  },
+};
 
 // ─── Viewport Hook ────────────────────────────────────────────────────────────
 // ✅ KEY FIX: อ่าน viewport จริงจาก JS แทน CSS units
@@ -65,10 +145,10 @@ const AVATAR_COLORS = [
 const avatarColor = (id: string) =>
   AVATAR_COLORS[id.charCodeAt(0) % AVATAR_COLORS.length];
 
-const getFullName = (p: CheckinEntry["profiles"]) =>
+const getFullName = (p: PersonProfile | null) =>
   [p?.first_name, p?.last_name].filter(Boolean).join(" ") || "ไม่ระบุชื่อ";
 
-const getInitials = (p: CheckinEntry["profiles"]) =>
+const getInitials = (p: PersonProfile | null) =>
   ((p?.first_name?.[0] ?? "") + (p?.last_name?.[0] ?? "")).toUpperCase() || "?";
 
 const fmtTime = (iso: string) =>
@@ -77,8 +157,25 @@ const fmtTime = (iso: string) =>
     timeZone: "Asia/Bangkok",
   });
 
+const fmtNum = (value: number) =>
+  Number.isInteger(value) ? value.toString() : parseFloat(value.toFixed(2)).toString();
+
+function getLeaveDetailParts(entry: LeaveEntry) {
+  const rawPeriod = entry.period_label?.trim() || null;
+  const isFullDay = rawPeriod === "ทั้งวัน";
+  const period = rawPeriod && !isFullDay ? rawPeriod : null;
+  const hours = Number(entry.hours ?? 0);
+  const duration = hours > 0 && !isFullDay ? `${fmtNum(hours)} ชม.` : null;
+
+  return {
+    label: entry.leave_label,
+    period: period ?? (isFullDay || !rawPeriod ? "ทั้งวัน" : null),
+    duration,
+  };
+}
+
 // ─── AvatarBubble ─────────────────────────────────────────────────────────────
-function AvatarBubble({ entry }: { entry: CheckinEntry }) {
+function AvatarBubble({ entry }: { entry: { user_id: string; profiles: PersonProfile | null } }) {
   if (entry.profiles?.avatar_url) {
     return (
       <img
@@ -100,13 +197,22 @@ function AvatarBubble({ entry }: { entry: CheckinEntry }) {
 }
 
 // ─── CheckinRow ───────────────────────────────────────────────────────────────
-function CheckinRow({ entry, isNew }: { entry: CheckinEntry; isNew: boolean }) {
+function CheckinRow({
+  entry,
+  isNew,
+  variant,
+}: {
+  entry: CheckinEntry;
+  isNew: boolean;
+  variant: QRDisplayVariant;
+}) {
+  const theme = QR_VARIANTS[variant];
   return (
     <div
       className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border transition-all duration-500 ${
         isNew
           ? "bg-emerald-50 border-emerald-200 shadow-sm scale-[1.01]"
-          : "bg-white border-slate-200 hover:border-slate-300 hover:shadow-sm"
+          : theme.rowClass
       }`}
     >
       <AvatarBubble entry={entry} />
@@ -129,7 +235,7 @@ function CheckinRow({ entry, isNew }: { entry: CheckinEntry; isNew: boolean }) {
 
 // ─── CheckinColumn ────────────────────────────────────────────────────────────
 function CheckinColumn({
-  title, accentColor, accentBg, icon, entries, newIds,
+  title, accentColor, accentBg, icon, entries, newIds, variant,
 }: {
   title: string;
   accentColor: string;
@@ -137,7 +243,9 @@ function CheckinColumn({
   icon: React.ReactNode;
   entries: CheckinEntry[];
   newIds: Set<string>;
+  variant: QRDisplayVariant;
 }) {
+  const theme = QR_VARIANTS[variant];
   return (
     <div className="flex flex-col h-full min-h-0">
       <div className="flex items-center justify-between mb-3 pb-2.5 border-b border-slate-100 flex-shrink-0">
@@ -164,20 +272,107 @@ function CheckinColumn({
 
       <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 scrollbar-hide">
         {entries.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-10 text-center">
-            <div className="w-12 h-12 rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center mb-2">
-              <svg className="w-6 h-6 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <div className={`w-14 h-14 rounded-2xl border flex items-center justify-center mb-3 shadow-sm ${theme.emptyIconClass}`}>
+              <svg className="w-7 h-7 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
                   d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
-            <p className="text-slate-400 text-xs font-medium">ยังไม่มีการ Check-in</p>
-            <p className="text-slate-300 text-xs mt-0.5">รอสแกน QR Code</p>
+            <p className="text-slate-500 text-sm font-bold">ยังไม่มีการ Check-in</p>
+            <p className="text-slate-300 text-xs mt-1">รอสแกน QR Code</p>
           </div>
         ) : (
           entries.map((e) => (
-            <CheckinRow key={e.id} entry={e} isNew={newIds.has(e.id)} />
+            <CheckinRow key={e.id} entry={e} isNew={newIds.has(e.id)} variant={variant} />
           ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+function LeaveRow({ entry, variant }: { entry: LeaveEntry; variant: QRDisplayVariant }) {
+  const theme = QR_VARIANTS[variant];
+  const leaveDetail = getLeaveDetailParts(entry);
+
+  return (
+    <div className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border ${
+      variant === "board" ? "bg-rose-50 border-rose-100" : theme.rowClass
+    }`}>
+      <AvatarBubble entry={entry} />
+      <div className="flex-1 min-w-0">
+        <p
+          className="text-slate-800 text-sm font-semibold leading-snug"
+          style={{
+            display: "-webkit-box",
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: "vertical",
+            overflow: "hidden",
+          }}
+        >
+          {getFullName(entry.profiles)}
+        </p>
+        <p className="mt-1 flex min-w-0 items-center gap-1 text-xs leading-none text-rose-500">
+          <span className="font-semibold text-rose-600 truncate">
+            {leaveDetail.label}
+          </span>
+          <span className="text-rose-300">·</span>
+          <span className="text-rose-500 whitespace-nowrap">
+            {leaveDetail.period}
+          </span>
+          {leaveDetail.duration && (
+            <span className="text-rose-400 whitespace-nowrap">
+              ({leaveDetail.duration})
+            </span>
+          )}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function LeaveColumn({ entries, variant }: { entries: LeaveEntry[]; variant: QRDisplayVariant }) {
+  const theme = QR_VARIANTS[variant];
+  return (
+    <div className="flex flex-col h-full min-h-0">
+      <div className="flex items-center justify-between mb-3 pb-2.5 border-b border-slate-100 flex-shrink-0">
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-lg bg-rose-600 flex items-center justify-center shadow-sm flex-shrink-0">
+            <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M8 7V3m8 4V3M4 11h16M6 5h12a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V7a2 2 0 012-2z" />
+            </svg>
+          </div>
+          <div>
+            <h2 className="font-bold text-sm leading-tight text-rose-700">พนักงานลา</h2>
+            <p className="text-slate-400 text-xs">{entries.length} คน</p>
+          </div>
+        </div>
+        <span className={`flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full border ${
+          entries.length > 0
+            ? "bg-rose-50 text-rose-700 border-rose-200"
+            : "bg-slate-100 text-slate-400 border-slate-200"
+        }`}>
+          <span className={`w-1.5 h-1.5 rounded-full ${entries.length > 0 ? "bg-rose-500" : "bg-slate-300"}`} />
+          TODAY
+        </span>
+      </div>
+
+      <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 scrollbar-hide">
+        {entries.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <div className={`w-14 h-14 rounded-2xl border flex items-center justify-center mb-3 shadow-sm ${theme.emptyIconClass}`}>
+              <svg className="w-7 h-7 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                  d="M8 7V3m8 4V3M4 11h16M6 5h12a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V7a2 2 0 012-2z" />
+              </svg>
+            </div>
+            <p className="text-slate-500 text-sm font-bold">ไม่มีพนักงานลา</p>
+            <p className="text-slate-300 text-xs mt-1">ข้อมูลวันนี้</p>
+          </div>
+        ) : (
+          entries.map((entry) => <LeaveRow key={entry.id} entry={entry} variant={variant} />)
         )}
       </div>
     </div>
@@ -293,12 +488,22 @@ export default function QRDisplayPage() {
   const [currentTime, setCurrentTime] = useState("");
   const [currentDate, setCurrentDate] = useState("");
   const [allEntries, setAllEntries]   = useState<CheckinEntry[]>([]);
+  const [leaveEntries, setLeaveEntries] = useState<LeaveEntry[]>([]);
   const [newIds, setNewIds]           = useState<Set<string>>(new Set());
   const prevIdsRef = useRef<Set<string>>(new Set());
 
   const [toastQueue, setToastQueue]   = useState<CheckinEntry[]>([]);
   const [activeToast, setActiveToast] = useState<CheckinEntry | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [variant, setVariant] = useState<QRDisplayVariant>("minimal");
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const urlVariant = params.get("variant");
+    if (urlVariant === "minimal" || urlVariant === "focus" || urlVariant === "board") {
+      setVariant(urlVariant);
+    }
+  }, []);
 
   // ── Layout calculations (JS-based, ไม่ใช้ CSS units) ─────────────────────────
   // คำนวณจาก visualViewport จริง และเผื่อขอบสำหรับ TV overscan / browser zoom
@@ -311,11 +516,16 @@ export default function QRDisplayPage() {
   const FOOTER_H = showFooter ? clamp(Math.round(usableH * 0.04), 26, 34) : 0;
   const mainH = Math.max(240, usableH - HEADER_H - FOOTER_H);
 
-  // Side columns shrink harder on TV browsers that report a small viewport.
-  const colW = clamp(
-    Math.round(usableW * (usableW < 980 ? 0.17 : 0.19)),
-    usableW < 980 ? 150 : 190,
-    290,
+  // Side rails shrink harder on TV browsers that report a small viewport.
+  const sideRailW = clamp(
+    Math.round(usableW * (usableW < 980 ? 0.15 : 0.16)),
+    usableW < 980 ? 140 : 170,
+    260,
+  );
+  const rightRailW = clamp(
+    Math.round(sideRailW * 1.12),
+    usableW < 980 ? 168 : 210,
+    300,
   );
 
   const centerPy = clamp(Math.round(mainH * 0.025), 6, 18);
@@ -323,10 +533,12 @@ export default function QRDisplayPage() {
   const showLegend = mainH >= 560;
 
   // QR card: reserve real vertical space for clock, progress, padding, and legend first.
-  const centerW = Math.max(220, usableW - colW * 2);
+  const centerW = Math.max(220, usableW - sideRailW - rightRailW);
   const clockFontSize = clamp(Math.round(mainH * 0.06), 28, 58);
   const dateFontSize  = clamp(Math.round(mainH * 0.018), 10, 15);
-  const clockBlockH = clockFontSize + dateFontSize + 12;
+  const showSummaryStrip = mainH >= 420;
+  const summaryStripH = showSummaryStrip ? 30 : 0;
+  const clockBlockH = clockFontSize + dateFontSize + summaryStripH + 18;
   const legendH = showLegend ? 26 : 0;
   const progressH = 32;
   const reservedCenterH =
@@ -350,6 +562,8 @@ export default function QRDisplayPage() {
   const headerPx = clamp(Math.round(usableW * 0.018), 12, 24);
   const logoSize = clamp(HEADER_H - 26, 28, 40);
   const compactQrMeta = qrSize < 240;
+  const theme = QR_VARIANTS[variant];
+  const isBoardVariant = variant === "board";
 
   // ── QR Refresh ────────────────────────────────────────────────────────────────
   const refreshQR = useCallback(async () => {
@@ -391,13 +605,15 @@ export default function QRDisplayPage() {
   // ── Fetch entries ─────────────────────────────────────────────────────────────
   const fetchEntries = useCallback(async () => {
   try {
-    const res = await fetch("/api/recent-checkins", { cache: "no-store" });
+    const res = await fetch("/api/display-today-status", { cache: "no-store" });
     if (!res.ok) return;
-    const data: CheckinEntry[] = await res.json();
-    setAllEntries(data);
+    const data: DisplayStatusResponse = await res.json();
+    const checkins = data.checkins ?? [];
+    setAllEntries(checkins);
+    setLeaveEntries(data.leaves ?? []);
 
-    const currentIds = new Set(data.map((e) => e.id));
-    const newlyAdded = data.filter((e) => !prevIdsRef.current.has(e.id));
+    const currentIds = new Set(checkins.map((e) => e.id));
+    const newlyAdded = checkins.filter((e) => !prevIdsRef.current.has(e.id));
 
     if (isFirstFetchRef.current) {
       isFirstFetchRef.current = false;
@@ -487,9 +703,23 @@ export default function QRDisplayPage() {
           fetchEntriesRef.current();
         },
       )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "leave_requests",
+        },
+        () => {
+          fetchEntriesRef.current();
+        },
+      )
       .subscribe();
 
+    const refreshId = setInterval(() => fetchEntriesRef.current(), 30_000);
+
     return () => {
+      clearInterval(refreshId);
       supabaseRealtime.removeChannel(channel);
     };
   }, []);
@@ -539,12 +769,13 @@ export default function QRDisplayPage() {
   return (
     // ใช้ visualViewport จริง + safe inset เพื่อกัน TV overscan ตัดขอบภาพ
     <div
-      className="fixed inset-0 flex flex-col overflow-hidden bg-slate-50 select-none"
+      className="fixed inset-0 flex flex-col overflow-hidden select-none"
       style={{
         width: vpW,
         height: vpH,
         padding: tvSafeInset,
         boxSizing: "border-box",
+        background: theme.shellBg,
       }}
     >
 
@@ -556,16 +787,16 @@ export default function QRDisplayPage() {
           HEADER
       ═════════════════════════════════════════════════════════════════════ */}
       <header
-        className="flex items-center justify-between flex-shrink-0"
+        className={`flex items-center justify-between flex-shrink-0 ${theme.headerBorder} ${!isBoardVariant ? "rounded-2xl" : ""}`}
         style={{
           height: HEADER_H,
           paddingLeft: headerPx,
           paddingRight: headerPx,
-          background: "linear-gradient(135deg, #0c1a3d 0%, #1a3570 100%)",
-          boxShadow: "0 2px 12px rgba(12,26,61,0.3)",
+          background: theme.headerBg,
+          boxShadow: isBoardVariant ? "0 2px 12px rgba(12,26,61,0.3)" : "0 10px 30px rgba(15,23,42,0.06)",
         }}
       >
-        <div className="flex items-center gap-3 min-w-0">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
           <div
             className="rounded-xl bg-white p-1 flex-shrink-0 shadow-md ring-2 ring-white/20"
             style={{ width: logoSize, height: logoSize }}
@@ -579,11 +810,11 @@ export default function QRDisplayPage() {
               priority
             />
           </div>
-          <div>
-            <p className="text-white font-bold text-xs xl:text-sm tracking-wide leading-tight truncate">
+          <div className="min-w-0">
+            <p className={`${theme.headerText} font-extrabold text-[13px] sm:text-sm xl:text-base leading-snug truncate`}>
               HARU SYSTEM DEVELOPMENT (THAILAND) CO., LTD.
             </p>
-            <p className="text-blue-300/70 text-[10px] tracking-widest uppercase mt-0.5">
+            <p className={`${theme.headerSubText} text-[11px] sm:text-xs font-medium leading-snug mt-0.5 truncate`}>
               ระบบบันทึกเวลาเข้า-ออกงาน
             </p>
           </div>
@@ -620,14 +851,14 @@ export default function QRDisplayPage() {
           MAIN — 3 columns
           ✅ ทุก width/height ใช้ค่าจาก JS calculations ไม่ใช้ CSS units
       ═════════════════════════════════════════════════════════════════════ */}
-      <main className="flex-1 flex overflow-hidden min-h-0">
+      <main className={`flex-1 flex overflow-hidden min-h-0 ${theme.mainBg} ${isBoardVariant ? "" : "gap-3 py-3"}`}>
 
         {/* ── LEFT: Factory ─────────────────────────────────────────────────── */}
         <div
-          className="flex-shrink-0 flex flex-col bg-white border-r border-slate-200 overflow-hidden"
-          style={{ width: colW }}
+          className={`flex-shrink-0 flex flex-col overflow-hidden ${theme.panelClass}`}
+          style={{ width: sideRailW }}
         >
-          <div className="h-1 bg-gradient-to-r from-blue-800 to-blue-500 flex-shrink-0" />
+          <div className={`h-1 bg-gradient-to-r from-blue-800 to-blue-500 flex-shrink-0 ${theme.panelTopBar}`} />
           <div
             className="flex-1 flex flex-col min-h-0 overflow-hidden"
             style={{ padding: sidePanelPadding }}
@@ -644,20 +875,23 @@ export default function QRDisplayPage() {
               }
               entries={factoryEntries}
               newIds={newIds}
+              variant={variant}
             />
           </div>
         </div>
 
         {/* ── CENTER: QR ────────────────────────────────────────────────────── */}
         <div
-          className="flex-1 flex flex-col items-center justify-center border-r border-slate-200 bg-slate-50 overflow-hidden min-h-0"
+          className={`flex-1 flex flex-col items-center justify-center overflow-hidden min-h-0 ${
+            isBoardVariant ? "border-r border-slate-200 bg-slate-50" : "rounded-2xl"
+          }`}
           style={{ gap: centerGap, paddingTop: centerPy, paddingBottom: centerPy }}
         >
 
           {/* Clock — ขนาดคำนวณจาก JS mainH */}
           <div className="text-center flex-shrink-0 mx-auto">
             <p
-              className="text-slate-800 font-mono font-bold leading-none"
+              className="text-slate-900 font-mono font-bold leading-none"
               style={{ fontSize: clockFontSize }}
             >
               {currentTime}
@@ -668,6 +902,22 @@ export default function QRDisplayPage() {
             >
               {currentDate}
             </p>
+            {showSummaryStrip && (
+              <div className="mt-3 flex items-center justify-center gap-2">
+                <span className="flex items-center gap-1.5 rounded-full border border-blue-100 bg-white/80 px-3 py-1 text-xs font-bold text-blue-700 shadow-sm">
+                  <span className="h-2 w-2 rounded-full bg-blue-600" />
+                  Factory {factoryEntries.length}
+                </span>
+                <span className="flex items-center gap-1.5 rounded-full border border-emerald-100 bg-white/80 px-3 py-1 text-xs font-bold text-emerald-700 shadow-sm">
+                  <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                  On-site {onsiteEntries.length}
+                </span>
+                <span className="flex items-center gap-1.5 rounded-full border border-rose-100 bg-white/80 px-3 py-1 text-xs font-bold text-rose-700 shadow-sm">
+                  <span className="h-2 w-2 rounded-full bg-rose-500" />
+                  Leave {leaveEntries.length}
+                </span>
+              </div>
+            )}
           </div>
 
           {/* QR Card — ขนาดคำนวณจาก JS qrSize */}
@@ -677,16 +927,9 @@ export default function QRDisplayPage() {
               width: qrSize,
               padding: qrPadding,
               boxSizing: "border-box",
-              boxShadow:
-                "0 0 0 1px rgba(12,26,61,0.07), 0 8px 24px rgba(12,26,61,0.10)",
+              boxShadow: theme.qrCardShadow,
             }}
           >
-            {/* Accent top */}
-            <div
-              className="absolute top-0 left-8 right-8 h-0.5 rounded-full"
-              style={{ background: "linear-gradient(90deg, #1d4ed8 0%, #16a34a 100%)" }}
-            />
-
             {/* Loading overlay */}
             {isLoading && (
               <div className="absolute inset-0 flex items-center justify-center bg-white rounded-[22px] z-10">
@@ -742,13 +985,16 @@ export default function QRDisplayPage() {
 
         {/* ── RIGHT: Onsite ──────────────────────────────────────────────────── */}
         <div
-          className="flex-shrink-0 flex flex-col bg-white overflow-hidden"
-          style={{ width: colW }}
+          className={`flex-shrink-0 flex flex-col overflow-hidden ${theme.panelClass}`}
+          style={{ width: rightRailW }}
         >
-          <div className="h-1 bg-gradient-to-r from-emerald-600 to-teal-500 flex-shrink-0" />
+          <div className={`h-1 bg-gradient-to-r from-emerald-600 via-teal-500 to-rose-500 flex-shrink-0 ${theme.panelTopBar}`} />
           <div
-            className="flex-1 flex flex-col min-h-0 overflow-hidden"
-            style={{ padding: sidePanelPadding }}
+            className="flex-[1.12] flex flex-col min-h-0 overflow-hidden"
+            style={{
+              padding: sidePanelPadding,
+              paddingBottom: Math.max(8, Math.round(sidePanelPadding * 0.75)),
+            }}
           >
             <CheckinColumn
               title="Check-in On-site"
@@ -764,9 +1010,22 @@ export default function QRDisplayPage() {
               }
               entries={onsiteEntries}
               newIds={newIds}
+              variant={variant}
             />
           </div>
+          <div className="mx-4 h-px bg-slate-100 flex-shrink-0" />
+          <div
+            className="flex-1 flex flex-col min-h-0 overflow-hidden"
+            style={{
+              padding: sidePanelPadding,
+              paddingTop: Math.max(8, Math.round(sidePanelPadding * 0.75)),
+            }}
+          >
+            <LeaveColumn entries={leaveEntries} variant={variant} />
+          </div>
         </div>
+
+        {/* ── FAR RIGHT: Leave ──────────────────────────────────────────────── */}
       </main>
 
       {/* ══════════════════════════════════════════════════════════════════════
@@ -774,7 +1033,7 @@ export default function QRDisplayPage() {
       ═════════════════════════════════════════════════════════════════════ */}
       {showFooter && (
         <footer
-          className="flex items-center justify-between border-t border-slate-200 bg-white flex-shrink-0"
+          className={`flex items-center justify-between flex-shrink-0 ${theme.footerClass} ${!isBoardVariant ? "rounded-2xl mt-3" : ""}`}
           style={{ height: FOOTER_H, paddingLeft: headerPx, paddingRight: headerPx }}
         >
           <p className="text-slate-400 text-xs">อัปเดตล่าสุด: {currentTime}</p>
@@ -783,7 +1042,7 @@ export default function QRDisplayPage() {
             <span className="text-slate-500 text-xs font-medium">ระบบทำงานปกติ</span>
           </div>
           <p className="text-slate-400 text-xs">
-            รวม <span className="font-bold text-slate-700">{allEntries.length}</span> คน Check-in วันนี้
+            รวม <span className="font-bold text-slate-700">{allEntries.length}</span> คน Check-in · Leave <span className="font-bold text-rose-600">{leaveEntries.length}</span> คน
           </p>
         </footer>
       )}
