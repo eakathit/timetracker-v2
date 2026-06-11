@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import DailyReportForm from "@/components/DailyReportForm";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
@@ -38,6 +38,20 @@ interface DayInfo {
   payMultiplier: number;
   holidayName: string | null;
 }
+
+type TimelineEventRecord = Record<string, unknown> & {
+  event?: string;
+  timestamp?: string;
+};
+
+const hasOpenOTSession = (events: TimelineEventRecord[]) => {
+  let open = false;
+  for (const event of events) {
+    if (event.event === "ot_start") open = true;
+    if (event.event === "ot_end") open = false;
+  }
+  return open;
+};
 
 async function getDayInfo(dateStr: string): Promise<DayInfo> {
   const dow = new Date(dateStr).getDay(); // 0=อาทิตย์, 6=เสาร์
@@ -311,6 +325,7 @@ export default function DashboardUI({
   /* ── Status ── */
   const [workStatus, setWorkStatus] = useState<WorkStatus>("loading");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const submitLockRef = useRef(false);
   const [isInitializing, setIsInitializing] = useState(true);
   const [showReportPopup, setShowReportPopup] = useState(false);
   const [showQRScanner, setShowQRScanner] = useState(false);
@@ -688,6 +703,9 @@ export default function DashboardUI({
   const pushEvent = async (
     newEvent: Record<string, unknown>,
     extraUpdate?: Record<string, unknown>,
+    options?: {
+      skipIf?: (events: TimelineEventRecord[]) => boolean;
+    },
   ) => {
     const { data } = await supabase
       .from("daily_time_logs")
@@ -695,15 +713,37 @@ export default function DashboardUI({
       .eq("user_id", userId)
       .eq("log_date", getLocalToday())
       .maybeSingle();
-    const timeline = [...(data?.timeline_events ?? []), newEvent];
-    return supabase
+
+    const existingEvents = (
+      Array.isArray(data?.timeline_events) ? data.timeline_events : []
+    ) as TimelineEventRecord[];
+
+    if (options?.skipIf?.(existingEvents)) {
+      return { error: null, skipped: true };
+    }
+
+    const timeline = [...existingEvents, newEvent];
+    const result = await supabase
       .from("daily_time_logs")
       .update({ timeline_events: timeline, ...extraUpdate })
       .eq("user_id", userId)
       .eq("log_date", getLocalToday());
+    return { ...result, skipped: false };
   };
 
   // ── Handlers ──────────────────────────────────────────────────────────────
+  const beginSubmit = () => {
+    if (submitLockRef.current) return false;
+    submitLockRef.current = true;
+    setIsSubmitting(true);
+    return true;
+  };
+
+  const endSubmit = () => {
+    submitLockRef.current = false;
+    setIsSubmitting(false);
+  };
+
   const handleCheckIn = async () => {
     if (!userId || !validateLocation()) return;
     setIsSubmitting(true);
@@ -920,36 +960,56 @@ export default function DashboardUI({
   };
   
   const handleStartOT = async () => {
-    if (!userId || isSubmitting) return;
-    const locationOk = await validateLocationForOT();
-    if (!locationOk) return;
-    setIsSubmitting(true);
-    const now = new Date().toISOString();
-    const { error } = await pushEvent({ event: "ot_start", timestamp: now });
-    if (!error) {
-      setRawOtStart(now);
-      setOtElapsed("00:00:00");
-      setWorkStatus("ot_working");
+    if (!userId || isSubmitting || !otTimeReady || !beginSubmit()) return;
+    try {
+      const locationOk = await validateLocationForOT();
+      if (!locationOk) return;
+
+      const now = new Date().toISOString();
+      const { error, skipped } = await pushEvent(
+        { event: "ot_start", timestamp: now },
+        undefined,
+        { skipIf: hasOpenOTSession },
+      );
+      if (error) {
+        console.error("[ot_start] update failed:", error);
+        return;
+      }
+      if (!skipped) {
+        setRawOtStart(now);
+        setRawOtEnd(null);
+        setOtElapsed("00:00:00");
+        setWorkStatus("ot_working");
+      }
+    } finally {
+      endSubmit();
     }
-    setIsSubmitting(false);
   };
 
   const handleEndOT = async () => {
-    if (!userId || isSubmitting) return;
-    const locationOk = await validateLocationForOT();
-    if (!locationOk) return;
-    setIsSubmitting(true);
-    const now = new Date().toISOString();
-    const hrs = calcOtHours(rawOtStart, now);
-    const { error } = await pushEvent(
-      { event: "ot_end", timestamp: now },
-      { ot_hours: hrs },
-    );
-    if (!error) {
-      setRawOtEnd(now);
-      setWorkStatus("ot_completed");
+    if (!userId || isSubmitting || !beginSubmit()) return;
+    try {
+      const locationOk = await validateLocationForOT();
+      if (!locationOk) return;
+
+      const now = new Date().toISOString();
+      const hrs = calcOtHours(rawOtStart, now);
+      const { error, skipped } = await pushEvent(
+        { event: "ot_end", timestamp: now },
+        { ot_hours: hrs },
+        { skipIf: (events) => !hasOpenOTSession(events) },
+      );
+      if (error) {
+        console.error("[ot_end] update failed:", error);
+        return;
+      }
+      if (!skipped) {
+        setRawOtEnd(now);
+        setWorkStatus("ot_completed");
+      }
+    } finally {
+      endSubmit();
     }
-    setIsSubmitting(false);
   };
 
   // ── Shared spinner ────────────────────────────────────────────────────────
