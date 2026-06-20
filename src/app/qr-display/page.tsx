@@ -8,6 +8,10 @@ import { createClient } from "@supabase/supabase-js";
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface QRPayload { t: string; loc: string; exp: number; }
 
+interface QRTokenBatchResponse {
+  tokens?: QRPayload[];
+}
+
 interface PersonProfile {
   first_name: string | null;
   last_name: string | null;
@@ -150,6 +154,9 @@ const getFullName = (p: PersonProfile | null) =>
 
 const getInitials = (p: PersonProfile | null) =>
   ((p?.first_name?.[0] ?? "") + (p?.last_name?.[0] ?? "")).toUpperCase() || "?";
+
+const QR_TOKEN_BATCH_SIZE = 20;
+const QR_TOKEN_REFILL_THRESHOLD = 4;
 
 const fmtTime = (iso: string) =>
   new Date(iso).toLocaleTimeString("th-TH", {
@@ -496,6 +503,8 @@ export default function QRDisplayPage() {
   const [activeToast, setActiveToast] = useState<CheckinEntry | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [variant, setVariant] = useState<QRDisplayVariant>("minimal");
+  const qrTokenQueueRef = useRef<QRPayload[]>([]);
+  const qrBatchPromiseRef = useRef<Promise<void> | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -565,47 +574,92 @@ export default function QRDisplayPage() {
   const theme = QR_VARIANTS[variant];
   const isBoardVariant = variant === "board";
 
+  const fetchQRBatch = useCallback(async () => {
+    if (qrBatchPromiseRef.current) {
+      return qrBatchPromiseRef.current;
+    }
+
+    qrBatchPromiseRef.current = (async () => {
+      const res = await fetch(`/api/qr-token?batch=${QR_TOKEN_BATCH_SIZE}`, { cache: "no-store" });
+
+      if (!res.ok) {
+        console.error("[fetchQRBatch] API error:", res.status);
+        return;
+      }
+
+      const data: QRTokenBatchResponse | QRPayload = await res.json();
+      const tokens = Array.isArray((data as QRTokenBatchResponse).tokens)
+        ? (data as QRTokenBatchResponse).tokens ?? []
+        : [data as QRPayload];
+      const now = Date.now();
+      const freshTokens = tokens.filter((token) => token.exp > now + 500 && token.t);
+      const mergedTokens = [...qrTokenQueueRef.current, ...freshTokens];
+      const tokenMap = new Map(mergedTokens.map((token) => [`${token.exp}:${token.t}`, token]));
+
+      qrTokenQueueRef.current = Array.from(tokenMap.values())
+        .filter((token) => token.exp > now + 500)
+        .sort((a, b) => a.exp - b.exp);
+    })();
+
+    try {
+      await qrBatchPromiseRef.current;
+    } catch (e) {
+      console.error("QR batch fetch error:", e);
+    } finally {
+      qrBatchPromiseRef.current = null;
+    }
+  }, []);
+
+  const drawQRPayload = useCallback(async (payload: QRPayload) => {
+    if (canvasRef.current) {
+      await QRCode.toCanvas(canvasRef.current, JSON.stringify(payload), {
+        width: qrCanvasSize,
+        margin: 2,
+        errorCorrectionLevel: "M",
+        color: { dark: "#0c1a3d", light: "#ffffff" },
+      });
+    }
+
+    const secondsLeft = Math.max(0, Math.ceil((payload.exp - Date.now()) / 1000));
+    setTimeLeft(secondsLeft);
+  }, [qrCanvasSize]);
+
   // ── QR Refresh ────────────────────────────────────────────────────────────────
   const refreshQR = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await fetch("/api/qr-token", { cache: "no-store" });
+      const now = Date.now();
+      qrTokenQueueRef.current = qrTokenQueueRef.current.filter((token) => token.exp > now + 500);
 
-      if (!res.ok) {
-      console.error("[refreshQR] API error:", res.status);
-      return;
-    }
-    
-      const payload: QRPayload = await res.json();
-
-      if (!payload.exp || !payload.t) {
-  console.error("[refreshQR] invalid payload:", payload);
-  return;
-}
-
-      if (canvasRef.current) {
-        await QRCode.toCanvas(canvasRef.current, JSON.stringify(payload), {
-          width: qrCanvasSize,
-          margin: 2,
-          errorCorrectionLevel: "M",
-          color: { dark: "#0c1a3d", light: "#ffffff" },
-        });
+      if (qrTokenQueueRef.current.length === 0) {
+        await fetchQRBatch();
       }
-      const secondsLeft = Math.max(0, Math.ceil((payload.exp - Date.now()) / 1000));
-      setTimeLeft(secondsLeft);
+
+      const payload = qrTokenQueueRef.current.shift();
+
+      if (!payload?.exp || !payload.t) {
+        console.error("[refreshQR] invalid payload:", payload);
+        return;
+      }
+
+      await drawQRPayload(payload);
+
+      if (qrTokenQueueRef.current.length <= QR_TOKEN_REFILL_THRESHOLD) {
+        void fetchQRBatch();
+      }
     } catch (e) {
       console.error("QR refresh error:", e);
     } finally {
       setIsLoading(false);
     }
-  }, [qrCanvasSize]);
+  }, [drawQRPayload, fetchQRBatch]);
 
   const isFirstFetchRef = useRef(true);
 
   // ── Fetch entries ─────────────────────────────────────────────────────────────
   const fetchEntries = useCallback(async () => {
   try {
-    const res = await fetch("/api/display-today-status", { cache: "no-store" });
+    const res = await fetch("/api/qr-display-status", { cache: "no-store" });
     if (!res.ok) return;
     const data: DisplayStatusResponse = await res.json();
     const checkins = data.checkins ?? [];
@@ -716,7 +770,7 @@ export default function QRDisplayPage() {
       )
       .subscribe();
 
-    const refreshId = setInterval(() => fetchEntriesRef.current(), 30_000);
+    const refreshId = setInterval(() => fetchEntriesRef.current(), 5 * 60_000);
 
     return () => {
       clearInterval(refreshId);

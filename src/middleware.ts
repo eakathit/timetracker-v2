@@ -21,6 +21,7 @@ export async function middleware(request: NextRequest) {
   const isQRTokenAPI        = url.pathname === "/api/qr-token";
   const isRecentCheckinsAPI = url.pathname === "/api/recent-checkins";
   const isDisplayTodayStatusAPI = url.pathname === "/api/display-today-status";
+  const isQRDisplayStatusAPI = url.pathname === "/api/qr-display-status";
   const isCronRoute         = url.pathname.startsWith("/api/cron/");
   const isAuthCallback      = url.pathname.startsWith("/auth/callback");
   const isPendingApprovalPage = url.pathname === "/pending-approval";
@@ -41,6 +42,7 @@ export async function middleware(request: NextRequest) {
     isQRTokenAPI ||
     isRecentCheckinsAPI ||
     isDisplayTodayStatusAPI ||
+    isQRDisplayStatusAPI ||
     isCronRoute ||
     isAuthCallback ||
     isQRDisplayInstallPage ||
