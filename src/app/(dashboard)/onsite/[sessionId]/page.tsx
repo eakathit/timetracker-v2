@@ -541,6 +541,79 @@ function OTBreakModal({
 }
 
 // ─── Add Member Modal ─────────────────────────────────────────────────────────
+function OTConfirmModal({
+  pendingCount,
+  memberCount,
+  currentOTHours,
+  onNoOT,
+  onYesOT,
+  onCancel,
+  loading,
+}: {
+  pendingCount:   number;
+  memberCount:    number;
+  currentOTHours: number;
+  onNoOT:         () => void;
+  onYesOT:        () => void;
+  onCancel:       () => void;
+  loading:        boolean;
+}) {
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-6">
+      <div className="w-full max-w-sm bg-white rounded-3xl p-6 space-y-5">
+        <div className="text-center">
+          <div className="w-12 h-12 bg-sky-50 rounded-2xl flex items-center justify-center mx-auto mb-3">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-6 h-6 text-sky-500">
+              <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/>
+              <path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>
+            </svg>
+          </div>
+          <h3 className="text-base font-extrabold text-gray-800">Check-out ทั้งกลุ่ม</h3>
+          <p className="text-sm text-gray-500 mt-1">
+            {pendingCount} คน
+            {memberCount !== pendingCount && ` (จาก ${memberCount} คน)`}
+          </p>
+        </div>
+
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 flex items-center justify-between">
+          <span className="text-sm font-bold text-amber-700">พบเวลา OT</span>
+          <span className="text-lg font-black text-amber-600">{currentOTHours} ชม.</span>
+        </div>
+
+        <div className="space-y-2">
+          <p className="text-sm font-extrabold text-gray-700 text-center">ต้องการบันทึก OT วันนี้ไหม?</p>
+          <p className="text-xs text-gray-400 text-center">เลือก “ไม่ใช่ OT” เพื่อ Check-out ปกติโดยไม่เก็บ OT</p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            onClick={onNoOT}
+            disabled={loading}
+            className="py-3 rounded-xl border border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50 disabled:opacity-50 transition"
+          >
+            ไม่ใช่ OT
+          </button>
+          <button
+            onClick={onYesOT}
+            disabled={loading}
+            className="py-3 rounded-xl bg-sky-500 text-white text-sm font-bold hover:bg-sky-600 disabled:opacity-50 transition"
+          >
+            ใช่ OT
+          </button>
+        </div>
+
+        <button
+          onClick={onCancel}
+          disabled={loading}
+          className="w-full py-3 rounded-xl border border-gray-200 text-sm font-semibold text-gray-500 hover:bg-gray-50 disabled:opacity-50 transition"
+        >
+          ยกเลิก
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function AddMemberModal({
   sessionId,
   onAdded,
@@ -956,6 +1029,7 @@ export default function OnsiteSessionPage() {
   // Modals
   const [showEarlyLeave, setShowEarlyLeave]               = useState(false);
   const [showGroupCheckout, setShowGroupCheckout]         = useState(false);
+  const [showOTConfirm, setShowOTConfirm]                 = useState(false);
   const [showOTBreak, setShowOTBreak]                     = useState(false);
   const [showAddMember, setShowAddMember]                 = useState(false);
   const [showReturnToFactory, setShowReturnToFactory]     = useState(false);
@@ -1033,15 +1107,16 @@ const handleSetDriver = async (trip: "to" | "from", userId: string | null) => {
   // ── GPS Promise ref: เก็บ Promise ที่ยิงไปแล้ว เพื่อไม่ต้องรอซ้ำ ─────────
   const gpsPromiseRef = useRef<Promise<{ lat: number; lng: number } | null> | null>(null);
 
-  const handleGroupCheckOut = async (breakMinutes: number = 0) => {
+  const handleGroupCheckOut = async (breakMinutes: number = 0, recordOT: boolean = true) => {
   setShowGroupCheckout(false);
+  setShowOTConfirm(false);
   setShowOTBreak(false);
   // GPS ถูกยิงไปแล้วตั้งแต่กดปุ่ม Checkout ครั้งแรก
   // await ตรงนี้มักจะ resolve ทันทีเพราะ user ใช้เวลาอ่าน modal ไปแล้ว
   const gps = gpsPromiseRef.current ? await gpsPromiseRef.current : null;
   gpsPromiseRef.current = null;
   startTransition(async () => {
-    const res = await groupCheckOut(sessionId, breakMinutes, gps?.lat, gps?.lng);
+    const res = await groupCheckOut(sessionId, breakMinutes, gps?.lat, gps?.lng, recordOT);
     if (res.success) await loadSession();
     else setError(res.error ?? "Check-out ไม่สำเร็จ");
   });
@@ -1057,7 +1132,7 @@ const handleCheckOutClick = () => {
   }
   const otHours = calcOnsiteOTHoursPreview(new Date().toISOString());
   if (otHours > 0) {
-    setShowOTBreak(true);
+    setShowOTConfirm(true);
   } else {
     setShowGroupCheckout(true);
   }
@@ -1066,8 +1141,13 @@ const handleCheckOutClick = () => {
   const proceedGroupCheckout = () => {
     setShowReturnToFactory(false);
     const otHours = calcOnsiteOTHoursPreview(new Date().toISOString());
-    if (otHours > 0) setShowOTBreak(true);
+    if (otHours > 0) setShowOTConfirm(true);
     else setShowGroupCheckout(true);
+  };
+
+  const proceedGroupCheckoutWithOT = () => {
+    setShowOTConfirm(false);
+    setShowOTBreak(true);
   };
 
   const handleEarlyLeaveClick = () => {
@@ -1144,47 +1224,58 @@ const handleCheckOutClick = () => {
         />
       )}
       {showGroupCheckout && (
-  <GroupCheckoutModal
-    memberCount={session.members.length}
-    pendingCount={pendingMembers.length}
-    onConfirm={() => handleGroupCheckOut(0)}
-    onCancel={() => setShowGroupCheckout(false)}
-    loading={isPending}
-  />
-)}
-{showOTBreak && (
-  <OTBreakModal
-    pendingCount={pendingMembers.length}
-    memberCount={session.members.length}
-    currentOTHours={calcOnsiteOTHoursPreview(new Date().toISOString())}
-    onConfirm={(breakMins) => handleGroupCheckOut(breakMins)}
-    onCancel={() => setShowOTBreak(false)}
-    loading={isPending}
-  />
-)}
-{showAddMember && (
-  <AddMemberModal
-    sessionId={sessionId}
-    onAdded={loadSession}
-    onClose={() => setShowAddMember(false)}
-  />
-)}
-{showOnsiteReport && (
-  <OnsiteReportModal
-    session={session}
-    onSaved={loadSession}
-    onClose={() => setShowOnsiteReport(false)}
-  />
-)}
-{driverPicker && session && (
-  <DriverPickerSheet
-    member={driverPicker.member}
-    isDriverTo={session.driver_to_id === driverPicker.member.user_id}
-    isDriverFrom={session.driver_from_id === driverPicker.member.user_id}
-    onSet={handleSetDriver}
-    onClose={() => setDriverPicker(null)}
-  />
-)}
+        <GroupCheckoutModal
+          memberCount={session.members.length}
+          pendingCount={pendingMembers.length}
+          onConfirm={() => handleGroupCheckOut(0)}
+          onCancel={() => setShowGroupCheckout(false)}
+          loading={isPending}
+        />
+      )}
+      {showOTConfirm && (
+        <OTConfirmModal
+          pendingCount={pendingMembers.length}
+          memberCount={session.members.length}
+          currentOTHours={calcOnsiteOTHoursPreview(new Date().toISOString())}
+          onNoOT={() => handleGroupCheckOut(0, false)}
+          onYesOT={proceedGroupCheckoutWithOT}
+          onCancel={() => setShowOTConfirm(false)}
+          loading={isPending}
+        />
+      )}
+      {showOTBreak && (
+        <OTBreakModal
+          pendingCount={pendingMembers.length}
+          memberCount={session.members.length}
+          currentOTHours={calcOnsiteOTHoursPreview(new Date().toISOString())}
+          onConfirm={(breakMins) => handleGroupCheckOut(breakMins)}
+          onCancel={() => setShowOTBreak(false)}
+          loading={isPending}
+        />
+      )}
+      {showAddMember && (
+        <AddMemberModal
+          sessionId={sessionId}
+          onAdded={loadSession}
+          onClose={() => setShowAddMember(false)}
+        />
+      )}
+      {showOnsiteReport && (
+        <OnsiteReportModal
+          session={session}
+          onSaved={loadSession}
+          onClose={() => setShowOnsiteReport(false)}
+        />
+      )}
+      {driverPicker && session && (
+        <DriverPickerSheet
+          member={driverPicker.member}
+          isDriverTo={session.driver_to_id === driverPicker.member.user_id}
+          isDriverFrom={session.driver_from_id === driverPicker.member.user_id}
+          onSet={handleSetDriver}
+          onClose={() => setDriverPicker(null)}
+        />
+      )}
 
       <div className="min-h-screen bg-gray-50 flex flex-col pb-52 md:pb-32">
         {/* ── Header ── */}

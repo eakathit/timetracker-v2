@@ -17,6 +17,14 @@ interface ChangelogEntry {
 // ─── Changelog Data (Dev/Admin) ────────────
 const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "3.5.6",
+    date: "2026-06-22",
+    items: [
+      { tag: "improvement", text: "Check-in On-site ก่อน 08:00 เท่านั้น ถึงจะได้เบี้ยเลี้ยง 50 บาท" },
+      { tag: "improvement", text: "ตอน Check-out On-site ที่มี OT สามารถเลือกได้ว่าจะบันทึก OT หรือ Check-out ปกติ" },
+    ],
+  },
+  {
     version: "3.5.5",
     date: "2026-06-03",
     items: [

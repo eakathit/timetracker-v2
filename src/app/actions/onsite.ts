@@ -309,7 +309,9 @@ async function calcAttendanceStatusForUser(
   return computeAttendanceStatus(checkInIso, threshold);
 }
 
-// Helper: ตรวจสอบสิทธิ์เบี้ยเลี้ยง On-site (Check-in ก่อน 08:30)
+const ONSITE_ALLOWANCE_CUTOFF_MINUTES = 8 * 60; // ก่อน 08:00 Bangkok → ได้เบี้ยเลี้ยง
+
+// Helper: ตรวจสอบสิทธิ์เบี้ยเลี้ยง On-site (Check-in ก่อน 08:00)
 function calcDailyAllowance(checkInIso: string): boolean {
   const checkIn = new Date(checkInIso);
   // แปลงเป็น HH:mm ของ Bangkok แล้วเปรียบเทียบตรงๆ
@@ -321,7 +323,7 @@ function calcDailyAllowance(checkInIso: string): boolean {
 
   const [h, m] = bangkokHHMM.split(":").map(Number);
   const totalMinutes = h * 60 + m;
-  return totalMinutes < 8 * 60 + 30; // ก่อน 08:30 Bangkok → ได้เบี้ยเลี้ยง
+  return totalMinutes < ONSITE_ALLOWANCE_CUTOFF_MINUTES;
 }
 
 // Helper: คำนวณ OT On-site นับจาก 17:30 Bangkok (UTC+7)
@@ -506,6 +508,7 @@ export async function groupCheckOut(
   breakMinutes: number = 0,
   checkoutLat?: number | null,
   checkoutLng?: number | null,
+  recordOT: boolean = true,
 ): Promise<ActionResult> {
   try {
     const supabase = await getSupabaseServer();
@@ -555,8 +558,8 @@ export async function groupCheckOut(
 
     if (pendingUids.length > 0) {
       // ── คำนวณ OT ก่อน checkoutEvent ──────────────────────────
-      const rawOT = calcOnsiteOTHours(now);
-      const adjHours = Math.max(0, rawOT - breakMinutes / 60);
+      const rawOT = recordOT ? calcOnsiteOTHours(now) : 0;
+      const adjHours = recordOT ? Math.max(0, rawOT - breakMinutes / 60) : 0;
       const otHours = Math.round(adjHours * 100) / 100;
 
       const checkoutEvent = {
@@ -564,7 +567,7 @@ export async function groupCheckOut(
         timestamp: now,
         session_id: sessionId,
         checkout_type: "group" as const,
-        break_minutes: breakMinutes,
+        break_minutes: recordOT ? breakMinutes : 0,
         raw_ot_hours: rawOT,
         net_ot_hours: otHours,
         ot_starts_from: "17:30",
