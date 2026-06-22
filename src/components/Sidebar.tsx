@@ -372,12 +372,6 @@ const NAV_GROUPS: NavGroup[] = [
         href: "/time-sync",
         icon: Icons.syncCheck,
       },
-      {
-        label: "Work Status",
-        labelTh: "สถานะงานวันนี้",
-        href: "/work-status-display",
-        icon: Icons.statusDisplay,
-      },
     ],
   },
   {
@@ -511,7 +505,6 @@ export default function Sidebar() {
     "/team",
     "/hr",
     "/qr-display",
-    "/work-status-display",
     "/work-status",
     "/time-sync",
   ];
