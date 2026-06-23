@@ -1,14 +1,7 @@
 // src/app/api/qr-token/route.ts
 import { NextResponse, type NextRequest } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { buildQRPayload, buildQRPayloadBatch } from "@/lib/qr-token";
 import { hasDisplayOrAdminAccess } from "@/lib/display-api-access";
-
-// Service role client — เขียน qr_nonces ได้โดยไม่ผ่าน RLS
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
 
 const DEFAULT_BATCH_SIZE = 20;
 const MAX_BATCH_SIZE = 40;
@@ -32,13 +25,6 @@ export async function GET(request: NextRequest) {
     const payload = batchSize
       ? { tokens: buildQRPayloadBatch(batchSize) }
       : buildQRPayload();
-
-    // ── Cleanup nonces เก่าเกิน 5 นาที (fire-and-forget) ─────────────────
-    // nonce จะถูกบันทึกตอน scan เท่านั้น ไม่ต้อง insert ตอนสร้าง QR
-    void supabaseAdmin
-      .from("qr_nonces")
-      .delete()
-      .lt("used_at", new Date(Date.now() - 5 * 60 * 1000).toISOString());
 
     return NextResponse.json(payload, {
       headers: {
