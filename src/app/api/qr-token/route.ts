@@ -4,7 +4,7 @@ import { buildQRPayload, buildQRPayloadBatch } from "@/lib/qr-token";
 import { hasDisplayOrAdminAccess } from "@/lib/display-api-access";
 
 const DEFAULT_BATCH_SIZE = 20;
-const MAX_BATCH_SIZE = 40;
+const MAX_BATCH_SIZE = 80;
 
 function getBatchSize(request: NextRequest) {
   const raw = request.nextUrl.searchParams.get("batch");

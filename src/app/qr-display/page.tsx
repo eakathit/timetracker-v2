@@ -155,8 +155,11 @@ const getFullName = (p: PersonProfile | null) =>
 const getInitials = (p: PersonProfile | null) =>
   ((p?.first_name?.[0] ?? "") + (p?.last_name?.[0] ?? "")).toUpperCase() || "?";
 
-const QR_TOKEN_BATCH_SIZE = 20;
-const QR_TOKEN_REFILL_THRESHOLD = 4;
+const QR_TOKEN_BATCH_SIZE = 40;
+const QR_TOKEN_REFILL_THRESHOLD = 8;
+const QR_REFRESH_SECONDS = 15;
+const DISPLAY_FALLBACK_REFRESH_MS = 15 * 60_000;
+const APP_VERSION_CHECK_MS = 5 * 60_000;
 
 const fmtTime = (iso: string) =>
   new Date(iso).toLocaleTimeString("th-TH", {
@@ -505,6 +508,8 @@ export default function QRDisplayPage() {
   const [variant, setVariant] = useState<QRDisplayVariant>("minimal");
   const qrTokenQueueRef = useRef<QRPayload[]>([]);
   const qrBatchPromiseRef = useRef<Promise<void> | null>(null);
+  const activeQRPayloadRef = useRef<QRPayload | null>(null);
+  const isRefreshingQRRef = useRef(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -620,12 +625,17 @@ export default function QRDisplayPage() {
       });
     }
 
-    const secondsLeft = Math.max(0, Math.ceil((payload.exp - Date.now()) / 1000));
+    const secondsLeft = Math.min(
+      QR_REFRESH_SECONDS,
+      Math.max(0, Math.ceil((payload.exp - Date.now()) / 1000)),
+    );
     setTimeLeft(secondsLeft);
   }, [qrCanvasSize]);
 
   // ── QR Refresh ────────────────────────────────────────────────────────────────
   const refreshQR = useCallback(async () => {
+    if (isRefreshingQRRef.current) return;
+    isRefreshingQRRef.current = true;
     setIsLoading(true);
     try {
       const now = Date.now();
@@ -642,6 +652,7 @@ export default function QRDisplayPage() {
         return;
       }
 
+      activeQRPayloadRef.current = payload;
       await drawQRPayload(payload);
 
       if (qrTokenQueueRef.current.length <= QR_TOKEN_REFILL_THRESHOLD) {
@@ -651,8 +662,17 @@ export default function QRDisplayPage() {
       console.error("QR refresh error:", e);
     } finally {
       setIsLoading(false);
+      isRefreshingQRRef.current = false;
     }
   }, [drawQRPayload, fetchQRBatch]);
+
+  const refreshQRRef = useRef(refreshQR);
+  useEffect(() => { refreshQRRef.current = refreshQR; }, [refreshQR]);
+
+  useEffect(() => {
+    const payload = activeQRPayloadRef.current;
+    if (payload) void drawQRPayload(payload);
+  }, [drawQRPayload]);
 
   const isFirstFetchRef = useRef(true);
 
@@ -720,15 +740,24 @@ export default function QRDisplayPage() {
 
   // ── QR countdown & auto-refresh ───────────────────────────────────────────────
   useEffect(() => {
-  refreshQR();
-  const id = setInterval(() => {
-    setTimeLeft((prev) => {
-      if (prev <= 1) { refreshQR(); return 15; }  // ← 15
-      return prev - 1;
-    });
-  }, 1000);
-  return () => clearInterval(id);
-}, [refreshQR]);
+    void refreshQRRef.current();
+    const id = setInterval(() => {
+      const payload = activeQRPayloadRef.current;
+      if (!payload) {
+        void refreshQRRef.current();
+        return;
+      }
+
+      const secondsLeft = Math.min(
+        QR_REFRESH_SECONDS,
+        Math.max(0, Math.ceil((payload.exp - Date.now()) / 1000)),
+      );
+      setTimeLeft(secondsLeft);
+
+      if (secondsLeft <= 0) void refreshQRRef.current();
+    }, 1000);
+    return () => clearInterval(id);
+  }, []);
 
   // ── Initial load + Supabase Realtime (แทน polling) ───────────────────────────
   useEffect(() => {
@@ -770,7 +799,7 @@ export default function QRDisplayPage() {
       )
       .subscribe();
 
-    const refreshId = setInterval(() => fetchEntriesRef.current(), 5 * 60_000);
+    const refreshId = setInterval(() => fetchEntriesRef.current(), DISPLAY_FALLBACK_REFRESH_MS);
 
     return () => {
       clearInterval(refreshId);
@@ -778,11 +807,11 @@ export default function QRDisplayPage() {
     };
   }, []);
 
-  // ── Auto-reload เมื่อมี deploy ใหม่ ──────────────────────────────────────────  ← เพิ่มต่อจากนี้
+  // ── Auto-reload เมื่อมี deploy ใหม่ ──────────────────────────────────────────
   useEffect(() => {
     const checkVersion = async () => {
       try {
-        const res = await fetch("/api/version", { cache: "no-store" });
+        const res = await fetch(`/app-version.json?t=${Date.now()}`, { cache: "no-store" });
         if (!res.ok) return;
         const { version } = await res.json();
         const current = localStorage.getItem("app-version");
@@ -794,7 +823,7 @@ export default function QRDisplayPage() {
     };
 
     checkVersion();
-    const id = setInterval(checkVersion, 60_000);
+    const id = setInterval(checkVersion, APP_VERSION_CHECK_MS);
     return () => clearInterval(id);
   }, []);
   
@@ -818,7 +847,7 @@ export default function QRDisplayPage() {
   const factoryEntries = allEntries.filter((e) => e.work_type === "in_factory");
   const onsiteEntries  = allEntries.filter((e) => e.work_type !== "in_factory");
   const isExpiringSoon = timeLeft <= 5;           // เตือนเมื่อเหลือ 5 วิ (1/3 ของ 15วิ)
-  const progressPct   = (timeLeft / 15) * 100;
+  const progressPct   = (timeLeft / QR_REFRESH_SECONDS) * 100;
 
   return (
     // ใช้ visualViewport จริง + safe inset เพื่อกัน TV overscan ตัดขอบภาพ
