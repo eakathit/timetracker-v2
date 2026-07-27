@@ -405,6 +405,7 @@ export default function DashboardUI({
   // ── OT live elapsed ───────────────────────────────────────────────────────
   useEffect(() => {
     if (workStatus !== "ot_working" || !rawOtStart) return;
+    setOtElapsed(elapsedStr(rawOtStart));
     const id = setInterval(() => setOtElapsed(elapsedStr(rawOtStart)), 1000);
     return () => clearInterval(id);
   }, [workStatus, rawOtStart]);

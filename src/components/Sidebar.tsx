@@ -354,6 +354,12 @@ const NAV_GROUPS: NavGroup[] = [
     groupLabel: "Management",
     items: [
       {
+        label: "Work Status",
+        labelTh: "สถานะงาน",
+        href: "/work-status",
+        icon: Icons.statusDisplay,
+      },
+      {
         label: "Project Summary",
         labelTh: "ทีม",
         href: "/team",

@@ -176,14 +176,21 @@ function mapReportItems(report: ReportRow | undefined): WorkStatusRecord["report
   });
 }
 
-function Avatar({ record }: { record: WorkStatusRecord }) {
+const AVATAR_COLORS = [
+  "bg-blue-600", "bg-emerald-600", "bg-sky-500", "bg-amber-500",
+  "bg-rose-500", "bg-indigo-500", "bg-teal-600", "bg-orange-500",
+];
+const avatarColor = (id: string) =>
+  AVATAR_COLORS[id.charCodeAt(0) % AVATAR_COLORS.length];
+
+function AvatarBubble({ record }: { record: WorkStatusRecord }) {
   if (record.avatarUrl) {
     return (
       <img
         src={record.avatarUrl}
         alt={record.name}
         referrerPolicy="no-referrer"
-        className="h-10 w-10 rounded-lg object-cover ring-2 ring-white"
+        className="w-10 h-10 rounded-xl object-cover ring-2 ring-slate-100 flex-shrink-0 shadow-sm"
       />
     );
   }
@@ -196,32 +203,127 @@ function Avatar({ record }: { record: WorkStatusRecord }) {
     .toUpperCase();
 
   return (
-    <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-sky-100 text-sm font-bold text-sky-700 ring-2 ring-white">
+    <span
+      className={`w-10 h-10 rounded-xl ${avatarColor(record.id)} text-white text-sm font-bold flex items-center justify-center flex-shrink-0 ring-2 ring-white shadow-sm`}
+    >
       {initials || "?"}
     </span>
   );
 }
 
-function StatusBadge({ status, label }: { status: WorkStatusRecord["status"]; label: string }) {
-  const classes = {
-    factory: "border-blue-200 bg-blue-50 text-blue-700",
-    onsite: "border-emerald-200 bg-emerald-50 text-emerald-700",
-    leave: "border-rose-200 bg-rose-50 text-rose-700",
-    not_checked_in: "border-slate-200 bg-slate-50 text-slate-500",
-  }[status];
-
+function EmployeeCard({ record }: { record: WorkStatusRecord }) {
   return (
-    <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold ${classes}`}>
-      {label}
-    </span>
+    <div className="bg-white border border-slate-200 hover:border-slate-300 rounded-2xl p-3 shadow-sm hover:shadow-md transition-all duration-200">
+      <div className="flex items-start gap-3">
+        <AvatarBubble record={record} />
+        <div className="flex-1 min-w-0">
+          <p className="font-bold text-slate-800 text-sm leading-tight truncate">{record.name}</p>
+          <p className="text-slate-400 text-xs mt-0.5 truncate">{record.department}</p>
+          
+          <div className="mt-2 text-xs">
+            {record.status === "factory" && (
+              <div className="flex flex-col gap-1 text-slate-500">
+                <div className="flex items-center gap-1.5 text-blue-600 font-medium">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                  </svg>
+                  <span>Factory</span>
+                </div>
+                <span>เข้า {record.checkIn ?? "-"} {record.checkOut ? `· ออก ${record.checkOut}` : ""}</span>
+              </div>
+            )}
+            {record.status === "onsite" && (
+              <div className="flex flex-col gap-1 text-slate-500">
+                <div className="flex items-center gap-1.5 text-emerald-600 font-medium">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  <span className="truncate">{record.onsiteLocation || "On-site"}</span>
+                </div>
+                {record.checkIn && <span>เข้า {record.checkIn}</span>}
+              </div>
+            )}
+            {record.status === "leave" && (
+              <div className="flex items-center gap-1.5 text-rose-500 font-medium">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3M4 11h16M6 5h12a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V7a2 2 0 012-2z" />
+                </svg>
+                <span className="truncate">{record.leaveLabel}</span>
+              </div>
+            )}
+            {record.status === "not_checked_in" && (
+              <div className="flex items-center gap-1.5 text-slate-400">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span className="italic">ยังไม่เข้างาน</span>
+              </div>
+            )}
+          </div>
+          
+          {record.reportItems.length > 0 && (
+            <div className="mt-3 pt-3 border-t border-slate-100">
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <svg className="w-3.5 h-3.5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <span className="text-xs font-semibold text-indigo-600">มีรายงาน ({record.reportItems.length})</span>
+              </div>
+              <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">
+                {record.reportItems[0].detail ?? record.reportItems[0].projectNo ?? "อัปเดตงานแล้ว"}
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
-function SummaryCard({ label, value, tone }: { label: string; value: number; tone: string }) {
+function StatusColumn({
+  title,
+  count,
+  icon,
+  accentColor,
+  accentBg,
+  records,
+}: {
+  title: string;
+  count: number;
+  icon: React.ReactNode;
+  accentColor: string;
+  accentBg: string;
+  records: WorkStatusRecord[];
+}) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm">
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{label}</p>
-      <p className={`mt-2 text-2xl font-bold ${tone}`}>{value}</p>
+    <div className="flex flex-col bg-slate-50/70 rounded-3xl p-3 border border-slate-200/60 min-w-[280px] w-[300px] shrink-0 max-h-full">
+      <div className="flex items-center justify-between mb-4 px-2 pt-1">
+        <div className="flex items-center gap-2.5">
+          <div className={`w-8 h-8 rounded-xl ${accentBg} flex items-center justify-center shadow-sm text-white`}>
+            {icon}
+          </div>
+          <h2 className={`font-bold text-sm ${accentColor}`}>{title}</h2>
+        </div>
+        <span className="bg-white border border-slate-200 text-slate-600 text-xs font-bold px-2.5 py-1 rounded-full shadow-sm">
+          {count}
+        </span>
+      </div>
+      
+      <div className="flex flex-col gap-3 overflow-y-auto pr-1 pb-2 scrollbar-hide h-full">
+        {records.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-10 text-center border-2 border-dashed border-slate-200 rounded-2xl bg-white/50">
+            <span className="text-slate-300 mb-2">
+              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+              </svg>
+            </span>
+            <p className="text-slate-400 text-sm font-semibold">ไม่มีข้อมูล</p>
+          </div>
+        ) : (
+          records.map((record) => <EmployeeCard key={record.id} record={record} />)
+        )}
+      </div>
     </div>
   );
 }
@@ -374,117 +476,97 @@ export default async function WorkStatusPage({
     };
   });
 
-  const summary = {
-    total: records.length,
-    factory: records.filter((record) => record.status === "factory").length,
-    onsite: records.filter((record) => record.status === "onsite").length,
-    leave: records.filter((record) => record.status === "leave").length,
-    noCheckin: records.filter((record) => record.status === "not_checked_in").length,
-    reportFiled: records.filter((record) => record.reportItems.length > 0).length,
-  };
+  const factoryRecords = records.filter((r) => r.status === "factory");
+  const onsiteRecords = records.filter((r) => r.status === "onsite");
+  const leaveRecords = records.filter((r) => r.status === "leave");
+  const notCheckedInRecords = records.filter((r) => r.status === "not_checked_in");
 
   return (
-    <div className="space-y-6 p-4 md:p-6">
-      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+    <div className="flex flex-col h-[calc(100vh-2rem)] md:h-screen bg-[#f7f9fc]">
+      {/* Header Bar */}
+      <div className="bg-white/80 backdrop-blur-md border-b border-slate-200 px-6 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0 shadow-sm">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">
-            Admin · Management
-          </p>
-          <h1 className="mt-1 text-2xl font-bold text-slate-900">Work Status</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            สรุปสถานะการทำงานและรายงานของพนักงานประจำวันที่ {workDate}
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-bold text-slate-900">Work Status</h1>
+            <span className="px-2 py-0.5 rounded text-xs font-semibold bg-slate-100 text-slate-500 border border-slate-200">
+              {records.length} Employees
+            </span>
+          </div>
+          <p className="text-sm text-slate-500 mt-1">
+            สรุปสถานะการทำงานและรายงานประจำวันที่ {workDate}
           </p>
         </div>
 
-        <form className="flex items-center gap-2" action="/work-status">
+        <form className="flex items-center gap-2 shrink-0" action="/work-status">
           <input
             type="date"
             name="date"
             defaultValue={workDate}
-            className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 outline-none focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
+            className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100 transition-all shadow-sm"
           />
-          <button className="h-10 rounded-lg bg-slate-900 px-4 text-sm font-bold text-white transition hover:bg-slate-800">
+          <button className="h-10 rounded-xl bg-slate-900 px-5 text-sm font-bold text-white shadow-sm hover:bg-slate-800 transition-colors">
             ดูข้อมูล
           </button>
         </form>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
-        <SummaryCard label="ทั้งหมด" value={summary.total} tone="text-slate-800" />
-        <SummaryCard label="Factory" value={summary.factory} tone="text-blue-700" />
-        <SummaryCard label="On-site" value={summary.onsite} tone="text-emerald-700" />
-        <SummaryCard label="ลา" value={summary.leave} tone="text-rose-700" />
-        <SummaryCard label="ยังไม่เข้า" value={summary.noCheckin} tone="text-slate-500" />
-        <SummaryCard label="มี Report" value={summary.reportFiled} tone="text-indigo-700" />
-      </div>
+      {/* Kanban Board Container */}
+      <div className="flex-1 overflow-x-auto overflow-y-hidden p-6">
+        <div className="flex gap-6 h-full items-stretch pb-4 min-w-max">
+          
+          <StatusColumn 
+            title="Factory" 
+            count={factoryRecords.length}
+            records={factoryRecords}
+            accentColor="text-blue-700"
+            accentBg="bg-blue-600"
+            icon={
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+              </svg>
+            }
+          />
+          
+          <StatusColumn 
+            title="On-site" 
+            count={onsiteRecords.length}
+            records={onsiteRecords}
+            accentColor="text-emerald-700"
+            accentBg="bg-emerald-600"
+            icon={
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            }
+          />
 
-      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-slate-100 text-sm">
-            <thead className="bg-slate-50">
-              <tr className="text-left text-xs font-bold uppercase tracking-wide text-slate-400">
-                <th className="px-4 py-3">พนักงาน</th>
-                <th className="px-4 py-3">สถานะ</th>
-                <th className="px-4 py-3">เวลา</th>
-                <th className="px-4 py-3">On-site</th>
-                <th className="px-4 py-3">Report / งานที่ทำ</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {records.map((record) => (
-                <tr key={record.id} className="align-top hover:bg-slate-50/70">
-                  <td className="px-4 py-4">
-                    <div className="flex items-center gap-3">
-                      <Avatar record={record} />
-                      <div className="min-w-0">
-                        <p className="font-bold text-slate-900">{record.name}</p>
-                        <p className="mt-0.5 text-xs text-slate-400">{record.department}</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-4 py-4">
-                    <div className="space-y-2">
-                      <StatusBadge status={record.status} label={record.statusLabel} />
-                      {record.leaveLabel && (
-                        <p className="text-xs font-semibold text-rose-600">{record.leaveLabel}</p>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-4 py-4 text-slate-600">
-                    <p>เข้า: <span className="font-semibold">{record.checkIn ?? "-"}</span></p>
-                    <p className="mt-1">ออก: <span className="font-semibold">{record.checkOut ?? "-"}</span></p>
-                  </td>
-                  <td className="px-4 py-4">
-                    {record.onsiteLocation ? (
-                      <p className="max-w-64 font-semibold text-emerald-700">{record.onsiteLocation}</p>
-                    ) : (
-                      <span className="text-slate-300">-</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-4">
-                    {record.reportItems.length > 0 ? (
-                      <div className="space-y-2">
-                        {record.reportItems.map((item) => (
-                          <div key={item.id} className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
-                            <div className="flex flex-wrap gap-x-2 gap-y-1 text-xs text-slate-400">
-                              {item.period && <span className="font-mono">{item.period}</span>}
-                              {item.projectNo && <span>{item.projectNo}</span>}
-                              {item.customer && <span>{item.customer}</span>}
-                            </div>
-                            <p className="mt-1 font-semibold text-slate-700">
-                              {item.detail ?? "ไม่ระบุรายละเอียดงาน"}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <span className="text-slate-300">ยังไม่มี Report</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <StatusColumn 
+            title="ลาพัก / ลากิจ" 
+            count={leaveRecords.length}
+            records={leaveRecords}
+            accentColor="text-rose-700"
+            accentBg="bg-rose-600"
+            icon={
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8 7V3m8 4V3M4 11h16M6 5h12a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V7a2 2 0 012-2z" />
+              </svg>
+            }
+          />
+
+          <StatusColumn 
+            title="ยังไม่เข้างาน" 
+            count={notCheckedInRecords.length}
+            records={notCheckedInRecords}
+            accentColor="text-slate-600"
+            accentBg="bg-slate-500"
+            icon={
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            }
+          />
+
         </div>
       </div>
     </div>
