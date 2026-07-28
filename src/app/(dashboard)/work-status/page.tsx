@@ -376,7 +376,7 @@ export default async function WorkStatusPage({
 
   const workDate = dateParam ?? getBangkokDateStr();
 
-  const [profilesRes, logsRes, reportsRes, leavesRes] = await Promise.all([
+  const [profilesRes, logsRes, reportsRes, leavesRes, otRes] = await Promise.all([
     supabase
       .from("profiles_with_avatar")
       .select("id, first_name, last_name, department, role, avatar_url")
