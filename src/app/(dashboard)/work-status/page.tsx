@@ -68,6 +68,12 @@ type LeaveRow = {
   reason: string | null;
 };
 
+type OtRow = {
+  id: string;
+  user_id: string;
+  hours: number | null;
+};
+
 type WorkStatusRecord = {
   id: string;
   name: string;
@@ -86,6 +92,7 @@ type WorkStatusRecord = {
     detail: string | null;
   }>;
   leaveLabel: string | null;
+  otHours: number | null;
 };
 
 const LEAVE_LABELS: Record<string, string> = {
@@ -233,6 +240,11 @@ function EmployeeCard({ record }: { record: WorkStatusRecord }) {
                       {record.leaveLabel}
                     </span>
                   )}
+                  {record.otHours && (
+                    <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-600 border border-amber-100">
+                      OT {record.otHours} ชม.
+                    </span>
+                  )}
                 </div>
                 <span>เข้า {record.checkIn ?? "-"} {record.checkOut ? `· ออก ${record.checkOut}` : ""}</span>
               </div>
@@ -248,6 +260,11 @@ function EmployeeCard({ record }: { record: WorkStatusRecord }) {
                   {record.leaveLabel && (
                     <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-600 border border-rose-100 shrink-0">
                       {record.leaveLabel}
+                    </span>
+                  )}
+                  {record.otHours && (
+                    <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-600 border border-amber-100 shrink-0">
+                      OT {record.otHours} ชม.
                     </span>
                   )}
                 </div>
@@ -389,12 +406,18 @@ export default async function WorkStatusPage({
       .eq("status", "approved")
       .lte("start_date", workDate)
       .gte("end_date", workDate),
+    supabase
+      .from("ot_requests")
+      .select("id, user_id, hours")
+      .eq("status", "approved")
+      .eq("request_date", workDate),
   ]);
 
   const profiles = (profilesRes.data ?? []) as ProfileRow[];
   const logs = (logsRes.data ?? []) as TimeLogRow[];
   const reports = ((reportsRes.data ?? []) as unknown) as ReportRow[];
   const leaves = (leavesRes.data ?? []) as LeaveRow[];
+  const ots = (otRes.data ?? []) as OtRow[];
 
   const referencedSessionIds = Array.from(
     new Set(
@@ -441,11 +464,13 @@ export default async function WorkStatusPage({
   const logMap = new Map(logs.map((log) => [log.user_id, log]));
   const reportMap = new Map(reports.map((report) => [report.user_id, report]));
   const leaveMap = new Map(leaves.map((leave) => [leave.user_id, leave]));
+  const otMap = new Map(ots.map((ot) => [ot.user_id, ot]));
 
   const records: WorkStatusRecord[] = profiles.map((profile) => {
     const log = logMap.get(profile.id);
     const report = reportMap.get(profile.id);
     const leave = leaveMap.get(profile.id);
+    const ot = otMap.get(profile.id);
     const session =
       (log?.onsite_session_id ? sessionMap.get(log.onsite_session_id) : null) ??
       memberSessionMap.get(profile.id) ??
@@ -485,6 +510,7 @@ export default async function WorkStatusPage({
       onsiteLocation: status === "onsite" ? onsiteLocation(session) : null,
       reportItems: mapReportItems(report),
       leaveLabel,
+      otHours: ot?.hours ?? null,
     };
   });
 
