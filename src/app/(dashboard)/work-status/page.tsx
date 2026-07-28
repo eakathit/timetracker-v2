@@ -223,25 +223,35 @@ function EmployeeCard({ record }: { record: WorkStatusRecord }) {
           <div className="mt-2 text-xs">
             {record.status === "factory" && (
               <div className="flex flex-col gap-1 text-slate-500">
-                <div className="flex items-center gap-1.5 text-blue-600 font-medium">
+                <div className="flex flex-wrap items-center gap-1.5 text-blue-600 font-medium">
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                   </svg>
                   <span>Factory</span>
+                  {record.leaveLabel && (
+                    <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-600 border border-rose-100">
+                      {record.leaveLabel}
+                    </span>
+                  )}
                 </div>
                 <span>เข้า {record.checkIn ?? "-"} {record.checkOut ? `· ออก ${record.checkOut}` : ""}</span>
               </div>
             )}
             {record.status === "onsite" && (
               <div className="flex flex-col gap-1 text-slate-500">
-                <div className="flex items-center gap-1.5 text-emerald-600 font-medium">
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="flex flex-wrap items-center gap-1.5 text-emerald-600 font-medium">
+                  <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                   </svg>
                   <span className="truncate">{record.onsiteLocation || "On-site"}</span>
+                  {record.leaveLabel && (
+                    <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-600 border border-rose-100 shrink-0">
+                      {record.leaveLabel}
+                    </span>
+                  )}
                 </div>
-                {record.checkIn && <span>เข้า {record.checkIn}</span>}
+                {record.checkIn && <span>เข้า {record.checkIn} {record.checkOut ? `· ออก ${record.checkOut}` : ""}</span>}
               </div>
             )}
             {record.status === "leave" && (
@@ -441,14 +451,16 @@ export default async function WorkStatusPage({
       memberSessionMap.get(profile.id) ??
       null;
 
+    const hasCheckIn = !!log?.first_check_in;
     const isOnsite = log?.work_type && log.work_type !== "in_factory";
-    const status: WorkStatusRecord["status"] = leave
-      ? "leave"
-      : isOnsite
+    
+    const status: WorkStatusRecord["status"] = hasCheckIn
+      ? isOnsite
         ? "onsite"
-        : log?.first_check_in
-          ? "factory"
-          : "not_checked_in";
+        : "factory"
+      : leave
+        ? "leave"
+        : "not_checked_in";
 
     const leaveLabel = leave
       ? `${LEAVE_LABELS[leave.leave_type] ?? "ลา"}${leave.hours ? ` ${leave.hours} ชม.` : leave.period_label ? ` ${leave.period_label}` : ""}`
