@@ -7,7 +7,7 @@ import LogoutButton from "@/components/LogoutButton";
 import { useEffect, useState } from "react";
 import { createBrowserClient } from "@supabase/ssr";
 import { usePendingApprovals } from "@/hooks/usePendingApprovals";
-import { isAdminRole } from "@/lib/roles";
+import { isAdminRole, isManagerRole } from "@/lib/roles";
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface NavItem {
   label: string;
@@ -135,8 +135,11 @@ const Icons = {
       strokeLinecap="round"
       strokeLinejoin="round"
     >
-      <path d="M9 11l3 3L22 4" />
-      <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <polyline points="14 2 14 8 20 8" />
+      <line x1="16" y1="13" x2="8" y2="13" />
+      <line x1="16" y1="17" x2="8" y2="17" />
+      <line x1="10" y1="9" x2="8" y2="9" />
     </svg>
   ),
   users: (
@@ -331,6 +334,12 @@ const NAV_GROUPS: NavGroup[] = [
         icon: Icons.requests,
       },
       {
+        label: "Leave Report",
+        labelTh: "รายงานวันลา",
+        href: "/hr/leave",
+        icon: Icons.leave,
+      },
+      {
         label: "Report",
         labelTh: "รายการ",
         href: "/report",
@@ -366,7 +375,6 @@ const NAV_GROUPS: NavGroup[] = [
         icon: Icons.clipboard,
       },
       { label: "HR Attendance", labelTh: "HR", href: "/hr", icon: Icons.user },
-      { label: "Leave Report", labelTh: "รายงานวันลา", href: "/hr/leave", icon: Icons.leave },
       {
         label: "Daily Audit",
         labelTh: "ตรวจสอบ",
@@ -505,16 +513,19 @@ export default function Sidebar() {
     fetchRole();
   }, []);
 
-  // 3. กรองเมนู: ถ้าไม่ใช่ Admin ให้ตัดเมนู /settings ออก
+  // 3. กรองเมนู: จำกัดสิทธิ์ตาม Role
   const ADMIN_ONLY_ROUTES = [
     "/settings",
     "/audit",
     "/team",
     "/hr",
-    "/hr/leave",
     "/qr-display",
     "/work-status",
     "/time-sync",
+  ];
+
+  const MANAGER_ROUTES = [
+    "/hr/leave"
   ];
 
   const filteredNavGroups = NAV_GROUPS.map((group) => ({
@@ -523,6 +534,9 @@ export default function Sidebar() {
       .filter((item) => {
         if (ADMIN_ONLY_ROUTES.includes(item.href)) {
           return isAdminRole(userRole);
+        }
+        if (MANAGER_ROUTES.includes(item.href)) {
+          return isManagerRole(userRole);
         }
         return true;
       })
