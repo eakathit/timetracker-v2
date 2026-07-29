@@ -366,6 +366,7 @@ const NAV_GROUPS: NavGroup[] = [
         icon: Icons.clipboard,
       },
       { label: "HR Attendance", labelTh: "HR", href: "/hr", icon: Icons.user },
+      { label: "Leave Report", labelTh: "รายงานวันลา", href: "/hr/leave", icon: Icons.leave },
       {
         label: "Daily Audit",
         labelTh: "ตรวจสอบ",
@@ -510,6 +511,7 @@ export default function Sidebar() {
     "/audit",
     "/team",
     "/hr",
+    "/hr/leave",
     "/qr-display",
     "/work-status",
     "/time-sync",
