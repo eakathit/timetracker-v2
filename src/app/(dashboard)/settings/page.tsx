@@ -280,6 +280,7 @@ type PermissionUser = {
   suspended_by?: string | null;
   suspend_reason?: string | null;
   updated_at?: string | null;
+  is_hidden_from_app?: boolean | null;
 };
 
 function getPermissionUserDisplayName(user: PermissionUser) {
@@ -450,7 +451,12 @@ function PermissionsSection() {
       const { data, error } = await supabase.rpc("get_permission_users");
 
       if (data && !error) {
-        setUsers(data as PermissionUser[]);
+        const { data: profilesData } = await supabase.from("profiles").select("id, is_hidden_from_app");
+        const usersWithHidden = (data as PermissionUser[]).map((u) => {
+          const profile = profilesData?.find((p) => p.id === u.id);
+          return { ...u, is_hidden_from_app: profile?.is_hidden_from_app ?? false };
+        });
+        setUsers(usersWithHidden);
       }
       setLoading(false);
     };
@@ -535,6 +541,26 @@ function PermissionsSection() {
         prev.map((u) =>
           u.id === id ? { ...u, access_status: currentStatus } : u,
         ),
+      );
+    }
+  };
+
+  const toggleHidden = async (id: string, currentHidden: boolean) => {
+    const nextHidden = !currentHidden;
+    setUsers((prev) =>
+      prev.map((u) => (u.id === id ? { ...u, is_hidden_from_app: nextHidden } : u)),
+    );
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({ is_hidden_from_app: nextHidden })
+      .eq("id", id);
+
+    if (error) {
+      console.error("Error updating is_hidden_from_app:", error);
+      alert("ไม่สามารถซ่อน/แสดงได้ กรุณาลองใหม่");
+      setUsers((prev) =>
+        prev.map((u) => (u.id === id ? { ...u, is_hidden_from_app: currentHidden } : u)),
       );
     }
   };
@@ -632,6 +658,31 @@ function PermissionsSection() {
                     ระงับ
                   </button>
                 )}
+
+                {/* ปุ่มซ่อน/แสดง */}
+                <button
+                  onClick={() => toggleHidden(u.id, !!u.is_hidden_from_app)}
+                  className={`w-8 h-8 flex-shrink-0 rounded-lg flex items-center justify-center transition-colors border ${
+                    u.is_hidden_from_app 
+                      ? "bg-rose-50 text-rose-500 border-rose-200 hover:bg-rose-100" 
+                      : "bg-white text-gray-300 border-gray-200 hover:text-gray-500"
+                  }`}
+                  title={u.is_hidden_from_app ? "ซ่อนอยู่ (คลิกเพื่อแสดง)" : "แสดงอยู่ (คลิกเพื่อซ่อน)"}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+                    {u.is_hidden_from_app ? (
+                      <>
+                        <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24" />
+                        <line x1="1" y1="1" x2="23" y2="23" />
+                      </>
+                    ) : (
+                      <>
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </>
+                    )}
+                  </svg>
+                </button>
 
               </div>
             );
