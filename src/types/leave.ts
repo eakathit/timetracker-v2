@@ -86,7 +86,7 @@ type LeaveTypeConfig = { label: string; icon: string; color: string; bg: string;
 
 export const LEAVE_TYPE_CONFIG: Record<LeaveType, LeaveTypeConfig> = {
   vacation:         { label: "ลาพักร้อน",   icon: "🌴", color: "text-violet-600", bg: "bg-violet-100", border: "border-violet-200" },
-  sick:             { label: "ลาป่วย",      icon: "🤒", color: "text-rose-500",   bg: "bg-rose-100",   border: "border-rose-200"   },
+  sick:             { label: "ลาป่วย",      icon: "💊", color: "text-rose-500",   bg: "bg-rose-100",   border: "border-rose-200"   },
   personal:         { label: "ลากิจ",       icon: "📋", color: "text-amber-600",  bg: "bg-amber-100",  border: "border-amber-200"  },
   special_personal: { label: "ลากิจพิเศษ",  icon: "⭐", color: "text-sky-600",    bg: "bg-sky-100",    border: "border-sky-200"    },
   other:            { label: "ลาอื่นๆ",     icon: "📝", color: "text-gray-500",   bg: "bg-gray-200",   border: "border-gray-200"   },

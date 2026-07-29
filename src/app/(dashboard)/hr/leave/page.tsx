@@ -46,6 +46,14 @@ export default function LeaveReportPage() {
   const [selectedDept, setSelectedDept] = useState("All");
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchName, selectedDept, selectedMonth, selectedYear]);
 
   useEffect(() => {
     fetchData();
@@ -139,6 +147,12 @@ export default function LeaveReportPage() {
       return true;
     });
   }, [requests, searchName, selectedDept, selectedMonth, selectedYear]);
+
+  const totalPages = Math.ceil(filteredRequests.length / itemsPerPage);
+  const paginatedRequests = useMemo(() => {
+    const startIdx = (currentPage - 1) * itemsPerPage;
+    return filteredRequests.slice(startIdx, startIdx + itemsPerPage);
+  }, [filteredRequests, currentPage]);
 
   const handleExport = () => {
     if (filteredRequests.length === 0) return;
@@ -309,7 +323,7 @@ export default function LeaveReportPage() {
         </div>
         <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4">
           <div className="w-12 h-12 bg-rose-100 text-rose-500 rounded-full flex items-center justify-center flex-shrink-0 text-xl">
-            🤒
+            💊
           </div>
           <div>
             <p className="text-gray-500 text-xs font-medium">ลาป่วย</p>
@@ -346,8 +360,8 @@ export default function LeaveReportPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {filteredRequests.length > 0 ? (
-                filteredRequests.map((req) => {
+              {paginatedRequests.length > 0 ? (
+                paginatedRequests.map((req) => {
                   const typeConfig = LEAVE_TYPE_CONFIG[req.leave_type as keyof typeof LEAVE_TYPE_CONFIG];
                   const isOneDay = req.start_date === req.end_date;
                   
@@ -414,6 +428,31 @@ export default function LeaveReportPage() {
             </tbody>
           </table>
         </div>
+        
+        {/* Pagination Controls */}
+        {totalPages > 1 && (
+          <div className="p-4 border-t border-gray-100 flex items-center justify-between">
+            <span className="text-sm text-gray-500">
+              หน้า {currentPage} จาก {totalPages} ({filteredRequests.length} รายการ)
+            </span>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                ก่อนหน้า
+              </button>
+              <button
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                ถัดไป
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
