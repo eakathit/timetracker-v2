@@ -17,18 +17,12 @@ interface ChangelogEntry {
 // ─── Changelog Data (Dev/Admin) ────────────
 const CHANGELOG: ChangelogEntry[] = [
   {
-    version: "3.6.0",
-    date: "2026-08-01",
-    items: [
-      { tag: "feature", text: "เพิ่มหน้ารายงานประวัติการลา (Leave Report) ให้ Manager/Admin ตรวจสอบประวัติการลาที่อนุมัติแล้ว" },
-      { tag: "feature", text: "รองรับการ Filter ค้นหาตามเดือน/แผนก/พนักงาน พร้อมปุ่ม Export Excel นำไปใช้งานต่อได้ทันที" },
-    ],
-  },
-  {
     version: "3.5.7",
     date: "2026-08-01",
     items: [
       { tag: "feature", text: "อัปเกรดหน้า Calendar! แสดงรายการลาของพนักงานลงในปฏิทิน" },
+      { tag: "feature", text: "เพิ่มหน้ารายงานประวัติการลา (Leave Report) ตรวจสอบประวัติการลาที่อนุมัติแล้ว" },
+      { tag: "feature", text: "เพิ่มหน้ารายงาน WorkStatus ตรวจสอบสรุปสถานะการทำงานและรายงานประจำวัน" },
     ],
   },
   {
