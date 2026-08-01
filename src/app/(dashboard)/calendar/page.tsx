@@ -20,6 +20,20 @@ interface Plan {
   userId: string;
 }
 
+interface CalendarLeave {
+  id: string;
+  userId: string;
+  startDate: string;
+  endDate: string;
+  leaveType: string;
+  reason: string;
+  profile: {
+    firstName: string;
+    lastName: string;
+    avatarUrl: string | null;
+  };
+}
+
 interface CalendarPlanRow {
   id: string;
   user_id: string;
@@ -116,11 +130,33 @@ const parseDate = (s: string) => {
   return new Date(y, m - 1, d);
 };
 
+const isDateInLeave = (dateStr: string, startDate: string, endDate: string) => {
+  return dateStr >= startDate && dateStr <= endDate;
+};
+
+const LEAVE_COLORS: Record<string, string> = {
+  sick: "bg-pink-100 text-pink-700 border-pink-200",
+  vacation: "bg-orange-100 text-orange-700 border-orange-200",
+  personal: "bg-sky-100 text-sky-700 border-sky-200",
+  default: "bg-gray-100 text-gray-700 border-gray-200",
+};
+
+const getLeaveColor = (type: string) => LEAVE_COLORS[type] || LEAVE_COLORS.default;
+const getLeaveLabel = (type: string) => {
+  switch (type) {
+    case "sick": return "ลาป่วย";
+    case "vacation": return "ลาพักร้อน";
+    case "personal": return "ลากิจ";
+    default: return type;
+  }
+};
+
 // ─── Day Detail Panel ─────────────────────────────────────────────────────────
 function DayPanel({
   date,
   holidays,
   plans,
+  leaves,
   onClose,
   onAddPlan,
   onDeletePlan,
@@ -128,6 +164,7 @@ function DayPanel({
   date: Date;
   holidays: Holiday[];
   plans: Plan[];
+  leaves: CalendarLeave[];
   onClose: () => void;
   onAddPlan: (plan: Omit<Plan, "id" | "userId">) => void;
   onDeletePlan: (id: string) => void;
@@ -146,6 +183,7 @@ function DayPanel({
   const dayPlans = plans
     .filter((p) => p.date === dateStr)
     .sort((a, b) => a.time.localeCompare(b.time));
+  const dayLeaves = leaves.filter((l) => isDateInLeave(dateStr, l.startDate, l.endDate));
 
   const handleSubmit = () => {
     if (!form.title.trim()) return;
@@ -242,6 +280,37 @@ function DayPanel({
                     <path d="M12 8v4l3 3" />
                   </svg>
                   <span>{h.name}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Leaves */}
+          {dayLeaves.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                รายการลา ({dayLeaves.length})
+              </p>
+              {dayLeaves.map((leave) => (
+                <div
+                  key={leave.id}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border text-sm font-semibold bg-white ${getLeaveColor(leave.leaveType)}`}
+                >
+                  {leave.profile.avatarUrl ? (
+                    <img src={leave.profile.avatarUrl} className="w-8 h-8 rounded-full object-cover flex-shrink-0 border-2 border-white/50 shadow-sm" />
+                  ) : (
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0 border-2 border-white/50 shadow-sm ${getLeaveColor(leave.leaveType).split(" ")[0].replace("100", "400")}`}>
+                      {(leave.profile.firstName || "?").charAt(0)}
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-gray-800 leading-tight truncate">
+                      {leave.profile.firstName || "ไม่ระบุชื่อ"} {leave.profile.lastName}
+                    </p>
+                    <p className="text-xs font-medium mt-0.5 opacity-80 truncate">
+                      {getLeaveLabel(leave.leaveType)}{leave.reason ? ` - ${leave.reason}` : ""}
+                    </p>
+                  </div>
                 </div>
               ))}
             </div>
@@ -400,12 +469,14 @@ function CalendarGrid({
   month,
   holidays,
   plans,
+  leaves,
   onSelectDay,
 }: {
   year: number;
   month: number;
   holidays: Holiday[];
   plans: Plan[];
+  leaves: CalendarLeave[];
   onSelectDay: (d: Date) => void;
 }) {
   const firstDay = new Date(year, month, 1).getDay();
@@ -466,6 +537,7 @@ function CalendarGrid({
           const dayPlans = plans
             .filter((p) => p.date === dateStr)
             .sort((a, b) => a.time.localeCompare(b.time));
+          const dayLeaves = leaves.filter((l) => isDateInLeave(dateStr, l.startDate, l.endDate));
 
           const isNationalHoliday = dayHolidays.some(
             (h) => h.type === "national",
@@ -579,7 +651,31 @@ function CalendarGrid({
                 )}
               </div>
 
-              {/* Mobile dots */}
+              {/* Leave pills */}
+              {dayLeaves.length > 0 && (
+                <div className="flex flex-col gap-0.5 w-full mt-0.5">
+                  {dayLeaves.map((leave) => (
+                    <div
+                      key={leave.id}
+                      title={`${leave.profile.firstName || "ไม่ระบุชื่อ"} - ${getLeaveLabel(leave.leaveType)}${leave.reason ? `\nเหตุผล: ${leave.reason}` : ""}`}
+                      className={`hidden md:flex items-center gap-1 px-1 py-0.5 rounded-full border ${getLeaveColor(leave.leaveType)} w-full cursor-help hover:shadow-sm transition-shadow`}
+                    >
+                      {leave.profile.avatarUrl ? (
+                        <img src={leave.profile.avatarUrl} className="w-3.5 h-3.5 rounded-full object-cover flex-shrink-0 border border-white/50" />
+                      ) : (
+                        <div className="w-3.5 h-3.5 rounded-full bg-black/10 flex items-center justify-center text-[7px] font-bold flex-shrink-0 border border-white/50">
+                          {(leave.profile.firstName || "?").charAt(0)}
+                        </div>
+                      )}
+                      <span className="text-[9px] font-bold truncate leading-none pt-0.5">
+                        {leave.profile.firstName || "ไม่ระบุชื่อ"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Mobile dots (Plans) */}
               {dayPlans.length > 0 && (
                 <div className="md:hidden flex gap-0.5 mt-auto flex-wrap">
                   {dayPlans.slice(0, 4).map((plan) => (
@@ -588,6 +684,28 @@ function CalendarGrid({
                       className="w-1.5 h-1.5 rounded-full bg-sky-500"
                     />
                   ))}
+                </div>
+              )}
+              
+              {/* Mobile Leave avatars */}
+              {dayLeaves.length > 0 && (
+                <div className="md:hidden flex gap-0.5 mt-0.5 flex-wrap">
+                  {dayLeaves.slice(0, 3).map((leave) => (
+                    <div key={leave.id} className="w-3.5 h-3.5 rounded-full overflow-hidden border border-white shadow-sm flex-shrink-0">
+                      {leave.profile.avatarUrl ? (
+                        <img src={leave.profile.avatarUrl} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className={`w-full h-full flex items-center justify-center text-[6px] font-bold text-white ${getLeaveColor(leave.leaveType).split(" ")[0].replace("100", "400")}`}>
+                          {(leave.profile.firstName || "?").charAt(0)}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  {dayLeaves.length > 3 && (
+                    <div className="w-3.5 h-3.5 rounded-full bg-gray-100 border border-white shadow-sm flex items-center justify-center text-[6px] font-bold text-gray-500">
+                      +
+                    </div>
+                  )}
                 </div>
               )}
             </button>
@@ -608,6 +726,7 @@ export default function CalendarPage() {
   // ในสถานการณ์จริง ข้อมูล holidays ตรงนี้จะถูกดึงมาจาก Database (Supabase) เหมือนหน้า Settings
   const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [plans, setPlans] = useState<Plan[]>([]);
+  const [leaves, setLeaves] = useState<CalendarLeave[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [view, setView] = useState<"month" | "list">("month");
 
@@ -618,7 +737,7 @@ export default function CalendarPage() {
       } = await supabase.auth.getUser();
       setCurrentUserId(user?.id ?? null);
 
-      const [holidayRes, planRes] = await Promise.all([
+      const [holidayRes, planRes, leaveRes, profilesRes] = await Promise.all([
         supabase.from("holidays").select("*"),
         user
           ? supabase
@@ -628,6 +747,8 @@ export default function CalendarPage() {
               .order("plan_date", { ascending: true })
               .order("plan_time", { ascending: true })
           : Promise.resolve({ data: null, error: null }),
+        supabase.from("leave_requests").select("*").eq("status", "approved"),
+        supabase.from("profiles_with_avatar").select("id, first_name, last_name, avatar_url"),
       ]);
 
       if (holidayRes.data && !holidayRes.error) {
@@ -658,6 +779,26 @@ export default function CalendarPage() {
           }),
         );
         setPlans(mappedPlans);
+      }
+      
+      if (leaveRes.data && profilesRes.data && !leaveRes.error && !profilesRes.error) {
+        const profilesMap = new Map(
+          profilesRes.data.map((p: any) => [
+            p.id,
+            { firstName: p.first_name, lastName: p.last_name, avatarUrl: p.avatar_url ?? null },
+          ])
+        );
+
+        const mappedLeaves: CalendarLeave[] = leaveRes.data.map((l: any) => ({
+          id: l.id,
+          userId: l.user_id,
+          startDate: l.start_date,
+          endDate: l.end_date,
+          leaveType: l.leave_type,
+          reason: l.reason ?? "",
+          profile: profilesMap.get(l.user_id) || { firstName: "Unknown", lastName: "", avatarUrl: null },
+        }));
+        setLeaves(mappedLeaves);
       }
     };
 
@@ -865,6 +1006,7 @@ export default function CalendarPage() {
             month={viewMonth}
             holidays={holidays}
             plans={plans}
+            leaves={leaves}
             onSelectDay={setSelectedDate}
           />
         ) : (
@@ -1014,6 +1156,7 @@ export default function CalendarPage() {
           date={selectedDate}
           holidays={holidays}
           plans={plans}
+          leaves={leaves}
           onClose={() => setSelectedDate(null)}
           onAddPlan={addPlan}
           onDeletePlan={deletePlan}
