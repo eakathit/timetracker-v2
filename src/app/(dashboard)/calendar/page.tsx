@@ -138,6 +138,8 @@ const LEAVE_COLORS: Record<string, string> = {
   sick: "bg-pink-100 text-pink-700 border-pink-200",
   vacation: "bg-orange-100 text-orange-700 border-orange-200",
   personal: "bg-sky-100 text-sky-700 border-sky-200",
+  holiday_swap: "bg-emerald-100 text-emerald-700 border-emerald-200",
+  special_personal: "bg-purple-100 text-purple-700 border-purple-200",
   default: "bg-gray-100 text-gray-700 border-gray-200",
 };
 
@@ -147,6 +149,8 @@ const getLeaveLabel = (type: string) => {
     case "sick": return "ลาป่วย";
     case "vacation": return "ลาพักร้อน";
     case "personal": return "ลากิจ";
+    case "holiday_swap": return "แลกวันหยุด";
+    case "special_personal": return "ลากิจพิเศษ";
     default: return type;
   }
 };
@@ -308,7 +312,7 @@ function DayPanel({
                       {leave.profile.firstName || "ไม่ระบุชื่อ"} {leave.profile.lastName}
                     </p>
                     <p className="text-xs font-medium mt-0.5 opacity-80 truncate">
-                      {getLeaveLabel(leave.leaveType)}{leave.reason ? ` - ${leave.reason}` : ""}
+                      {getLeaveLabel(leave.leaveType)}
                     </p>
                   </div>
                 </div>
@@ -651,31 +655,31 @@ function CalendarGrid({
                 )}
               </div>
 
-              {/* Leave pills */}
+              {/* Leave avatars (All screens) */}
               {dayLeaves.length > 0 && (
-                <div className="flex flex-col gap-0.5 w-full mt-0.5">
-                  {dayLeaves.map((leave) => (
-                    <div
-                      key={leave.id}
-                      title={`${leave.profile.firstName || "ไม่ระบุชื่อ"} - ${getLeaveLabel(leave.leaveType)}${leave.reason ? `\nเหตุผล: ${leave.reason}` : ""}`}
-                      className={`hidden md:flex items-center gap-1 px-1 py-0.5 rounded-full border ${getLeaveColor(leave.leaveType)} w-full cursor-help hover:shadow-sm transition-shadow`}
+                <div className="flex gap-0.5 mt-0.5 flex-wrap">
+                  {dayLeaves.slice(0, 4).map((leave) => (
+                    <div 
+                      key={leave.id} 
+                      title={`${leave.profile.firstName || "ไม่ระบุชื่อ"} - ${getLeaveLabel(leave.leaveType)}`}
+                      className="w-4 h-4 md:w-5 md:h-5 rounded-full overflow-hidden border border-white shadow-sm flex-shrink-0 cursor-help transition-transform hover:scale-110 hover:z-10"
                     >
                       {leave.profile.avatarUrl ? (
-                        <img src={leave.profile.avatarUrl} className="w-3.5 h-3.5 rounded-full object-cover flex-shrink-0 border border-white/50" />
+                        <img src={leave.profile.avatarUrl} className="w-full h-full object-cover" />
                       ) : (
-                        <div className="w-3.5 h-3.5 rounded-full bg-black/10 flex items-center justify-center text-[7px] font-bold flex-shrink-0 border border-white/50">
+                        <div className={`w-full h-full flex items-center justify-center text-[7px] md:text-[9px] font-bold text-white ${getLeaveColor(leave.leaveType).split(" ")[0].replace("100", "400")}`}>
                           {(leave.profile.firstName || "?").charAt(0)}
                         </div>
                       )}
-                      <span className="text-[9px] font-bold truncate leading-none pt-0.5">
-                        {leave.profile.firstName || "ไม่ระบุชื่อ"}
-                      </span>
                     </div>
                   ))}
+                  {dayLeaves.length > 4 && (
+                    <div className="w-4 h-4 md:w-5 md:h-5 rounded-full bg-gray-100 border border-white shadow-sm flex items-center justify-center text-[8px] md:text-[10px] font-bold text-gray-500">
+                      +
+                    </div>
+                  )}
                 </div>
               )}
-
-              {/* Mobile dots (Plans) */}
               {dayPlans.length > 0 && (
                 <div className="md:hidden flex gap-0.5 mt-auto flex-wrap">
                   {dayPlans.slice(0, 4).map((plan) => (
@@ -687,27 +691,7 @@ function CalendarGrid({
                 </div>
               )}
               
-              {/* Mobile Leave avatars */}
-              {dayLeaves.length > 0 && (
-                <div className="md:hidden flex gap-0.5 mt-0.5 flex-wrap">
-                  {dayLeaves.slice(0, 3).map((leave) => (
-                    <div key={leave.id} className="w-3.5 h-3.5 rounded-full overflow-hidden border border-white shadow-sm flex-shrink-0">
-                      {leave.profile.avatarUrl ? (
-                        <img src={leave.profile.avatarUrl} className="w-full h-full object-cover" />
-                      ) : (
-                        <div className={`w-full h-full flex items-center justify-center text-[6px] font-bold text-white ${getLeaveColor(leave.leaveType).split(" ")[0].replace("100", "400")}`}>
-                          {(leave.profile.firstName || "?").charAt(0)}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                  {dayLeaves.length > 3 && (
-                    <div className="w-3.5 h-3.5 rounded-full bg-gray-100 border border-white shadow-sm flex items-center justify-center text-[6px] font-bold text-gray-500">
-                      +
-                    </div>
-                  )}
-                </div>
-              )}
+              {/* Mobile dots (Plans) */}
             </button>
           );
         })}
