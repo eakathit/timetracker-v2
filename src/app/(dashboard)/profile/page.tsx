@@ -26,7 +26,7 @@ interface DayLog {
   isReportSent: boolean;
   otHours: number; // รวม OT จาก daily_time_logs + ot_requests ที่อนุมัติ
   dailyAllowance: boolean;
-  isDriverTo:   boolean;
+  isDriverTo: boolean;
   isDriverFrom: boolean;
 }
 
@@ -272,13 +272,12 @@ function AttendanceCalendar({
         {DAYS_SHORT.map((d, i) => (
           <div
             key={d}
-            className={`text-center text-[10px] font-bold pb-1.5 ${
-              i === 0
-                ? "text-rose-400"
-                : i === 6
-                  ? "text-sky-400"
-                  : "text-gray-400"
-            }`}
+            className={`text-center text-[10px] font-bold pb-1.5 ${i === 0
+              ? "text-rose-400"
+              : i === 6
+                ? "text-sky-400"
+                : "text-gray-400"
+              }`}
           >
             {d}
           </div>
@@ -295,19 +294,18 @@ function AttendanceCalendar({
           return (
             <div key={day} className="flex flex-col items-center gap-0.5">
               <div
-                className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-semibold ${
-                  log?.status === "on_time"
-                    ? "text-emerald-700"
-                    : log?.status === "late"
-                      ? "text-amber-700"
-                      : log?.status === "absent"
-                        ? "text-rose-700"
-                        : log?.status === "leave"
-                          ? "text-violet-600"
-                          : col === 0 || col === 6
-                            ? "text-gray-300"
-                            : "text-gray-400"
-                }`}
+                className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-semibold ${log?.status === "on_time"
+                  ? "text-emerald-700"
+                  : log?.status === "late"
+                    ? "text-amber-700"
+                    : log?.status === "absent"
+                      ? "text-rose-700"
+                      : log?.status === "leave"
+                        ? "text-violet-600"
+                        : col === 0 || col === 6
+                          ? "text-gray-300"
+                          : "text-gray-400"
+                  }`}
               >
                 {day}
               </div>
@@ -368,13 +366,12 @@ function ReportCalendar({
         {DAYS_SHORT.map((d, i) => (
           <div
             key={d}
-            className={`text-center text-[10px] font-bold pb-1.5 ${
-              i === 0
-                ? "text-rose-400"
-                : i === 6
-                  ? "text-sky-400"
-                  : "text-gray-400"
-            }`}
+            className={`text-center text-[10px] font-bold pb-1.5 ${i === 0
+              ? "text-rose-400"
+              : i === 6
+                ? "text-sky-400"
+                : "text-gray-400"
+              }`}
           >
             {d}
           </div>
@@ -404,13 +401,12 @@ function ReportCalendar({
               className="relative group flex flex-col items-center"
             >
               <div
-                className={`w-7 h-7 rounded-lg flex items-center justify-center text-[11px] font-bold cursor-default transition-all ${
-                  !isWork
-                    ? "bg-gray-50 text-gray-300"
-                    : log.isReportSent
-                      ? "bg-violet-100 text-violet-600 hover:bg-violet-200"
-                      : "bg-rose-50 text-rose-400 hover:bg-rose-100"
-                }`}
+                className={`w-7 h-7 rounded-lg flex items-center justify-center text-[11px] font-bold cursor-default transition-all ${!isWork
+                  ? "bg-gray-50 text-gray-300"
+                  : log.isReportSent
+                    ? "bg-violet-100 text-violet-600 hover:bg-violet-200"
+                    : "bg-rose-50 text-rose-400 hover:bg-rose-100"
+                  }`}
               >
                 {day}
               </div>
@@ -482,31 +478,30 @@ function ListView({ logs }: { logs: DayLog[] }) {
           </div>
 
           {/* ✅ เพิ่มตรงนี้ */}
-  {(log.isDriverTo || log.isDriverFrom) && (
-    <div className="flex gap-1">
-      {log.isDriverTo && (
-        <span className="text-[10px] bg-sky-100 text-sky-600 font-bold px-1.5 py-0.5 rounded-full">
-          🚗↗
-        </span>
-      )}
-      {log.isDriverFrom && (
-        <span className="text-[10px] bg-violet-100 text-violet-600 font-bold px-1.5 py-0.5 rounded-full">
-          🚗↙
-        </span>
-      )}
-    </div>
-  )}
+          {(log.isDriverTo || log.isDriverFrom) && (
+            <div className="flex gap-1">
+              {log.isDriverTo && (
+                <span className="text-[10px] bg-sky-100 text-sky-600 font-bold px-1.5 py-0.5 rounded-full">
+                  🚗↗
+                </span>
+              )}
+              {log.isDriverFrom && (
+                <span className="text-[10px] bg-violet-100 text-violet-600 font-bold px-1.5 py-0.5 rounded-full">
+                  🚗↙
+                </span>
+              )}
+            </div>
+          )}
 
           <span
-            className={`text-[10px] font-bold px-2 py-0.5 rounded-lg ${
-              log.status === "on_time"
-                ? "bg-emerald-50 text-emerald-600"
-                : log.status === "late"
-                  ? "bg-amber-50  text-amber-600"
-                  : log.status === "leave"
-                    ? "bg-violet-50 text-violet-600"
-                    : "bg-rose-50 text-rose-500"
-            }`}
+            className={`text-[10px] font-bold px-2 py-0.5 rounded-lg ${log.status === "on_time"
+              ? "bg-emerald-50 text-emerald-600"
+              : log.status === "late"
+                ? "bg-amber-50  text-amber-600"
+                : log.status === "leave"
+                  ? "bg-violet-50 text-violet-600"
+                  : "bg-rose-50 text-rose-500"
+              }`}
           >
             {log.status === "on_time"
               ? "ตรงเวลา"
@@ -551,17 +546,17 @@ function LeaveQuotaSection({ userId }: { userId: string }) {
   }, [userId]);
 
   const totalUsedHours = balances.reduce(
-  (s, b) => s + toLeaveDisplay(Number(b.used_days), b.allow_hourly),
-  0,
-);
-const totalTotalHours = balances.reduce(
-  (s, b) => s + toLeaveDisplay(Number(b.total_days), b.allow_hourly),
-  0,
-);
-const totalPct =
-  totalTotalHours > 0
-    ? Math.round((totalUsedHours / totalTotalHours) * 100)
-    : 0;
+    (s, b) => s + toLeaveDisplay(Number(b.used_days), b.allow_hourly),
+    0,
+  );
+  const totalTotalHours = balances.reduce(
+    (s, b) => s + toLeaveDisplay(Number(b.total_days), b.allow_hourly),
+    0,
+  );
+  const totalPct =
+    totalTotalHours > 0
+      ? Math.round((totalUsedHours / totalTotalHours) * 100)
+      : 0;
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
@@ -572,8 +567,8 @@ const totalPct =
           <div className="h-3 w-36 bg-gray-100 rounded-full animate-pulse mt-1" />
         ) : (
           <p className="text-xs text-gray-400 mt-0.5">
-  ใช้ไป {fmtNum(totalUsedHours)} / {fmtNum(totalTotalHours)} ชม. ({totalPct}%)
-</p>
+            ใช้ไป {fmtNum(totalUsedHours)} / {fmtNum(totalTotalHours)} ชม. ({totalPct}%)
+          </p>
         )}
       </div>
 
@@ -601,7 +596,7 @@ const totalPct =
 
               const cfg =
                 LEAVE_TYPE_CONFIG[
-                  b.leave_type as keyof typeof LEAVE_TYPE_CONFIG
+                b.leave_type as keyof typeof LEAVE_TYPE_CONFIG
                 ];
               const barColor = LEAVE_BAR_COLOR[b.leave_type] ?? "bg-gray-400";
               const usedPct = Number(b.used_pct);
@@ -631,9 +626,8 @@ const totalPct =
                   </div>
                   <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                     <div
-                      className={`h-full rounded-full transition-all duration-700 ${
-                        usedPct >= 100 ? "bg-rose-400" : barColor
-                      }`}
+                      className={`h-full rounded-full transition-all duration-700 ${usedPct >= 100 ? "bg-rose-400" : barColor
+                        }`}
                       style={{ width: `${Math.min(usedPct, 100)}%` }}
                     />
                   </div>
@@ -762,14 +756,14 @@ export default function ProfilePage() {
           .gte("request_date", start)
           .lte("request_date", end),
 
-           // query driver
-          supabase
-            .from("onsite_sessions")
-            .select("session_date, driver_to_id, driver_from_id")
-            .or(`driver_to_id.eq.${userId},driver_from_id.eq.${userId}`)
-            .gte("session_date", start)
-            .lte("session_date", end),
-        ]);
+        // query driver
+        supabase
+          .from("onsite_sessions")
+          .select("session_date, driver_to_id, driver_from_id")
+          .or(`driver_to_id.eq.${userId},driver_from_id.eq.${userId}`)
+          .gte("session_date", start)
+          .lte("session_date", end),
+      ]);
 
       // ── Build lookup maps ────────────────────────────────────────────────────
       const timeLogMap: Record<string, TimeLogRow> = {};
@@ -806,12 +800,12 @@ export default function ProfilePage() {
       });
 
       const driverMap = new Map<string, { to: boolean; from: boolean }>();
-    (driverRes.data ?? []).forEach((s) => {
-      driverMap.set(s.session_date, {
-        to:   s.driver_to_id   === userId,
-        from: s.driver_from_id === userId,
+      (driverRes.data ?? []).forEach((s) => {
+        driverMap.set(s.session_date, {
+          to: s.driver_to_id === userId,
+          from: s.driver_from_id === userId,
+        });
       });
-    });
 
       // ── สร้าง DayLog ครบทุกวันในเดือน ───────────────────────────────────────
       const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
@@ -837,7 +831,7 @@ export default function ProfilePage() {
             isReportSent: reportSet.has(dateStr),
             otHours: 0,
             dailyAllowance: false,
-            isDriverTo:   false,
+            isDriverTo: false,
             isDriverFrom: false,
           });
           continue;
@@ -854,7 +848,7 @@ export default function ProfilePage() {
             isReportSent: false,
             otHours: 0,
             dailyAllowance: false,
-            isDriverTo:   false,
+            isDriverTo: false,
             isDriverFrom: false,
           });
           continue;
@@ -905,8 +899,8 @@ export default function ProfilePage() {
             isReportSent: false,
             otHours: 0,
             dailyAllowance: false,
-            isDriverTo:   false,
-            isDriverFrom: false, 
+            isDriverTo: false,
+            isDriverFrom: false,
           });
           continue;
         }
@@ -928,7 +922,7 @@ export default function ProfilePage() {
           isReportSent: reportSet.has(dateStr),
           otHours: combinedOT,
           dailyAllowance: timeLog?.daily_allowance ?? false,
-          isDriverTo:   driverMap.get(dateStr)?.to   ?? false,
+          isDriverTo: driverMap.get(dateStr)?.to ?? false,
           isDriverFrom: driverMap.get(dateStr)?.from ?? false,
         });
       }
@@ -1241,6 +1235,52 @@ export default function ProfilePage() {
           </span>
         </Link>
 
+        {/* ── OT Calendar Button (mobile only) ── */}
+        <Link
+          href="/calendar-ot"
+          className="md:hidden flex items-center gap-3 bg-white rounded-2xl border border-gray-100 shadow-sm px-4 py-3 active:scale-[0.99] transition-transform"
+        >
+          <span className="w-11 h-11 rounded-2xl bg-amber-50 text-amber-500 flex items-center justify-center flex-shrink-0">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.9"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="w-5 h-5"
+            >
+              <rect x="3" y="4" width="18" height="18" rx="2" />
+              <line x1="3" y1="9" x2="21" y2="9" />
+              <line x1="8" y1="2" x2="8" y2="6" />
+              <line x1="16" y1="2" x2="16" y2="6" />
+              <circle cx="16" cy="16" r="3" />
+              <polyline points="16 14.5 16 16 17 17" />
+            </svg>
+          </span>
+          <span className="flex-1 min-w-0">
+            <span className="block text-sm font-bold text-gray-800">
+              ปฏิทินโอที
+            </span>
+            <span className="block text-xs text-gray-400 mt-0.5">
+              ดู Request OT ในปฏิทิน
+            </span>
+          </span>
+          <span className="w-8 h-8 rounded-xl bg-gray-50 text-gray-400 flex items-center justify-center flex-shrink-0">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.3"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="w-4 h-4"
+            >
+              <polyline points="9 18 15 12 9 6" />
+            </svg>
+          </span>
+        </Link>
+
         {/* ── Quick Stats Strip ── */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
           <div className="grid grid-cols-4 divide-x divide-gray-100">
@@ -1335,11 +1375,10 @@ export default function ProfilePage() {
                   <button
                     key={tab}
                     onClick={() => setActiveTab(tab)}
-                    className={`flex-1 py-3.5 text-xs font-bold border-b-2 transition-all ${
-                      activeTab === tab
-                        ? "text-sky-600 border-sky-400 bg-sky-50/50"
-                        : "text-gray-400 border-transparent hover:bg-gray-50"
-                    }`}
+                    className={`flex-1 py-3.5 text-xs font-bold border-b-2 transition-all ${activeTab === tab
+                      ? "text-sky-600 border-sky-400 bg-sky-50/50"
+                      : "text-gray-400 border-transparent hover:bg-gray-50"
+                      }`}
                   >
                     {tab === "calendar"
                       ? "📅 ปฏิทินเข้างาน"
