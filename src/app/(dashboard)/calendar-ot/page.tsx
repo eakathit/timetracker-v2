@@ -44,11 +44,11 @@ const MONTHS_SHORT = [
 const DAYS_SHORT = ["อา","จ","อ","พ","พฤ","ศ","ส"];
 
 const STATUS_CONFIG: Record<OTStatus, {
-  label: string; bg: string; text: string; border: string; dot: string; lightBg: string;
+  label: string; bg: string; text: string; border: string; dot: string; lightBg: string; ring: string;
 }> = {
-  pending:  { label:"รอพิจารณา",  bg:"bg-amber-500",   text:"text-amber-600",   border:"border-amber-200",   dot:"bg-amber-400",   lightBg:"bg-amber-50"   },
-  approved: { label:"อนุมัติแล้ว",bg:"bg-emerald-500", text:"text-emerald-600", border:"border-emerald-200", dot:"bg-emerald-400", lightBg:"bg-emerald-50" },
-  rejected: { label:"ไม่อนุมัติ", bg:"bg-rose-500",    text:"text-rose-600",    border:"border-rose-200",    dot:"bg-rose-400",    lightBg:"bg-rose-50"    },
+  pending:  { label:"รอพิจารณา",  bg:"bg-amber-500",   text:"text-amber-700",   border:"border-amber-200",   dot:"bg-amber-400",   lightBg:"bg-amber-50/70",   ring:"ring-amber-400" },
+  approved: { label:"อนุมัติแล้ว",bg:"bg-emerald-500", text:"text-emerald-700", border:"border-emerald-200", dot:"bg-emerald-400", lightBg:"bg-emerald-50/70", ring:"ring-emerald-400" },
+  rejected: { label:"ไม่อนุมัติ", bg:"bg-rose-500",    text:"text-rose-700",    border:"border-rose-200",    dot:"bg-rose-400",    lightBg:"bg-rose-50/70",    ring:"ring-rose-400" },
 };
 
 const HOLIDAY_TYPE_CONFIG = {
@@ -68,7 +68,7 @@ const fmt = (d: Date): string => {
 const parseDate = (s: string) => { const [y,m,d] = s.split("-").map(Number); return new Date(y,m-1,d); };
 const fmtDateTime = (iso: string) => {
   const d = new Date(iso);
-  return `${d.getDate()} ${MONTHS_SHORT[d.getMonth()]} ${d.getFullYear()+543} · ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+  return `${d.getDate()} ${MONTHS_SHORT[d.getMonth()]} ${d.getFullYear()+543} · ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")} น.`;
 };
 
 // ─── OT Day Panel ─────────────────────────────────────────────────────────────
@@ -78,39 +78,44 @@ function OTDayPanel({ date, otRequests, holidays, onClose }: {
   const dateStr = fmt(date);
   const dayOTs = otRequests.filter(r => r.date === dateStr);
   const dayHolidays = holidays.filter(h => h.date === dateStr);
+  const totalDayHours = dayOTs.reduce((acc, r) => acc + r.hours, 0);
   const thDay = ["วันอาทิตย์","วันจันทร์","วันอังคาร","วันพุธ","วันพฤหัสบดี","วันศุกร์","วันเสาร์"];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center">
-      <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" onClick={onClose} />
-      <div className="relative w-full md:w-[460px] max-h-[85vh] bg-white rounded-t-3xl md:rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 md:slide-in-from-bottom-0 md:fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-0 md:p-4">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] transition-opacity" onClick={onClose} />
+      <div className="relative w-full md:w-[480px] max-h-[88vh] bg-white rounded-t-3xl md:rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 md:slide-in-from-bottom-0 md:fade-in duration-200 border border-gray-100">
 
+        {/* Mobile handle */}
         <div className="md:hidden flex justify-center pt-3 pb-1 flex-shrink-0">
-          <div className="w-10 h-1 rounded-full bg-gray-200" />
+          <div className="w-12 h-1.5 rounded-full bg-gray-200" />
         </div>
 
-        <div className="flex items-start justify-between px-5 pt-3 pb-4 flex-shrink-0 border-b border-gray-50">
+        {/* Panel Header */}
+        <div className="flex items-start justify-between px-6 pt-4 pb-3 flex-shrink-0 border-b border-gray-100 bg-gray-50/50">
           <div>
-            <p className="text-xs text-gray-400 font-medium">{thDay[date.getDay()]}</p>
-            <h2 className="text-2xl font-extrabold text-gray-800 leading-none">
+            <p className="text-xs text-amber-600 font-bold uppercase tracking-wide">{thDay[date.getDay()]}</p>
+            <h2 className="text-2xl font-extrabold text-gray-800 leading-tight">
               {date.getDate()} {MONTHS_TH[date.getMonth()]}
             </h2>
-            <p className="text-xs text-gray-400 mt-0.5">{date.getFullYear()+543}</p>
+            <p className="text-xs text-gray-400 mt-0.5">พ.ศ. {date.getFullYear()+543}</p>
           </div>
-          <button onClick={onClose} className="w-9 h-9 rounded-xl hover:bg-gray-100 flex items-center justify-center text-gray-400 transition-colors mt-1">
+          <button onClick={onClose} className="w-9 h-9 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 hover:text-gray-800 transition-colors mt-0.5">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4">
               <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
             </svg>
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+        {/* Panel Content */}
+        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
 
+          {/* Holiday Tag */}
           {dayHolidays.length > 0 && (
             <div className="space-y-2">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">วันหยุด / เสาร์ทำงาน</p>
+              <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400">วันหยุด / เสาร์ทำงาน</p>
               {dayHolidays.map(h => (
-                <div key={h.id} className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border text-sm font-semibold ${HOLIDAY_TYPE_CONFIG[h.type].color}`}>
+                <div key={h.id} className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl border text-sm font-semibold ${HOLIDAY_TYPE_CONFIG[h.type].color}`}>
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 flex-shrink-0">
                     <circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 3"/>
                   </svg>
@@ -120,74 +125,121 @@ function OTDayPanel({ date, otRequests, holidays, onClose }: {
             </div>
           )}
 
-          <div className="space-y-2">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
-              OT Request พนักงาน ({dayOTs.length})
-            </p>
+          {/* OT Requests List */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400">
+                รายการขอ OT ({dayOTs.length} คน)
+              </p>
+              {dayOTs.length > 0 && (
+                <span className="text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
+                  รวม {totalDayHours} ชม.
+                </span>
+              )}
+            </div>
 
             {dayOTs.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-10 text-center">
-                <div className="w-14 h-14 rounded-2xl bg-gray-50 flex items-center justify-center mb-3">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-7 h-7 text-gray-300">
+              <div className="flex flex-col items-center justify-center py-12 text-center bg-gray-50/60 rounded-2xl border border-dashed border-gray-200">
+                <div className="w-12 h-12 rounded-2xl bg-white shadow-xs flex items-center justify-center mb-2.5">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-6 h-6 text-gray-300">
                     <circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>
                   </svg>
                 </div>
-                <p className="text-sm font-semibold text-gray-400">ไม่มี OT Request</p>
-                <p className="text-xs text-gray-300 mt-1">ไม่มีการขอ OT ในวันนี้</p>
+                <p className="text-sm font-bold text-gray-600">ไม่มีรายการ OT</p>
+                <p className="text-xs text-gray-400 mt-0.5">ไม่มีพนักงานขอ OT ในวันนี้</p>
               </div>
             ) : (
               <div className="space-y-3">
                 {dayOTs.map(ot => {
                   const st = STATUS_CONFIG[ot.status] || STATUS_CONFIG.pending;
                   return (
-                    <div key={ot.id} className={`rounded-2xl border-2 overflow-hidden ${st.border} ${st.lightBg}`}>
-                      <div className="flex items-center gap-2 px-4 pt-3 pb-2">
-                        <span className={`w-2 h-2 rounded-full flex-shrink-0 ${st.dot}`}/>
-                        <span className={`text-xs font-bold ${st.text}`}>{st.label}</span>
-                        <span className="flex-1"/>
-                        <span className={`text-xs font-extrabold px-2 py-0.5 rounded-lg bg-white/80 shadow-xs ${st.text}`}>+{ot.hours}h OT</span>
-                      </div>
-                      <div className="px-4 pb-3 space-y-2">
-                        <div className="flex items-center gap-2.5">
+                    <div
+                      key={ot.id}
+                      className={`bg-white rounded-2xl border ${st.border} shadow-xs overflow-hidden transition-all hover:shadow-md`}
+                    >
+                      {/* Card Header: Profile, Name, Status & Hours */}
+                      <div className={`px-4 py-3 border-b ${st.border} ${st.lightBg} flex items-center justify-between gap-3`}>
+                        <div className="flex items-center gap-3 min-w-0">
                           {ot.avatarUrl ? (
-                            <img src={ot.avatarUrl} alt={ot.userName} className="w-8 h-8 rounded-full object-cover border border-white shadow-xs flex-shrink-0" />
+                            <img
+                              src={ot.avatarUrl}
+                              alt={ot.userName}
+                              className="w-10 h-10 rounded-full object-cover border-2 border-white shadow-xs flex-shrink-0"
+                            />
                           ) : (
-                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0 shadow-xs">
+                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white text-sm font-bold flex-shrink-0 shadow-xs">
                               {ot.userName.charAt(0) || "พ"}
                             </div>
                           )}
-                          <div>
-                            <p className="text-sm font-bold text-gray-800 leading-tight">{ot.userName}</p>
-                            <p className="text-[11px] text-gray-500 font-medium">{ot.startTime} – {ot.endTime} น.</p>
+                          <div className="min-w-0">
+                            <h3 className="text-sm font-bold text-gray-900 leading-tight truncate">
+                              {ot.userName}
+                            </h3>
+                            <p className="text-[11px] text-gray-500 mt-0.5">
+                              ยื่นเมื่อ {fmtDateTime(ot.submittedAt)}
+                            </p>
                           </div>
                         </div>
 
-                        {(ot.project || ot.projectNo) && (
-                          <div className="flex items-center gap-2 text-xs text-gray-600 bg-white/70 px-2.5 py-1.5 rounded-xl border border-gray-100">
-                            {ot.projectNo && <span className="font-extrabold text-sky-600">#{ot.projectNo}</span>}
-                            <span className="font-medium truncate">{ot.project || "-"}</span>
-                          </div>
-                        )}
+                        <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                          <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-0.5 rounded-full ${st.bg} text-white shadow-xs`}>
+                            <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                            {st.label}
+                          </span>
+                          <span className="text-xs font-extrabold text-gray-700 bg-white/90 px-2 py-0.5 rounded-md border border-gray-200/60 shadow-2xs">
+                            +{ot.hours} ชม.
+                          </span>
+                        </div>
+                      </div>
 
-                        {ot.reason && (
-                          <div className="text-xs text-gray-600 bg-white/50 px-2.5 py-1.5 rounded-xl">
-                            <span className="text-[10px] text-gray-400 block font-semibold">งาน / เหตุผล:</span>
-                            <p className="font-medium">{ot.reason}</p>
+                      {/* Card Body: Clean info rows (No Reason) */}
+                      <div className="p-4 space-y-2.5 bg-white text-xs text-gray-700">
+                        {/* Time & Project Info Grid */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <div className="flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-xl border border-gray-100">
+                            <span className="w-6 h-6 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center flex-shrink-0">
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                                <circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>
+                              </svg>
+                            </span>
+                            <div>
+                              <p className="text-[10px] text-gray-400 font-semibold uppercase">เวลาทำงาน OT</p>
+                              <p className="font-bold text-gray-800 text-[13px]">{ot.startTime} – {ot.endTime} น.</p>
+                            </div>
                           </div>
-                        )}
 
+                          <div className="flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-xl border border-gray-100">
+                            <span className="w-6 h-6 rounded-lg bg-sky-100 text-sky-700 flex items-center justify-center flex-shrink-0">
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                                <rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
+                              </svg>
+                            </span>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-[10px] text-gray-400 font-semibold uppercase">โปรเจกต์</p>
+                              <p className="font-bold text-gray-800 text-[12px] truncate">
+                                {ot.projectNo && <span className="text-sky-600 font-extrabold mr-1">#{ot.projectNo}</span>}
+                                {ot.project || "-"}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Approval / Rejection Note */}
                         {ot.status === "rejected" && ot.rejectReason && (
-                          <div className="bg-rose-50 border border-rose-200 rounded-xl px-3 py-2">
-                            <p className="text-[10px] text-rose-500 font-bold mb-0.5">เหตุผลที่ไม่อนุมัติ</p>
-                            <p className="text-xs text-rose-700 font-semibold">{ot.rejectReason}</p>
+                          <div className="bg-rose-50 border border-rose-200 rounded-xl px-3.5 py-2 text-xs">
+                            <p className="text-[10px] text-rose-500 font-bold mb-0.5">เหตุผลที่ไม่อนุมัติ:</p>
+                            <p className="text-rose-800 font-semibold">{ot.rejectReason}</p>
                           </div>
                         )}
+
                         {ot.status === "approved" && ot.approvedBy && (
-                          <p className="text-[10px] text-emerald-600 font-semibold flex items-center gap-1">
-                            <span>✓</span> อนุมัติโดย {ot.approvedBy}
-                          </p>
+                          <div className="flex items-center gap-1.5 text-xs text-emerald-700 font-semibold bg-emerald-50/50 px-3 py-1.5 rounded-lg border border-emerald-100">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3.5 h-3.5 text-emerald-600">
+                              <polyline points="20 6 9 17 4 12"/>
+                            </svg>
+                            <span>อนุมัติโดย {ot.approvedBy}</span>
+                          </div>
                         )}
-                        <p className="text-[10px] text-gray-400">ยื่นเมื่อ {fmtDateTime(ot.submittedAt)}</p>
                       </div>
                     </div>
                   );
@@ -218,14 +270,16 @@ function OTCalendarGrid({ year, month, otRequests, holidays, onSelectDay }: {
 
   return (
     <div className="flex-1 bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-      <div className="grid grid-cols-7 border-b border-gray-200 bg-gray-50">
+      {/* Weekday headers */}
+      <div className="grid grid-cols-7 border-b border-gray-200 bg-gray-50/90">
         {DAYS_SHORT.map((d, i) => (
-          <div key={d} className={`text-center text-xs font-bold py-3 ${i===0?"text-rose-500":i===6?"text-sky-500":"text-gray-500"} ${i<6?"border-r border-gray-100":""}`}>
+          <div key={d} className={`text-center text-xs font-bold py-3 ${i===0?"text-rose-500":i===6?"text-sky-500":"text-gray-600"} ${i<6?"border-r border-gray-100":""}`}>
             {d}
           </div>
         ))}
       </div>
 
+      {/* Days grid */}
       <div className="grid grid-cols-7 divide-x divide-gray-100" style={{ gridAutoRows:"1fr" }}>
         {cells.map((day, idx) => {
           const col = idx % 7;
@@ -233,7 +287,7 @@ function OTCalendarGrid({ year, month, otRequests, holidays, onSelectDay }: {
           const isLastRow = rowStart+7 >= cells.length;
 
           if (!day) {
-            return <div key={`e-${idx}`} className={`min-h-[78px] md:min-h-[110px] bg-gray-50/50 ${!isLastRow?"border-b border-gray-100":""}`}/>;
+            return <div key={`e-${idx}`} className={`min-h-[85px] md:min-h-[115px] bg-gray-50/40 ${!isLastRow?"border-b border-gray-100":""}`}/>;
           }
 
           const dateStr = `${year}-${String(month+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
@@ -247,96 +301,75 @@ function OTCalendarGrid({ year, month, otRequests, holidays, onSelectDay }: {
           const isNationalHoliday = dayHolidays.some(h => h.type === "national" || h.type === "special");
           const isCompanyHoliday = dayHolidays.some(h => h.type === "company");
 
-          const hasPending = dayOTs.some(r => r.status === "pending");
-          const hasApproved = dayOTs.some(r => r.status === "approved");
-          const hasRejected = dayOTs.some(r => r.status === "rejected");
-
           return (
             <button
               key={day}
               onClick={() => onSelectDay(new Date(year, month, day))}
               className={`
-                relative min-h-[78px] md:min-h-[110px] p-1.5 md:p-2 text-left
-                flex flex-col gap-1 transition-all duration-150 group
+                relative min-h-[85px] md:min-h-[115px] p-2 md:p-2.5 text-left
+                flex flex-col justify-between transition-all duration-150 group
                 ${!isLastRow?"border-b border-gray-100":""}
-                ${isToday?"bg-amber-50/40":isNationalHoliday?"bg-rose-50/60":isCompanyHoliday?"bg-orange-50/50":isSun?"bg-red-50/30 hover:bg-red-50/60":isSat&&!isWorkingSat?"bg-sky-50/30 hover:bg-sky-50/60":"bg-white hover:bg-slate-50"}
-                hover:z-10
+                ${isToday?"bg-amber-50/50":isNationalHoliday?"bg-rose-50/60":isCompanyHoliday?"bg-orange-50/50":isSun?"bg-red-50/30 hover:bg-red-50/60":isSat&&!isWorkingSat?"bg-sky-50/30 hover:bg-sky-50/60":"bg-white hover:bg-amber-50/30"}
+                hover:z-10 cursor-pointer
               `}
             >
-              {isToday && <span className="absolute top-0 left-0 right-0 h-0.5 bg-amber-500 rounded-b"/>}
+              {isToday && <span className="absolute top-0 left-0 right-0 h-1 bg-amber-500 rounded-b shadow-xs"/>}
 
-              <div className="flex items-center justify-between w-full">
-                <span className={`w-6 h-6 md:w-7 md:h-7 rounded-lg flex items-center justify-center text-xs md:text-sm font-bold flex-shrink-0 transition-colors
-                  ${isToday?"bg-amber-500 text-white shadow-sm":isNationalHoliday?"text-rose-500":isCompanyHoliday?"text-orange-500":isSun?"text-rose-400":isSat&&!isWorkingSat?"text-sky-500":"text-gray-800"}
-                  group-hover:ring-2 group-hover:ring-amber-200`}>
-                  {day}
-                </span>
+              {/* Day Header: Number & Holiday label */}
+              <div className="w-full space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className={`w-6 h-6 md:w-7 md:h-7 rounded-lg flex items-center justify-center text-xs md:text-sm font-extrabold flex-shrink-0 transition-colors
+                    ${isToday?"bg-amber-500 text-white shadow-sm":isNationalHoliday?"text-rose-500":isCompanyHoliday?"text-orange-500":isSun?"text-rose-400":isSat&&!isWorkingSat?"text-sky-500":"text-gray-800"}
+                    group-hover:ring-2 group-hover:ring-amber-300`}>
+                    {day}
+                  </span>
 
-                {dayOTs.length > 0 && (
-                  <span className="hidden md:inline-flex text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">
-                    {dayOTs.length} OT
+                  {/* OT Count Chip (Optional compact) */}
+                  {dayOTs.length > 0 && (
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 group-hover:bg-amber-200 transition-colors">
+                      {dayOTs.length} OT
+                    </span>
+                  )}
+                </div>
+
+                {/* Holiday Name */}
+                {dayHolidays.length > 0 && (
+                  <span className={`block text-[9px] md:text-[10px] font-bold truncate leading-tight px-1.5 py-0.5 rounded-md w-full ${HOLIDAY_TYPE_CONFIG[dayHolidays[0].type].color}`}>
+                    {dayHolidays[0].name}
                   </span>
                 )}
               </div>
 
-              {dayHolidays.length > 0 && (
-                <span className={`hidden md:block text-[9px] font-bold truncate leading-tight px-1.5 py-0.5 rounded-md w-full ${HOLIDAY_TYPE_CONFIG[dayHolidays[0].type].color}`}>
-                  {dayHolidays[0].name}
-                </span>
-              )}
-
-              {/* OT Avatars (เหมือนหน้า Calendar หลัก) */}
+              {/* OT Profile Avatars (เหมือน Calendar Leave สะอาด สวยงาม) */}
               {dayOTs.length > 0 && (
-                <div className="flex gap-0.5 mt-0.5 flex-wrap">
-                  {dayOTs.slice(0, 4).map((ot) => (
-                    <div 
-                      key={ot.id} 
-                      title={`${ot.userName} (+${ot.hours}h) - ${ot.reason || ot.project || "OT"}`}
-                      className="w-4 h-4 md:w-5 md:h-5 rounded-full overflow-hidden border border-white shadow-xs flex-shrink-0 cursor-help transition-transform hover:scale-110 hover:z-10 relative"
-                    >
-                      {ot.avatarUrl ? (
-                        <img src={ot.avatarUrl} alt={ot.userName} className="w-full h-full object-cover" />
-                      ) : (
-                        <div className={`w-full h-full flex items-center justify-center text-[7px] md:text-[9px] font-bold text-white ${
-                          ot.status === "approved" ? "bg-emerald-500" : ot.status === "pending" ? "bg-amber-500" : "bg-rose-500"
-                        }`}>
-                          {(ot.userName || "?").charAt(0)}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                  {dayOTs.length > 4 && (
-                    <div className="w-4 h-4 md:w-5 md:h-5 rounded-full bg-gray-100 border border-white shadow-xs flex items-center justify-center text-[8px] md:text-[10px] font-bold text-gray-500">
-                      +{dayOTs.length - 4}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Desktop OT Chips */}
-              {dayOTs.length > 0 && (
-                <div className="hidden md:flex flex-col gap-0.5 w-full mt-auto">
-                  {dayOTs.slice(0, 2).map((ot) => {
+                <div className="flex items-center gap-1 mt-auto pt-2 flex-wrap">
+                  {dayOTs.slice(0, 5).map((ot) => {
                     const st = STATUS_CONFIG[ot.status] || STATUS_CONFIG.pending;
                     return (
-                      <span key={ot.id} className={`flex items-center gap-1 text-[9px] font-semibold px-1.5 py-0.5 rounded-md truncate w-full leading-none border ${st.lightBg} ${st.text} ${st.border}`}>
-                        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${st.dot}`}/>
-                        <span className="truncate">{ot.userName.split(" ")[0]} · +{ot.hours}h</span>
-                      </span>
+                      <div 
+                        key={ot.id} 
+                        title={`${ot.userName} (+${ot.hours}h OT - ${st.label})`}
+                        className="w-5 h-5 md:w-6 md:h-6 rounded-full overflow-hidden border-2 border-white shadow-xs flex-shrink-0 cursor-pointer transition-transform hover:scale-125 hover:z-20 relative ring-1 ring-black/5"
+                      >
+                        {ot.avatarUrl ? (
+                          <img src={ot.avatarUrl} alt={ot.userName} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className={`w-full h-full flex items-center justify-center text-[8px] md:text-[10px] font-bold text-white ${
+                            ot.status === "approved" ? "bg-emerald-500" : ot.status === "pending" ? "bg-amber-500" : "bg-rose-500"
+                          }`}>
+                            {(ot.userName || "?").charAt(0)}
+                          </div>
+                        )}
+                      </div>
                     );
                   })}
-                  {dayOTs.length > 2 && (
-                    <span className="text-[8px] text-gray-400 font-semibold px-1">+{dayOTs.length-2} อื่นๆ</span>
-                  )}
-                </div>
-              )}
 
-              {/* Mobile status dots */}
-              {dayOTs.length > 0 && (
-                <div className="md:hidden flex gap-0.5 mt-auto flex-wrap">
-                  {hasPending && <span className="w-1.5 h-1.5 rounded-full bg-amber-400"/>}
-                  {hasApproved && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"/>}
-                  {hasRejected && <span className="w-1.5 h-1.5 rounded-full bg-rose-400"/>}
+                  {/* +N More Bubble */}
+                  {dayOTs.length > 5 && (
+                    <div className="w-5 h-5 md:w-6 md:h-6 rounded-full bg-gray-100 border-2 border-white shadow-xs flex items-center justify-center text-[8px] md:text-[10px] font-bold text-gray-600 ring-1 ring-black/5">
+                      +{dayOTs.length - 5}
+                    </div>
+                  )}
                 </div>
               )}
             </button>
@@ -451,8 +484,7 @@ export default function CalendarOTPage() {
         const q = searchQuery.toLowerCase();
         const matchUser = r.userName.toLowerCase().includes(q);
         const matchProject = r.project.toLowerCase().includes(q) || r.projectNo.toLowerCase().includes(q);
-        const matchReason = r.reason.toLowerCase().includes(q);
-        if (!matchUser && !matchProject && !matchReason) return false;
+        if (!matchUser && !matchProject) return false;
       }
       return true;
     });
@@ -491,7 +523,7 @@ export default function CalendarOTPage() {
             <p className="text-xs text-gray-500 mt-0.5">ดู OT Request ของพนักงานทุกคนในมุมมองปฏิทิน</p>
           </div>
 
-          {/* Controls: Search, Scope toggle, View mode */}
+          {/* Controls: Scope toggle & View mode */}
           <div className="flex items-center gap-2 flex-wrap">
             {/* Scope toggle */}
             <div className="flex items-center bg-gray-100 rounded-xl p-0.5 text-xs font-semibold">
@@ -578,7 +610,7 @@ export default function CalendarOTPage() {
           </div>
         </div>
 
-        {/* Legend / Status Filter Buttons */}
+        {/* Status Filter Buttons */}
         <div className="flex items-center gap-2 px-4 md:px-6 overflow-x-auto pb-1 text-xs">
           <span className="text-gray-400 font-medium mr-1 text-[11px]">สถานะ:</span>
           <button
@@ -659,35 +691,34 @@ export default function CalendarOTPage() {
                       {dayOTs.map(ot => {
                         const st = STATUS_CONFIG[ot.status] || STATUS_CONFIG.pending;
                         return (
-                          <div key={ot.id} className={`rounded-xl border p-3 ${st.border} ${st.lightBg} space-y-2`}>
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2">
+                          <div key={ot.id} className={`rounded-xl border p-3.5 ${st.border} ${st.lightBg} space-y-2.5`}>
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2.5 min-w-0">
                                 {ot.avatarUrl ? (
-                                  <img src={ot.avatarUrl} alt={ot.userName} className="w-6 h-6 rounded-full object-cover border border-white" />
+                                  <img src={ot.avatarUrl} alt={ot.userName} className="w-8 h-8 rounded-full object-cover border border-white shadow-2xs flex-shrink-0" />
                                 ) : (
-                                  <div className="w-6 h-6 rounded-full bg-amber-400 text-white text-[10px] font-bold flex items-center justify-center">
+                                  <div className="w-8 h-8 rounded-full bg-amber-400 text-white text-xs font-bold flex items-center justify-center flex-shrink-0 shadow-2xs">
                                     {ot.userName.charAt(0)}
                                   </div>
                                 )}
-                                <span className="text-xs font-bold text-gray-800 truncate">{ot.userName}</span>
+                                <span className="text-xs font-bold text-gray-900 truncate">{ot.userName}</span>
                               </div>
-                              <span className={`text-[11px] font-extrabold px-2 py-0.5 rounded-md bg-white/80 ${st.text}`}>
+                              <span className={`text-[11px] font-extrabold px-2 py-0.5 rounded-md bg-white shadow-2xs ${st.text}`}>
                                 +{ot.hours}h OT
                               </span>
                             </div>
 
-                            <div className="text-xs text-gray-600 space-y-1">
+                            <div className="text-xs text-gray-600 space-y-1 bg-white/70 p-2.5 rounded-xl border border-gray-100">
                               <div className="flex items-center gap-2">
-                                <span className="font-semibold">{ot.startTime} – {ot.endTime} น.</span>
-                                {ot.projectNo && <span className="text-sky-600 font-bold">#{ot.projectNo}</span>}
+                                <span className="font-bold text-gray-800">{ot.startTime} – {ot.endTime} น.</span>
+                                {ot.projectNo && <span className="text-sky-600 font-extrabold">#{ot.projectNo}</span>}
                               </div>
                               {ot.project && <p className="text-gray-500 truncate">{ot.project}</p>}
-                              {ot.reason && <p className="text-gray-600 bg-white/60 p-1.5 rounded-lg text-[11px]">{ot.reason}</p>}
                             </div>
 
                             <div className="flex items-center justify-between text-[10px] pt-1 border-t border-gray-200/50">
                               <span className={`font-bold ${st.text}`}>{st.label}</span>
-                              {ot.approvedBy && <span className="text-emerald-600">อนุมัติ: {ot.approvedBy}</span>}
+                              {ot.approvedBy && <span className="text-emerald-700 font-medium">อนุมัติ: {ot.approvedBy}</span>}
                             </div>
                           </div>
                         );
