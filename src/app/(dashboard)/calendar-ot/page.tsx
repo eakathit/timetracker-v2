@@ -84,7 +84,7 @@ function OTDayPanel({ date, otRequests, holidays, onClose }: {
   return (
     <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-0 md:p-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] transition-opacity" onClick={onClose} />
-      <div className="relative w-full md:w-[480px] max-h-[88vh] bg-white rounded-t-3xl md:rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 md:slide-in-from-bottom-0 md:fade-in duration-200 border border-gray-100">
+      <div className="relative w-full md:w-[480px] max-h-[85vh] bg-white rounded-t-3xl md:rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 md:slide-in-from-bottom-0 md:fade-in duration-200 border border-gray-100">
 
         {/* Mobile handle */}
         <div className="md:hidden flex justify-center pt-3 pb-1 flex-shrink-0">
@@ -92,7 +92,7 @@ function OTDayPanel({ date, otRequests, holidays, onClose }: {
         </div>
 
         {/* Panel Header */}
-        <div className="flex items-start justify-between px-6 pt-4 pb-3 flex-shrink-0 border-b border-gray-100 bg-gray-50/50">
+        <div className="flex items-start justify-between px-5 pt-3 pb-3 flex-shrink-0 border-b border-gray-100 bg-gray-50/50">
           <div>
             <p className="text-xs text-amber-600 font-bold uppercase tracking-wide">{thDay[date.getDay()]}</p>
             <h2 className="text-2xl font-extrabold text-gray-800 leading-tight">
@@ -108,7 +108,7 @@ function OTDayPanel({ date, otRequests, holidays, onClose }: {
         </div>
 
         {/* Panel Content */}
-        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
 
           {/* Holiday Tag */}
           {dayHolidays.length > 0 && (
@@ -266,7 +266,7 @@ function OTCalendarGrid({ year, month, otRequests, holidays, onSelectDay }: {
       {/* Weekday headers */}
       <div className="grid grid-cols-7 border-b border-gray-200 bg-gray-50/90">
         {DAYS_SHORT.map((d, i) => (
-          <div key={d} className={`text-center text-xs font-bold py-3 ${i===0?"text-rose-500":i===6?"text-sky-500":"text-gray-600"} ${i<6?"border-r border-gray-100":""}`}>
+          <div key={d} className={`text-center text-xs font-bold py-2 md:py-3 ${i===0?"text-rose-500":i===6?"text-sky-500":"text-gray-600"} ${i<6?"border-r border-gray-100":""}`}>
             {d}
           </div>
         ))}
@@ -280,7 +280,7 @@ function OTCalendarGrid({ year, month, otRequests, holidays, onSelectDay }: {
           const isLastRow = rowStart+7 >= cells.length;
 
           if (!day) {
-            return <div key={`e-${idx}`} className={`min-h-[85px] md:min-h-[115px] bg-gray-50/40 ${!isLastRow?"border-b border-gray-100":""}`}/>;
+            return <div key={`e-${idx}`} className={`min-h-[68px] md:min-h-[105px] bg-gray-50/40 ${!isLastRow?"border-b border-gray-100":""}`}/>;
           }
 
           const dateStr = `${year}-${String(month+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
@@ -299,68 +299,54 @@ function OTCalendarGrid({ year, month, otRequests, holidays, onSelectDay }: {
               key={day}
               onClick={() => onSelectDay(new Date(year, month, day))}
               className={`
-                relative min-h-[85px] md:min-h-[115px] p-2 md:p-2.5 text-left
-                flex flex-col justify-between transition-all duration-150 group
+                relative min-h-[68px] md:min-h-[105px] p-1 md:p-2 text-left
+                flex flex-col gap-0.5 md:gap-1 transition-all duration-150 group
                 ${!isLastRow?"border-b border-gray-100":""}
                 ${isToday?"bg-amber-50/50":isNationalHoliday?"bg-rose-50/60":isCompanyHoliday?"bg-orange-50/50":isSun?"bg-red-50/30 hover:bg-red-50/60":isSat&&!isWorkingSat?"bg-sky-50/30 hover:bg-sky-50/60":"bg-white hover:bg-amber-50/30"}
                 hover:z-10 cursor-pointer
               `}
             >
-              {isToday && <span className="absolute top-0 left-0 right-0 h-1 bg-amber-500 rounded-b shadow-xs"/>}
+              {isToday && <span className="absolute top-0 left-0 right-0 h-0.5 md:h-1 bg-amber-500 rounded-b shadow-xs"/>}
 
-              {/* Day Header: Number & Holiday label */}
-              <div className="w-full space-y-1">
-                <div className="flex items-center justify-between">
-                  <span className={`w-6 h-6 md:w-7 md:h-7 rounded-lg flex items-center justify-center text-xs md:text-sm font-extrabold flex-shrink-0 transition-colors
-                    ${isToday?"bg-amber-500 text-white shadow-sm":isNationalHoliday?"text-rose-500":isCompanyHoliday?"text-orange-500":isSun?"text-rose-400":isSat&&!isWorkingSat?"text-sky-500":"text-gray-800"}
-                    group-hover:ring-2 group-hover:ring-amber-300`}>
-                    {day}
-                  </span>
+              {/* Day Header */}
+              <span className={`w-5 h-5 md:w-7 md:h-7 rounded-md md:rounded-lg flex items-center justify-center text-xs md:text-sm font-extrabold flex-shrink-0 transition-colors
+                ${isToday?"bg-amber-500 text-white shadow-sm":isNationalHoliday?"text-rose-500":isCompanyHoliday?"text-orange-500":isSun?"text-rose-400":isSat&&!isWorkingSat?"text-sky-500":"text-gray-800"}
+                group-hover:ring-2 group-hover:ring-amber-300`}>
+                {day}
+              </span>
 
-                  {/* OT Count Chip (Optional compact) */}
-                  {dayOTs.length > 0 && (
-                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 group-hover:bg-amber-200 transition-colors">
-                      {dayOTs.length} OT
-                    </span>
-                  )}
-                </div>
+              {/* Holiday Name (Desktop only) */}
+              {dayHolidays.length > 0 && (
+                <span className={`hidden md:block text-[9px] font-bold truncate leading-tight px-1.5 py-0.5 rounded-md w-full ${HOLIDAY_TYPE_CONFIG[dayHolidays[0].type].color}`}>
+                  {dayHolidays[0].name}
+                </span>
+              )}
 
-                {/* Holiday Name */}
-                {dayHolidays.length > 0 && (
-                  <span className={`block text-[9px] md:text-[10px] font-bold truncate leading-tight px-1.5 py-0.5 rounded-md w-full ${HOLIDAY_TYPE_CONFIG[dayHolidays[0].type].color}`}>
-                    {dayHolidays[0].name}
-                  </span>
-                )}
-              </div>
-
-              {/* OT Profile Avatars (เหมือน Calendar Leave สะอาด สวยงาม) */}
+              {/* OT Profile Avatars (เหมือน Calendar Leave เป๊ะ สะอาดตา) */}
               {dayOTs.length > 0 && (
-                <div className="flex items-center gap-1 mt-auto pt-2 flex-wrap">
-                  {dayOTs.slice(0, 5).map((ot) => {
-                    const st = STATUS_CONFIG[ot.status] || STATUS_CONFIG.pending;
-                    return (
-                      <div 
-                        key={ot.id} 
-                        title={`${ot.userName} (+${ot.hours}h OT - ${st.label})`}
-                        className="w-5 h-5 md:w-6 md:h-6 rounded-full overflow-hidden border-2 border-white shadow-xs flex-shrink-0 cursor-pointer transition-transform hover:scale-125 hover:z-20 relative ring-1 ring-black/5"
-                      >
-                        {ot.avatarUrl ? (
-                          <img src={ot.avatarUrl} alt={ot.userName} className="w-full h-full object-cover" />
-                        ) : (
-                          <div className={`w-full h-full flex items-center justify-center text-[8px] md:text-[10px] font-bold text-white ${
-                            ot.status === "approved" ? "bg-emerald-500" : ot.status === "pending" ? "bg-amber-500" : "bg-rose-500"
-                          }`}>
-                            {(ot.userName || "?").charAt(0)}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                <div className="flex gap-0.5 mt-0.5 flex-wrap">
+                  {dayOTs.slice(0, 4).map((ot) => (
+                    <div 
+                      key={ot.id} 
+                      title={`${ot.userName} (+${ot.hours}h OT)`}
+                      className="w-4 h-4 md:w-5 md:h-5 rounded-full overflow-hidden border border-white shadow-2xs flex-shrink-0 cursor-pointer transition-transform hover:scale-115 hover:z-10 relative"
+                    >
+                      {ot.avatarUrl ? (
+                        <img src={ot.avatarUrl} alt={ot.userName} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className={`w-full h-full flex items-center justify-center text-[7px] md:text-[9px] font-bold text-white ${
+                          ot.status === "approved" ? "bg-emerald-500" : ot.status === "pending" ? "bg-amber-500" : "bg-rose-500"
+                        }`}>
+                          {(ot.userName || "?").charAt(0)}
+                        </div>
+                      )}
+                    </div>
+                  ))}
 
                   {/* +N More Bubble */}
-                  {dayOTs.length > 5 && (
-                    <div className="w-5 h-5 md:w-6 md:h-6 rounded-full bg-gray-100 border-2 border-white shadow-xs flex items-center justify-center text-[8px] md:text-[10px] font-bold text-gray-600 ring-1 ring-black/5">
-                      +{dayOTs.length - 5}
+                  {dayOTs.length > 4 && (
+                    <div className="w-4 h-4 md:w-5 md:h-5 rounded-full bg-gray-100 border border-white shadow-2xs flex items-center justify-center text-[8px] md:text-[9px] font-bold text-gray-600">
+                      +{dayOTs.length - 4}
                     </div>
                   )}
                 </div>
@@ -491,57 +477,54 @@ export default function CalendarOTPage() {
   const listDays = Array.from(new Set(monthOTs.map(r => r.date))).sort();
 
   return (
-    <main className="min-h-screen bg-gray-50 pb-28 md:pb-10">
+    <main className="min-h-screen bg-gray-50 pb-32 md:pb-12">
 
-      {/* ── Header ── */}
-      <div className="sticky top-0 z-20 bg-gray-50/95 backdrop-blur-md border-b border-gray-100 space-y-3 pt-4 pb-3">
-        <div className="flex flex-col md:flex-row md:items-center justify-between px-4 md:px-6 gap-3">
-          <div>
-            <h1 className="text-xl font-extrabold text-gray-800 leading-tight flex items-center gap-2">
-              <span className="w-8 h-8 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0 text-amber-600 shadow-xs">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
-                  <circle cx="12" cy="12" r="9"/>
-                  <line x1="12" y1="8" x2="12" y2="12"/>
-                  <line x1="12" y1="12" x2="15" y2="14"/>
-                  <path d="M17 3.5L21 7"/>
-                </svg>
-              </span>
-              ปฏิทิน OT
-              {pendingOTs.length > 0 && (
-                <span className="text-xs font-bold bg-amber-500 text-white px-2.5 py-0.5 rounded-full shadow-xs">
-                  รอพิจารณา {pendingOTs.length}
-                </span>
-              )}
-            </h1>
-            <p className="text-xs text-gray-500 mt-0.5">ดู OT Request ของพนักงานทุกคนในมุมมองปฏิทิน</p>
+      {/* ── Compact Header ── */}
+      <div className="sticky top-0 z-20 bg-gray-50/95 backdrop-blur-md border-b border-gray-100 px-3 md:px-6 pt-3 pb-2.5 space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="w-7 h-7 md:w-8 md:h-8 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0 text-amber-600 shadow-xs">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 md:w-4 md:h-4">
+                <circle cx="12" cy="12" r="9"/>
+                <line x1="12" y1="8" x2="12" y2="12"/>
+                <line x1="12" y1="12" x2="15" y2="14"/>
+                <path d="M17 3.5L21 7"/>
+              </svg>
+            </span>
+            <div>
+              <h1 className="text-base md:text-xl font-extrabold text-gray-800 leading-tight truncate">
+                ปฏิทิน OT
+              </h1>
+              <p className="hidden md:block text-[11px] text-gray-500">ดู OT Request ของพนักงานทุกคนในมุมมองปฏิทิน</p>
+            </div>
           </div>
 
           {/* Controls: Scope toggle & View mode */}
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5 flex-shrink-0">
             {/* Scope toggle */}
             <div className="flex items-center bg-gray-100 rounded-xl p-0.5 text-xs font-semibold">
               <button
                 onClick={() => setUserScope("all")}
-                className={`px-3 py-1.5 rounded-lg transition-all ${userScope === "all" ? "bg-white text-gray-800 shadow-xs" : "text-gray-500 hover:text-gray-700"}`}
+                className={`px-2.5 py-1 rounded-lg transition-all text-xs ${userScope === "all" ? "bg-white text-gray-800 shadow-xs" : "text-gray-500 hover:text-gray-700"}`}
               >
-                พนักงานทุกคน
+                ทุกคน
               </button>
               <button
                 onClick={() => setUserScope("my")}
-                className={`px-3 py-1.5 rounded-lg transition-all ${userScope === "my" ? "bg-white text-amber-600 shadow-xs" : "text-gray-500 hover:text-gray-700"}`}
+                className={`px-2.5 py-1 rounded-lg transition-all text-xs ${userScope === "my" ? "bg-white text-amber-600 shadow-xs" : "text-gray-500 hover:text-gray-700"}`}
               >
-                เฉพาะของฉัน
+                ของฉัน
               </button>
             </div>
 
             {/* View Mode */}
-            <div className="flex items-center bg-gray-100 rounded-xl p-1 gap-0.5">
+            <div className="flex items-center bg-gray-100 rounded-xl p-0.5 gap-0.5">
               <button
                 onClick={() => setView("month")}
                 title="มุมมองปฏิทินรายเดือน"
-                className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${view==="month"?"bg-white shadow-xs text-amber-600":"text-gray-400 hover:text-gray-600"}`}
+                className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${view==="month"?"bg-white shadow-xs text-amber-600":"text-gray-400 hover:text-gray-600"}`}
               >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
                   <rect x="3" y="4" width="18" height="18" rx="2"/>
                   <line x1="16" y1="2" x2="16" y2="6"/>
                   <line x1="8" y1="2" x2="8" y2="6"/>
@@ -551,9 +534,9 @@ export default function CalendarOTPage() {
               <button
                 onClick={() => setView("list")}
                 title="มุมมองรายการ"
-                className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${view==="list"?"bg-white shadow-xs text-amber-600":"text-gray-400 hover:text-gray-600"}`}
+                className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${view==="list"?"bg-white shadow-xs text-amber-600":"text-gray-400 hover:text-gray-600"}`}
               >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
                   <line x1="8" y1="6" x2="21" y2="6"/>
                   <line x1="8" y1="12" x2="21" y2="12"/>
                   <line x1="8" y1="18" x2="21" y2="18"/>
@@ -567,21 +550,21 @@ export default function CalendarOTPage() {
         </div>
 
         {/* Month Navigation & Status Summary */}
-        <div className="flex items-center justify-between px-4 md:px-6">
-          <button onClick={prevMonth} className="w-9 h-9 rounded-xl hover:bg-gray-100 flex items-center justify-center text-gray-500 hover:text-gray-800 transition-colors">
+        <div className="flex items-center justify-between">
+          <button onClick={prevMonth} className="w-8 h-8 rounded-xl hover:bg-gray-100 flex items-center justify-center text-gray-500 hover:text-gray-800 transition-colors">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4">
               <polyline points="15 18 9 12 15 6"/>
             </svg>
           </button>
 
           <div className="text-center">
-            <h2 className="text-lg font-extrabold text-gray-800 leading-tight">
+            <h2 className="text-base md:text-lg font-extrabold text-gray-800 leading-tight">
               {MONTHS_TH[viewMonth]} {viewYear+543}
             </h2>
-            <div className="flex items-center justify-center gap-2 mt-0.5 text-xs text-gray-500 font-medium">
-              <span>{monthOTs.length} คำขอ OT</span>
+            <div className="flex items-center justify-center gap-1.5 mt-0.5 text-[11px] md:text-xs text-gray-500 font-medium">
+              <span>{monthOTs.length} คำขอ</span>
               <span>·</span>
-              <span className="text-emerald-600 font-semibold">{approvedHours} ชม. อนุมัติ</span>
+              <span className="text-emerald-600 font-semibold">{approvedHours} ชม.</span>
               {pendingOTs.length > 0 && (
                 <>
                   <span>·</span>
@@ -592,10 +575,10 @@ export default function CalendarOTPage() {
           </div>
 
           <div className="flex items-center gap-1">
-            <button onClick={goToday} className="px-3 py-1.5 rounded-lg text-xs font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 transition-colors border border-amber-200">
+            <button onClick={goToday} className="px-2.5 py-1 rounded-lg text-[11px] font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 transition-colors border border-amber-200">
               วันนี้
             </button>
-            <button onClick={nextMonth} className="w-9 h-9 rounded-xl hover:bg-gray-100 flex items-center justify-center text-gray-500 hover:text-gray-800 transition-colors">
+            <button onClick={nextMonth} className="w-8 h-8 rounded-xl hover:bg-gray-100 flex items-center justify-center text-gray-500 hover:text-gray-800 transition-colors">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4">
                 <polyline points="9 18 15 12 9 6"/>
               </svg>
@@ -603,25 +586,24 @@ export default function CalendarOTPage() {
           </div>
         </div>
 
-        {/* Status Filter Buttons */}
-        <div className="flex items-center gap-2 px-4 md:px-6 overflow-x-auto pb-1 text-xs">
-          <span className="text-gray-400 font-medium mr-1 text-[11px]">สถานะ:</span>
+        {/* Status Filter Buttons (Horizontal compact) */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 text-xs no-scrollbar">
           <button
             onClick={() => setStatusFilter("all")}
-            className={`px-2.5 py-1 rounded-lg font-medium transition-colors ${statusFilter === "all" ? "bg-gray-800 text-white font-bold" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+            className={`px-2.5 py-0.5 rounded-lg text-xs font-medium transition-colors flex-shrink-0 ${statusFilter === "all" ? "bg-gray-800 text-white font-bold" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
           >
             ทั้งหมด ({monthOTs.length})
           </button>
           <button
             onClick={() => setStatusFilter("approved")}
-            className={`px-2.5 py-1 rounded-lg font-medium flex items-center gap-1.5 transition-colors ${statusFilter === "approved" ? "bg-emerald-600 text-white font-bold" : "bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100"}`}
+            className={`px-2.5 py-0.5 rounded-lg text-xs font-medium flex items-center gap-1 transition-colors flex-shrink-0 ${statusFilter === "approved" ? "bg-emerald-600 text-white font-bold" : "bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100"}`}
           >
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
             อนุมัติแล้ว ({approvedOTs.length})
           </button>
           <button
             onClick={() => setStatusFilter("pending")}
-            className={`px-2.5 py-1 rounded-lg font-medium flex items-center gap-1.5 transition-colors ${statusFilter === "pending" ? "bg-amber-500 text-white font-bold" : "bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100"}`}
+            className={`px-2.5 py-0.5 rounded-lg text-xs font-medium flex items-center gap-1 transition-colors flex-shrink-0 ${statusFilter === "pending" ? "bg-amber-500 text-white font-bold" : "bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100"}`}
           >
             <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
             รอพิจารณา ({pendingOTs.length})
@@ -630,7 +612,7 @@ export default function CalendarOTPage() {
       </div>
 
       {/* ── Calendar / List ── */}
-      <div className="px-3 md:px-6 mt-3">
+      <div className="px-2 md:px-6 mt-2 md:mt-3">
         {loading ? (
           <div className="flex items-center justify-center py-20">
             <div className="w-8 h-8 rounded-full border-2 border-amber-300 border-t-amber-500 animate-spin"/>
@@ -642,7 +624,7 @@ export default function CalendarOTPage() {
             onSelectDay={setSelectedDate}
           />
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-3">
             {listDays.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-20 text-center">
                 <div className="w-16 h-16 rounded-2xl bg-white border border-gray-100 shadow-sm flex items-center justify-center mb-4">
@@ -661,11 +643,11 @@ export default function CalendarOTPage() {
                 const isToday = dateStr === fmt(today);
 
                 return (
-                  <div key={dateStr} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-xs space-y-3">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-12 h-12 rounded-2xl flex flex-col items-center justify-center flex-shrink-0 shadow-xs ${isToday?"bg-amber-500 text-white":"bg-gray-50 text-gray-700 border border-gray-100"}`}>
-                        <span className="text-lg font-extrabold leading-none">{d.getDate()}</span>
-                        <span className="text-[9px] font-bold leading-none mt-0.5 opacity-80">{DAYS_SHORT[d.getDay()]}</span>
+                  <div key={dateStr} className="bg-white rounded-2xl p-3.5 md:p-4 border border-gray-100 shadow-xs space-y-2.5">
+                    <div className="flex items-center gap-2.5">
+                      <div className={`w-10 h-10 md:w-12 md:h-12 rounded-xl md:rounded-2xl flex flex-col items-center justify-center flex-shrink-0 shadow-xs ${isToday?"bg-amber-500 text-white":"bg-gray-50 text-gray-700 border border-gray-100"}`}>
+                        <span className="text-base md:text-lg font-extrabold leading-none">{d.getDate()}</span>
+                        <span className="text-[8px] md:text-[9px] font-bold leading-none mt-0.5 opacity-80">{DAYS_SHORT[d.getDay()]}</span>
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className={`text-sm font-bold ${isToday?"text-amber-600":"text-gray-800"}`}>
@@ -680,17 +662,17 @@ export default function CalendarOTPage() {
                       <span className="text-xs font-semibold text-gray-400">{dayOTs.length} คำขอ</span>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                       {dayOTs.map(ot => {
                         const st = STATUS_CONFIG[ot.status] || STATUS_CONFIG.pending;
                         return (
-                          <div key={ot.id} className={`rounded-xl border p-3.5 ${st.border} ${st.lightBg} space-y-2.5`}>
+                          <div key={ot.id} className={`rounded-xl border p-3 ${st.border} ${st.lightBg} space-y-2`}>
                             <div className="flex items-center justify-between gap-2">
-                              <div className="flex items-center gap-2.5 min-w-0">
+                              <div className="flex items-center gap-2 min-w-0">
                                 {ot.avatarUrl ? (
-                                  <img src={ot.avatarUrl} alt={ot.userName} className="w-8 h-8 rounded-full object-cover border border-white shadow-2xs flex-shrink-0" />
+                                  <img src={ot.avatarUrl} alt={ot.userName} className="w-7 h-7 rounded-full object-cover border border-white shadow-2xs flex-shrink-0" />
                                 ) : (
-                                  <div className="w-8 h-8 rounded-full bg-amber-400 text-white text-xs font-bold flex items-center justify-center flex-shrink-0 shadow-2xs">
+                                  <div className="w-7 h-7 rounded-full bg-amber-400 text-white text-xs font-bold flex items-center justify-center flex-shrink-0 shadow-2xs">
                                     {ot.userName.charAt(0)}
                                   </div>
                                 )}
@@ -701,8 +683,8 @@ export default function CalendarOTPage() {
                               </span>
                             </div>
 
-                            <div className="text-xs text-gray-600 space-y-1 bg-white/70 p-2.5 rounded-xl border border-gray-100">
-                              <div className="flex items-center gap-2">
+                            <div className="text-xs text-gray-600 space-y-0.5 bg-white/70 p-2 rounded-lg border border-gray-100">
+                              <div className="flex items-center gap-1.5">
                                 <span className="font-bold text-gray-800">{ot.startTime} – {ot.endTime} น.</span>
                                 {ot.projectNo && <span className="text-sky-600 font-extrabold">#{ot.projectNo}</span>}
                               </div>
