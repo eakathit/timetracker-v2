@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/lib/supabase";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -10,6 +10,7 @@ interface OTRequest {
   id: string;
   userId: string;
   userName: string;
+  avatarUrl?: string | null;
   date: string;
   startTime: string;
   endTime: string;
@@ -21,7 +22,6 @@ interface OTRequest {
   submittedAt: string;
   approvedBy?: string;
   rejectReason?: string;
-  avatar?: string;
 }
 
 interface Holiday {
@@ -58,42 +58,6 @@ const HOLIDAY_TYPE_CONFIG = {
   working_sat: { color:"bg-sky-100 text-sky-600 border-sky-200" },
 };
 
-// ─── Mock Data (fallback) ─────────────────────────────────────────────────────
-const MOCK_OT: OTRequest[] = [
-  {
-    id:"ot001",userId:"1055",userName:"ช่างวิทย์ สมบูรณ์",avatar:"ว",
-    date:"2026-08-25",startTime:"17:30",endTime:"21:00",hours:3.5,
-    project:"Toyota Line A",projectNo:"1155",
-    reason:"ทดสอบระบบ / Commissioning",status:"pending",
-    submittedAt:"2026-08-24T10:30:00",
-  },
-  {
-    id:"ot002",userId:"1055",userName:"ช่างวิทย์ สมบูรณ์",avatar:"ว",
-    date:"2026-08-18",startTime:"17:30",endTime:"19:00",hours:1.5,
-    project:"SCG Plant",projectNo:"1172",
-    reason:"เร่งส่งมอบงาน Phase 2",status:"approved",
-    submittedAt:"2026-08-17T14:00:00",
-    approvedBy:"นายสมชาย (Manager)",
-  },
-  {
-    id:"ot003",userId:"1055",userName:"ช่างวิทย์ สมบูรณ์",avatar:"ว",
-    date:"2026-08-11",startTime:"17:30",endTime:"20:30",hours:3,
-    project:"Honda Factory",projectNo:"1160",
-    reason:"งานด่วนลูกค้า",status:"rejected",
-    submittedAt:"2026-08-10T16:00:00",
-    approvedBy:"นายสมชาย (Manager)",
-    rejectReason:"ไม่มีในแผนการทำงาน กรุณายื่นใหม่พร้อมแนบ PO",
-  },
-  {
-    id:"ot004",userId:"1055",userName:"ช่างวิทย์ สมบูรณ์",avatar:"ว",
-    date:"2026-08-05",startTime:"17:30",endTime:"21:30",hours:4,
-    project:"Toyota Line B",projectNo:"1180",
-    reason:"ซ่อมฉุกเฉิน",status:"approved",
-    submittedAt:"2026-08-04T08:00:00",
-    approvedBy:"นายสมชาย (Manager)",
-  },
-];
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const fmt = (d: Date): string => {
   const y = d.getFullYear();
@@ -119,7 +83,7 @@ function OTDayPanel({ date, otRequests, holidays, onClose }: {
   return (
     <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center">
       <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" onClick={onClose} />
-      <div className="relative w-full md:w-[440px] max-h-[85vh] bg-white rounded-t-3xl md:rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 md:slide-in-from-bottom-0 md:fade-in duration-200">
+      <div className="relative w-full md:w-[460px] max-h-[85vh] bg-white rounded-t-3xl md:rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 md:slide-in-from-bottom-0 md:fade-in duration-200">
 
         <div className="md:hidden flex justify-center pt-3 pb-1 flex-shrink-0">
           <div className="w-10 h-1 rounded-full bg-gray-200" />
@@ -158,7 +122,7 @@ function OTDayPanel({ date, otRequests, holidays, onClose }: {
 
           <div className="space-y-2">
             <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
-              OT Request ({dayOTs.length})
+              OT Request พนักงาน ({dayOTs.length})
             </p>
 
             {dayOTs.length === 0 ? (
@@ -174,32 +138,43 @@ function OTDayPanel({ date, otRequests, holidays, onClose }: {
             ) : (
               <div className="space-y-3">
                 {dayOTs.map(ot => {
-                  const st = STATUS_CONFIG[ot.status];
+                  const st = STATUS_CONFIG[ot.status] || STATUS_CONFIG.pending;
                   return (
                     <div key={ot.id} className={`rounded-2xl border-2 overflow-hidden ${st.border} ${st.lightBg}`}>
                       <div className="flex items-center gap-2 px-4 pt-3 pb-2">
                         <span className={`w-2 h-2 rounded-full flex-shrink-0 ${st.dot}`}/>
                         <span className={`text-xs font-bold ${st.text}`}>{st.label}</span>
                         <span className="flex-1"/>
-                        <span className={`text-xs font-extrabold px-2 py-0.5 rounded-lg bg-white/60 ${st.text}`}>+{ot.hours}h OT</span>
+                        <span className={`text-xs font-extrabold px-2 py-0.5 rounded-lg bg-white/80 shadow-xs ${st.text}`}>+{ot.hours}h OT</span>
                       </div>
                       <div className="px-4 pb-3 space-y-2">
-                        <div className="flex items-center gap-2">
-                          <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-sky-400 to-blue-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                            {ot.avatar || ot.userName.charAt(0)}
+                        <div className="flex items-center gap-2.5">
+                          {ot.avatarUrl ? (
+                            <img src={ot.avatarUrl} alt={ot.userName} className="w-8 h-8 rounded-full object-cover border border-white shadow-xs flex-shrink-0" />
+                          ) : (
+                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0 shadow-xs">
+                              {ot.userName.charAt(0) || "พ"}
+                            </div>
+                          )}
+                          <div>
+                            <p className="text-sm font-bold text-gray-800 leading-tight">{ot.userName}</p>
+                            <p className="text-[11px] text-gray-500 font-medium">{ot.startTime} – {ot.endTime} น.</p>
                           </div>
-                          <p className="text-sm font-bold text-gray-800 leading-tight">{ot.userName}</p>
                         </div>
-                        <div className="flex items-center gap-3 text-xs text-gray-600">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 flex-shrink-0 text-gray-400">
-                            <circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>
-                          </svg>
-                          <span className="font-semibold">{ot.startTime} – {ot.endTime}</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-xs text-gray-600">
-                          <span className="font-extrabold text-sky-500">#{ot.projectNo}</span>
-                          <span className="font-medium">{ot.project}</span>
-                        </div>
+
+                        {(ot.project || ot.projectNo) && (
+                          <div className="flex items-center gap-2 text-xs text-gray-600 bg-white/70 px-2.5 py-1.5 rounded-xl border border-gray-100">
+                            {ot.projectNo && <span className="font-extrabold text-sky-600">#{ot.projectNo}</span>}
+                            <span className="font-medium truncate">{ot.project || "-"}</span>
+                          </div>
+                        )}
+
+                        {ot.reason && (
+                          <div className="text-xs text-gray-600 bg-white/50 px-2.5 py-1.5 rounded-xl">
+                            <span className="text-[10px] text-gray-400 block font-semibold">งาน / เหตุผล:</span>
+                            <p className="font-medium">{ot.reason}</p>
+                          </div>
+                        )}
 
                         {ot.status === "rejected" && ot.rejectReason && (
                           <div className="bg-rose-50 border border-rose-200 rounded-xl px-3 py-2">
@@ -208,9 +183,11 @@ function OTDayPanel({ date, otRequests, holidays, onClose }: {
                           </div>
                         )}
                         {ot.status === "approved" && ot.approvedBy && (
-                          <p className="text-[10px] text-emerald-500 font-semibold">✓ อนุมัติโดย {ot.approvedBy}</p>
+                          <p className="text-[10px] text-emerald-600 font-semibold flex items-center gap-1">
+                            <span>✓</span> อนุมัติโดย {ot.approvedBy}
+                          </p>
                         )}
-                        <p className="text-[10px] text-gray-300">ยื่นเมื่อ {fmtDateTime(ot.submittedAt)}</p>
+                        <p className="text-[10px] text-gray-400">ยื่นเมื่อ {fmtDateTime(ot.submittedAt)}</p>
                       </div>
                     </div>
                   );
@@ -256,7 +233,7 @@ function OTCalendarGrid({ year, month, otRequests, holidays, onSelectDay }: {
           const isLastRow = rowStart+7 >= cells.length;
 
           if (!day) {
-            return <div key={`e-${idx}`} className={`min-h-[74px] md:min-h-[100px] bg-gray-50/50 ${!isLastRow?"border-b border-gray-100":""}`}/>;
+            return <div key={`e-${idx}`} className={`min-h-[78px] md:min-h-[110px] bg-gray-50/50 ${!isLastRow?"border-b border-gray-100":""}`}/>;
           }
 
           const dateStr = `${year}-${String(month+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
@@ -279,20 +256,28 @@ function OTCalendarGrid({ year, month, otRequests, holidays, onSelectDay }: {
               key={day}
               onClick={() => onSelectDay(new Date(year, month, day))}
               className={`
-                relative min-h-[74px] md:min-h-[100px] p-1.5 md:p-2 text-left
+                relative min-h-[78px] md:min-h-[110px] p-1.5 md:p-2 text-left
                 flex flex-col gap-1 transition-all duration-150 group
                 ${!isLastRow?"border-b border-gray-100":""}
-                ${isToday?"bg-sky-50":isNationalHoliday?"bg-rose-50/60":isCompanyHoliday?"bg-orange-50/50":isSun?"bg-red-50/30 hover:bg-red-50/60":isSat&&!isWorkingSat?"bg-sky-50/30 hover:bg-sky-50/60":"bg-white hover:bg-slate-50"}
+                ${isToday?"bg-amber-50/40":isNationalHoliday?"bg-rose-50/60":isCompanyHoliday?"bg-orange-50/50":isSun?"bg-red-50/30 hover:bg-red-50/60":isSat&&!isWorkingSat?"bg-sky-50/30 hover:bg-sky-50/60":"bg-white hover:bg-slate-50"}
                 hover:z-10
               `}
             >
-              {isToday && <span className="absolute top-0 left-0 right-0 h-0.5 bg-sky-500 rounded-b"/>}
+              {isToday && <span className="absolute top-0 left-0 right-0 h-0.5 bg-amber-500 rounded-b"/>}
 
-              <span className={`w-6 h-6 md:w-7 md:h-7 rounded-lg flex items-center justify-center text-xs md:text-sm font-bold flex-shrink-0 transition-colors
-                ${isToday?"bg-sky-500 text-white shadow-sm":isNationalHoliday?"text-rose-500":isCompanyHoliday?"text-orange-500":isSun?"text-rose-400":isSat&&!isWorkingSat?"text-sky-500":"text-gray-800"}
-                group-hover:ring-2 group-hover:ring-amber-200`}>
-                {day}
-              </span>
+              <div className="flex items-center justify-between w-full">
+                <span className={`w-6 h-6 md:w-7 md:h-7 rounded-lg flex items-center justify-center text-xs md:text-sm font-bold flex-shrink-0 transition-colors
+                  ${isToday?"bg-amber-500 text-white shadow-sm":isNationalHoliday?"text-rose-500":isCompanyHoliday?"text-orange-500":isSun?"text-rose-400":isSat&&!isWorkingSat?"text-sky-500":"text-gray-800"}
+                  group-hover:ring-2 group-hover:ring-amber-200`}>
+                  {day}
+                </span>
+
+                {dayOTs.length > 0 && (
+                  <span className="hidden md:inline-flex text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                    {dayOTs.length} OT
+                  </span>
+                )}
+              </div>
 
               {dayHolidays.length > 0 && (
                 <span className={`hidden md:block text-[9px] font-bold truncate leading-tight px-1.5 py-0.5 rounded-md w-full ${HOLIDAY_TYPE_CONFIG[dayHolidays[0].type].color}`}>
@@ -300,23 +285,53 @@ function OTCalendarGrid({ year, month, otRequests, holidays, onSelectDay }: {
                 </span>
               )}
 
+              {/* OT Avatars (เหมือนหน้า Calendar หลัก) */}
               {dayOTs.length > 0 && (
-                <div className="hidden md:flex flex-col gap-0.5 w-full">
-                  {dayOTs.slice(0,2).map(ot => {
-                    const st = STATUS_CONFIG[ot.status];
-                    return (
-                      <span key={ot.id} className={`flex items-center gap-1 text-[9px] font-semibold px-1.5 py-1 rounded-md truncate w-full leading-none border ${st.lightBg} ${st.text} ${st.border}`}>
-                        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${st.dot}`}/>
-                        <span className="truncate">{ot.hours}h · {ot.reason}</span>
-                      </span>
-                    );
-                  })}
-                  {dayOTs.length > 2 && (
-                    <span className="text-[9px] text-gray-400 font-semibold px-1.5">+{dayOTs.length-2} อื่นๆ</span>
+                <div className="flex gap-0.5 mt-0.5 flex-wrap">
+                  {dayOTs.slice(0, 4).map((ot) => (
+                    <div 
+                      key={ot.id} 
+                      title={`${ot.userName} (+${ot.hours}h) - ${ot.reason || ot.project || "OT"}`}
+                      className="w-4 h-4 md:w-5 md:h-5 rounded-full overflow-hidden border border-white shadow-xs flex-shrink-0 cursor-help transition-transform hover:scale-110 hover:z-10 relative"
+                    >
+                      {ot.avatarUrl ? (
+                        <img src={ot.avatarUrl} alt={ot.userName} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className={`w-full h-full flex items-center justify-center text-[7px] md:text-[9px] font-bold text-white ${
+                          ot.status === "approved" ? "bg-emerald-500" : ot.status === "pending" ? "bg-amber-500" : "bg-rose-500"
+                        }`}>
+                          {(ot.userName || "?").charAt(0)}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  {dayOTs.length > 4 && (
+                    <div className="w-4 h-4 md:w-5 md:h-5 rounded-full bg-gray-100 border border-white shadow-xs flex items-center justify-center text-[8px] md:text-[10px] font-bold text-gray-500">
+                      +{dayOTs.length - 4}
+                    </div>
                   )}
                 </div>
               )}
 
+              {/* Desktop OT Chips */}
+              {dayOTs.length > 0 && (
+                <div className="hidden md:flex flex-col gap-0.5 w-full mt-auto">
+                  {dayOTs.slice(0, 2).map((ot) => {
+                    const st = STATUS_CONFIG[ot.status] || STATUS_CONFIG.pending;
+                    return (
+                      <span key={ot.id} className={`flex items-center gap-1 text-[9px] font-semibold px-1.5 py-0.5 rounded-md truncate w-full leading-none border ${st.lightBg} ${st.text} ${st.border}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${st.dot}`}/>
+                        <span className="truncate">{ot.userName.split(" ")[0]} · +{ot.hours}h</span>
+                      </span>
+                    );
+                  })}
+                  {dayOTs.length > 2 && (
+                    <span className="text-[8px] text-gray-400 font-semibold px-1">+{dayOTs.length-2} อื่นๆ</span>
+                  )}
+                </div>
+              )}
+
+              {/* Mobile status dots */}
               {dayOTs.length > 0 && (
                 <div className="md:hidden flex gap-0.5 mt-auto flex-wrap">
                   {hasPending && <span className="w-1.5 h-1.5 rounded-full bg-amber-400"/>}
@@ -339,75 +354,80 @@ export default function CalendarOTPage() {
   const [viewMonth, setViewMonth] = useState(today.getMonth());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [view, setView] = useState<"month" | "list">("month");
-  const [otRequests, setOtRequests] = useState<OTRequest[]>(MOCK_OT);
+  const [otRequests, setOtRequests] = useState<OTRequest[]>([]);
   const [holidays, setHolidays] = useState<Holiday[]>([]);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [userScope, setUserScope] = useState<"all" | "my">("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "approved" | "pending">("all");
+  const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setCurrentUserId(user.id);
+      }
 
-      const { data: holidayData } = await supabase.from("holidays").select("*");
-      if (holidayData) {
-        setHolidays(holidayData.map((h: any) => ({
-          id: h.id.toString(), date: h.holiday_date, name: h.name,
+      const [holidayRes, otRes, profilesRes, projectsRes] = await Promise.all([
+        supabase.from("holidays").select("*"),
+        supabase
+          .from("ot_requests")
+          .select("id, user_id, request_date, start_time, end_time, hours, project_id, reason, status, reject_reason, created_at, approved_by, actioned_at")
+          .order("request_date", { ascending: false }),
+        supabase
+          .from("profiles_with_avatar")
+          .select("id, first_name, last_name, avatar_url"),
+        supabase
+          .from("projects")
+          .select("id, project_no, name"),
+      ]);
+
+      if (holidayRes.data) {
+        setHolidays(holidayRes.data.map((h: any) => ({
+          id: h.id.toString(),
+          date: h.holiday_date,
+          name: h.name,
           type: h.holiday_type as Holiday["type"],
         })));
       }
 
-      if (user) {
-        // Query ot_requests ตรงๆ (หลีกเลี่ยง JOIN auth.users ที่ RLS block)
-        // แล้วดึง profile + projects แยกกัน
-        const [otRes, profileRes, projectsRes] = await Promise.all([
-          supabase
-            .from("ot_requests")
-            .select("id, user_id, request_date, start_time, end_time, hours, project_id, reason, status, reject_reason, created_at, approved_by, actioned_at")
-            .eq("user_id", user.id)
-            .order("request_date", { ascending: false }),
-          supabase
-            .from("profiles")
-            .select("id, first_name, last_name")
-            .eq("id", user.id)
-            .single(),
-          supabase
-            .from("projects")
-            .select("id, project_no, name"),
-        ]);
+      if (otRes.data) {
+        const profilesMap = new Map((profilesRes.data ?? []).map((p: any) => [p.id, p]));
+        const projectsMap = new Map((projectsRes.data ?? []).map((p: any) => [p.id, p]));
 
-        if (!otRes.error && otRes.data) {
-          const profile = profileRes.data;
-          const projectsMap = new Map(
-            (projectsRes.data ?? []).map((p: any) => [p.id, p])
-          );
+        const mapped: OTRequest[] = otRes.data.map((r: any) => {
+          const profile = profilesMap.get(r.user_id);
+          const approver = r.approved_by ? profilesMap.get(r.approved_by) : null;
+          const proj = projectsMap.get(r.project_id);
           const userName = profile
             ? `${profile.first_name ?? ""} ${profile.last_name ?? ""}`.trim() || "พนักงาน"
             : "พนักงาน";
-          const avatarChar = profile?.first_name?.charAt(0) ?? undefined;
+          const approvedBy = approver
+            ? `${approver.first_name ?? ""} ${approver.last_name ?? ""}`.trim()
+            : undefined;
 
-          const mapped: OTRequest[] = otRes.data.map((r: any) => {
-            const proj = projectsMap.get(r.project_id);
-            return {
-              id: r.id,
-              userId: r.user_id,
-              userName,
-              date: r.request_date,
-              startTime: r.start_time?.slice(0, 5) ?? "",
-              endTime: r.end_time?.slice(0, 5) ?? "",
-              hours: r.hours ?? 0,
-              project: proj?.name ?? "",
-              projectNo: proj?.project_no ?? "",
-              reason: r.reason ?? "",
-              status: (r.status as OTStatus) ?? "pending",
-              submittedAt: r.created_at ?? new Date().toISOString(),
-              approvedBy: undefined, // ไม่ดึง approved_by name เพื่อหลีกเลี่ยง auth.users
-              rejectReason: r.reject_reason ?? undefined,
-              avatar: avatarChar,
-            };
-          });
-          setOtRequests(mapped);
-        }
-        // ถ้า error → state ยังเป็น MOCK_OT เป็น fallback
+          return {
+            id: r.id,
+            userId: r.user_id,
+            userName,
+            avatarUrl: profile?.avatar_url ?? null,
+            date: r.request_date,
+            startTime: r.start_time?.slice(0, 5) ?? "",
+            endTime: r.end_time?.slice(0, 5) ?? "",
+            hours: r.hours ?? 0,
+            project: proj?.name ?? "",
+            projectNo: proj?.project_no ?? "",
+            reason: r.reason ?? "",
+            status: (r.status as OTStatus) ?? "pending",
+            submittedAt: r.created_at ?? new Date().toISOString(),
+            approvedBy,
+            rejectReason: r.reject_reason ?? undefined,
+          };
+        });
+
+        setOtRequests(mapped);
       }
       setLoading(false);
     };
@@ -418,8 +438,28 @@ export default function CalendarOTPage() {
   const nextMonth = () => { if (viewMonth===11){setViewYear(y=>y+1);setViewMonth(0);}else setViewMonth(m=>m+1); };
   const goToday = () => { setViewYear(today.getFullYear()); setViewMonth(today.getMonth()); };
 
+  // Filter OT requests based on user scope, status, and search query
+  const filteredOTRequests = useMemo(() => {
+    return otRequests.filter(r => {
+      if (userScope === "my" && currentUserId && r.userId !== currentUserId) {
+        return false;
+      }
+      if (statusFilter !== "all" && r.status !== statusFilter) {
+        return false;
+      }
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const matchUser = r.userName.toLowerCase().includes(q);
+        const matchProject = r.project.toLowerCase().includes(q) || r.projectNo.toLowerCase().includes(q);
+        const matchReason = r.reason.toLowerCase().includes(q);
+        if (!matchUser && !matchProject && !matchReason) return false;
+      }
+      return true;
+    });
+  }, [otRequests, userScope, currentUserId, statusFilter, searchQuery]);
+
   const monthStr = `${viewYear}-${String(viewMonth+1).padStart(2,"0")}`;
-  const monthOTs = otRequests.filter(r => r.date.startsWith(monthStr));
+  const monthOTs = filteredOTRequests.filter(r => r.date.startsWith(monthStr));
   const pendingOTs = monthOTs.filter(r => r.status==="pending");
   const approvedOTs = monthOTs.filter(r => r.status==="approved");
   const approvedHours = approvedOTs.reduce((s,r) => s+r.hours, 0);
@@ -429,12 +469,12 @@ export default function CalendarOTPage() {
     <main className="min-h-screen bg-gray-50 pb-28 md:pb-10">
 
       {/* ── Header ── */}
-      <div className="sticky top-0 z-20 bg-gray-50/90 backdrop-blur-sm border-b border-gray-100">
-        <div className="flex items-center justify-between px-4 md:px-6 pt-4 pb-3 gap-3">
+      <div className="sticky top-0 z-20 bg-gray-50/95 backdrop-blur-md border-b border-gray-100 space-y-3 pt-4 pb-3">
+        <div className="flex flex-col md:flex-row md:items-center justify-between px-4 md:px-6 gap-3">
           <div>
             <h1 className="text-xl font-extrabold text-gray-800 leading-tight flex items-center gap-2">
-              <span className="w-7 h-7 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-amber-600">
+              <span className="w-8 h-8 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0 text-amber-600 shadow-xs">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
                   <circle cx="12" cy="12" r="9"/>
                   <line x1="12" y1="8" x2="12" y2="12"/>
                   <line x1="12" y1="12" x2="15" y2="14"/>
@@ -443,43 +483,66 @@ export default function CalendarOTPage() {
               </span>
               ปฏิทิน OT
               {pendingOTs.length > 0 && (
-                <span className="text-xs font-bold bg-amber-400 text-white px-2 py-0.5 rounded-full">
-                  {pendingOTs.length}
+                <span className="text-xs font-bold bg-amber-500 text-white px-2.5 py-0.5 rounded-full shadow-xs">
+                  รอพิจารณา {pendingOTs.length}
                 </span>
               )}
             </h1>
-            <p className="text-xs text-gray-400 mt-0.5">ดู OT Request ของคุณในมุมมองปฏิทิน</p>
+            <p className="text-xs text-gray-500 mt-0.5">ดู OT Request ของพนักงานทุกคนในมุมมองปฏิทิน</p>
           </div>
 
-          <div className="flex items-center bg-gray-100 rounded-xl p-1 gap-0.5">
-            <button
-              onClick={() => setView("month")}
-              className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${view==="month"?"bg-white shadow-sm text-amber-500":"text-gray-400 hover:text-gray-600"}`}
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
-                <rect x="3" y="4" width="18" height="18" rx="2"/>
-                <line x1="16" y1="2" x2="16" y2="6"/>
-                <line x1="8" y1="2" x2="8" y2="6"/>
-                <line x1="3" y1="10" x2="21" y2="10"/>
-              </svg>
-            </button>
-            <button
-              onClick={() => setView("list")}
-              className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${view==="list"?"bg-white shadow-sm text-amber-500":"text-gray-400 hover:text-gray-600"}`}
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
-                <line x1="8" y1="6" x2="21" y2="6"/>
-                <line x1="8" y1="12" x2="21" y2="12"/>
-                <line x1="8" y1="18" x2="21" y2="18"/>
-                <line x1="3" y1="6" x2="3.01" y2="6"/>
-                <line x1="3" y1="12" x2="3.01" y2="12"/>
-                <line x1="3" y1="18" x2="3.01" y2="18"/>
-              </svg>
-            </button>
+          {/* Controls: Search, Scope toggle, View mode */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Scope toggle */}
+            <div className="flex items-center bg-gray-100 rounded-xl p-0.5 text-xs font-semibold">
+              <button
+                onClick={() => setUserScope("all")}
+                className={`px-3 py-1.5 rounded-lg transition-all ${userScope === "all" ? "bg-white text-gray-800 shadow-xs" : "text-gray-500 hover:text-gray-700"}`}
+              >
+                พนักงานทุกคน
+              </button>
+              <button
+                onClick={() => setUserScope("my")}
+                className={`px-3 py-1.5 rounded-lg transition-all ${userScope === "my" ? "bg-white text-amber-600 shadow-xs" : "text-gray-500 hover:text-gray-700"}`}
+              >
+                เฉพาะของฉัน
+              </button>
+            </div>
+
+            {/* View Mode */}
+            <div className="flex items-center bg-gray-100 rounded-xl p-1 gap-0.5">
+              <button
+                onClick={() => setView("month")}
+                title="มุมมองปฏิทินรายเดือน"
+                className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${view==="month"?"bg-white shadow-xs text-amber-600":"text-gray-400 hover:text-gray-600"}`}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+                  <rect x="3" y="4" width="18" height="18" rx="2"/>
+                  <line x1="16" y1="2" x2="16" y2="6"/>
+                  <line x1="8" y1="2" x2="8" y2="6"/>
+                  <line x1="3" y1="10" x2="21" y2="10"/>
+                </svg>
+              </button>
+              <button
+                onClick={() => setView("list")}
+                title="มุมมองรายการ"
+                className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${view==="list"?"bg-white shadow-xs text-amber-600":"text-gray-400 hover:text-gray-600"}`}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+                  <line x1="8" y1="6" x2="21" y2="6"/>
+                  <line x1="8" y1="12" x2="21" y2="12"/>
+                  <line x1="8" y1="18" x2="21" y2="18"/>
+                  <line x1="3" y1="6" x2="3.01" y2="6"/>
+                  <line x1="3" y1="12" x2="3.01" y2="12"/>
+                  <line x1="3" y1="18" x2="3.01" y2="18"/>
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
 
-        <div className="flex items-center justify-between px-4 md:px-6 pb-3">
+        {/* Month Navigation & Status Summary */}
+        <div className="flex items-center justify-between px-4 md:px-6">
           <button onClick={prevMonth} className="w-9 h-9 rounded-xl hover:bg-gray-100 flex items-center justify-center text-gray-500 hover:text-gray-800 transition-colors">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4">
               <polyline points="15 18 9 12 15 6"/>
@@ -490,22 +553,21 @@ export default function CalendarOTPage() {
             <h2 className="text-lg font-extrabold text-gray-800 leading-tight">
               {MONTHS_TH[viewMonth]} {viewYear+543}
             </h2>
-            <div className="flex items-center justify-center gap-2 mt-0.5">
-              <span className="text-xs text-gray-400">{monthOTs.length} OT Request</span>
+            <div className="flex items-center justify-center gap-2 mt-0.5 text-xs text-gray-500 font-medium">
+              <span>{monthOTs.length} คำขอ OT</span>
+              <span>·</span>
+              <span className="text-emerald-600 font-semibold">{approvedHours} ชม. อนุมัติ</span>
               {pendingOTs.length > 0 && (
                 <>
-                  <span className="text-gray-200">·</span>
-                  <span className="flex items-center gap-1 text-xs text-amber-500 font-semibold">
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400"/>
-                    รอ {pendingOTs.length}
-                  </span>
+                  <span>·</span>
+                  <span className="text-amber-600 font-semibold">รอ {pendingOTs.length}</span>
                 </>
               )}
             </div>
           </div>
 
           <div className="flex items-center gap-1">
-            <button onClick={goToday} className="px-3 py-1.5 rounded-lg text-xs font-bold text-amber-600 bg-amber-50 hover:bg-amber-100 transition-colors border border-amber-200">
+            <button onClick={goToday} className="px-3 py-1.5 rounded-lg text-xs font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 transition-colors border border-amber-200">
               วันนี้
             </button>
             <button onClick={nextMonth} className="w-9 h-9 rounded-xl hover:bg-gray-100 flex items-center justify-center text-gray-500 hover:text-gray-800 transition-colors">
@@ -516,23 +578,34 @@ export default function CalendarOTPage() {
           </div>
         </div>
 
-        {/* Legend — compact dots ใน sticky header */}
-        <div className="flex items-center gap-4 px-4 md:px-6 pb-3">
-          {[
-            { dot:"bg-amber-400",   label:"รอพิจารณา"  },
-            { dot:"bg-emerald-400", label:"อนุมัติแล้ว" },
-            { dot:"bg-rose-400",    label:"ไม่อนุมัติ"  },
-          ].map(item => (
-            <div key={item.label} className="flex items-center gap-1.5">
-              <span className={`w-2 h-2 rounded-full flex-shrink-0 ${item.dot}`}/>
-              <span className="text-[11px] text-gray-400 font-medium">{item.label}</span>
-            </div>
-          ))}
+        {/* Legend / Status Filter Buttons */}
+        <div className="flex items-center gap-2 px-4 md:px-6 overflow-x-auto pb-1 text-xs">
+          <span className="text-gray-400 font-medium mr-1 text-[11px]">สถานะ:</span>
+          <button
+            onClick={() => setStatusFilter("all")}
+            className={`px-2.5 py-1 rounded-lg font-medium transition-colors ${statusFilter === "all" ? "bg-gray-800 text-white font-bold" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+          >
+            ทั้งหมด ({monthOTs.length})
+          </button>
+          <button
+            onClick={() => setStatusFilter("approved")}
+            className={`px-2.5 py-1 rounded-lg font-medium flex items-center gap-1.5 transition-colors ${statusFilter === "approved" ? "bg-emerald-600 text-white font-bold" : "bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100"}`}
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+            อนุมัติแล้ว ({approvedOTs.length})
+          </button>
+          <button
+            onClick={() => setStatusFilter("pending")}
+            className={`px-2.5 py-1 rounded-lg font-medium flex items-center gap-1.5 transition-colors ${statusFilter === "pending" ? "bg-amber-500 text-white font-bold" : "bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100"}`}
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+            รอพิจารณา ({pendingOTs.length})
+          </button>
         </div>
       </div>
 
       {/* ── Calendar / List ── */}
-      <div className="px-3 md:px-4">
+      <div className="px-3 md:px-6 mt-3">
         {loading ? (
           <div className="flex items-center justify-center py-20">
             <div className="w-8 h-8 rounded-full border-2 border-amber-300 border-t-amber-500 animate-spin"/>
@@ -540,7 +613,7 @@ export default function CalendarOTPage() {
         ) : view === "month" ? (
           <OTCalendarGrid
             year={viewYear} month={viewMonth}
-            otRequests={otRequests} holidays={holidays}
+            otRequests={filteredOTRequests} holidays={holidays}
             onSelectDay={setSelectedDate}
           />
         ) : (
@@ -553,24 +626,24 @@ export default function CalendarOTPage() {
                   </svg>
                 </div>
                 <p className="text-sm font-semibold text-gray-400">ไม่มี OT Request ในเดือนนี้</p>
-                <p className="text-xs text-gray-300 mt-1">ไปหน้า OT Request เพื่อยื่นคำขอ</p>
+                <p className="text-xs text-gray-300 mt-1">ยังไม่มีการยื่นคำขอ OT ที่ตรงกับเงื่อนไข</p>
               </div>
             ) : (
               listDays.map(dateStr => {
                 const d = parseDate(dateStr);
-                const dayOTs = otRequests.filter(r => r.date === dateStr).sort((a,b) => a.startTime.localeCompare(b.startTime));
+                const dayOTs = filteredOTRequests.filter(r => r.date === dateStr).sort((a,b) => a.startTime.localeCompare(b.startTime));
                 const dayHolidays = holidays.filter(h => h.date === dateStr);
                 const isToday = dateStr === fmt(today);
 
                 return (
-                  <div key={dateStr}>
-                    <div className="flex items-center gap-3 mb-2">
-                      <div className={`w-12 h-12 rounded-2xl flex flex-col items-center justify-center flex-shrink-0 shadow-sm ${isToday?"bg-sky-500 text-white":"bg-white text-gray-700 border border-gray-100"}`}>
+                  <div key={dateStr} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-xs space-y-3">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-12 h-12 rounded-2xl flex flex-col items-center justify-center flex-shrink-0 shadow-xs ${isToday?"bg-amber-500 text-white":"bg-gray-50 text-gray-700 border border-gray-100"}`}>
                         <span className="text-lg font-extrabold leading-none">{d.getDate()}</span>
-                        <span className="text-[9px] font-bold leading-none mt-0.5 opacity-70">{DAYS_SHORT[d.getDay()]}</span>
+                        <span className="text-[9px] font-bold leading-none mt-0.5 opacity-80">{DAYS_SHORT[d.getDay()]}</span>
                       </div>
-                      <div>
-                        <p className={`text-sm font-bold ${isToday?"text-sky-600":"text-gray-700"}`}>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-sm font-bold ${isToday?"text-amber-600":"text-gray-800"}`}>
                           {d.getDate()} {MONTHS_TH[d.getMonth()]} {d.getFullYear()+543}
                         </p>
                         {dayHolidays.map(h => (
@@ -579,42 +652,42 @@ export default function CalendarOTPage() {
                           </span>
                         ))}
                       </div>
+                      <span className="text-xs font-semibold text-gray-400">{dayOTs.length} คำขอ</span>
                     </div>
 
-                    <div className="space-y-2" style={{ paddingLeft:"60px" }}>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
                       {dayOTs.map(ot => {
-                        const st = STATUS_CONFIG[ot.status];
+                        const st = STATUS_CONFIG[ot.status] || STATUS_CONFIG.pending;
                         return (
-                          <div key={ot.id} className={`bg-white rounded-2xl border-2 overflow-hidden shadow-sm ${st.border}`}>
-                            <div className={`flex items-center gap-2 px-4 py-2 ${st.lightBg}`}>
-                              <span className={`w-2 h-2 rounded-full ${st.dot}`}/>
-                              <span className={`text-xs font-bold ${st.text}`}>{st.label}</span>
-                              <span className="flex-1"/>
-                              <span className={`text-xs font-extrabold ${st.text}`}>+{ot.hours}h</span>
-                            </div>
-                            <div className="px-4 py-3 space-y-1.5">
+                          <div key={ot.id} className={`rounded-xl border p-3 ${st.border} ${st.lightBg} space-y-2`}>
+                            <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2">
-                                <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-sky-400 to-blue-500 flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0">
-                                  {ot.avatar || ot.userName.charAt(0)}
-                                </div>
-                                <p className="text-sm font-bold text-gray-800 leading-tight">{ot.userName}</p>
+                                {ot.avatarUrl ? (
+                                  <img src={ot.avatarUrl} alt={ot.userName} className="w-6 h-6 rounded-full object-cover border border-white" />
+                                ) : (
+                                  <div className="w-6 h-6 rounded-full bg-amber-400 text-white text-[10px] font-bold flex items-center justify-center">
+                                    {ot.userName.charAt(0)}
+                                  </div>
+                                )}
+                                <span className="text-xs font-bold text-gray-800 truncate">{ot.userName}</span>
                               </div>
-                              <div className="flex items-center gap-1 text-xs text-gray-500 flex-wrap">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3 text-gray-400">
-                                  <circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>
-                                </svg>
-                                <span className="font-semibold">{ot.startTime} – {ot.endTime}</span>
-                                <span className="text-gray-300 mx-1">·</span>
-                                <span className="font-semibold text-sky-500">#{ot.projectNo}</span>
-                                <span>{ot.project}</span>
+                              <span className={`text-[11px] font-extrabold px-2 py-0.5 rounded-md bg-white/80 ${st.text}`}>
+                                +{ot.hours}h OT
+                              </span>
+                            </div>
+
+                            <div className="text-xs text-gray-600 space-y-1">
+                              <div className="flex items-center gap-2">
+                                <span className="font-semibold">{ot.startTime} – {ot.endTime} น.</span>
+                                {ot.projectNo && <span className="text-sky-600 font-bold">#{ot.projectNo}</span>}
                               </div>
-                              <p className="text-xs text-gray-500">{ot.reason}</p>
-                              {ot.status === "rejected" && ot.rejectReason && (
-                                <p className="text-xs text-rose-500 font-semibold">✕ {ot.rejectReason}</p>
-                              )}
-                              {ot.status === "approved" && ot.approvedBy && (
-                                <p className="text-xs text-emerald-500 font-semibold">✓ {ot.approvedBy}</p>
-                              )}
+                              {ot.project && <p className="text-gray-500 truncate">{ot.project}</p>}
+                              {ot.reason && <p className="text-gray-600 bg-white/60 p-1.5 rounded-lg text-[11px]">{ot.reason}</p>}
+                            </div>
+
+                            <div className="flex items-center justify-between text-[10px] pt-1 border-t border-gray-200/50">
+                              <span className={`font-bold ${st.text}`}>{st.label}</span>
+                              {ot.approvedBy && <span className="text-emerald-600">อนุมัติ: {ot.approvedBy}</span>}
                             </div>
                           </div>
                         );
@@ -632,7 +705,7 @@ export default function CalendarOTPage() {
       {selectedDate && (
         <OTDayPanel
           date={selectedDate}
-          otRequests={otRequests}
+          otRequests={filteredOTRequests}
           holidays={holidays}
           onClose={() => setSelectedDate(null)}
         />
