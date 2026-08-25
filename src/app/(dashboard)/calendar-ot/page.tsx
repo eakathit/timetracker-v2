@@ -357,34 +357,57 @@ export default function CalendarOTPage() {
       }
 
       if (user) {
-        // ใช้ view ot_requests_with_profile ที่ JOIN profiles + projects ไว้แล้ว
-        const { data: otData, error: otError } = await supabase
-          .from("ot_requests_with_profile")
-          .select("*")
-          .eq("user_id", user.id)
-          .order("request_date", { ascending: false });
+        // Query ot_requests ตรงๆ (หลีกเลี่ยง JOIN auth.users ที่ RLS block)
+        // แล้วดึง profile + projects แยกกัน
+        const [otRes, profileRes, projectsRes] = await Promise.all([
+          supabase
+            .from("ot_requests")
+            .select("id, user_id, request_date, start_time, end_time, hours, project_id, reason, status, reject_reason, created_at, approved_by, actioned_at")
+            .eq("user_id", user.id)
+            .order("request_date", { ascending: false }),
+          supabase
+            .from("profiles")
+            .select("id, first_name, last_name")
+            .eq("id", user.id)
+            .single(),
+          supabase
+            .from("projects")
+            .select("id, project_no, name"),
+        ]);
 
-        if (!otError && otData) {
-          const mapped: OTRequest[] = otData.map((r: any) => ({
-            id: r.id,
-            userId: r.user_id,
-            userName: r.full_name ?? r.first_name ?? "พนักงาน",
-            date: r.request_date,                           // request_date ✅
-            startTime: r.start_time?.slice(0, 5) ?? "",
-            endTime: r.end_time?.slice(0, 5) ?? "",
-            hours: r.hours ?? 0,
-            project: r.project_name ?? "",                  // จาก view ✅
-            projectNo: r.project_no ?? "",                  // จาก view ✅
-            reason: r.reason ?? "",
-            status: (r.status as OTStatus) ?? "pending",
-            submittedAt: r.created_at ?? new Date().toISOString(),
-            approvedBy: r.actioned_by_name ?? undefined,    // actioned_by_name ✅
-            rejectReason: r.reject_reason ?? undefined,
-            avatar: r.first_name?.charAt(0) ?? undefined,
-          }));
+        if (!otRes.error && otRes.data) {
+          const profile = profileRes.data;
+          const projectsMap = new Map(
+            (projectsRes.data ?? []).map((p: any) => [p.id, p])
+          );
+          const userName = profile
+            ? `${profile.first_name ?? ""} ${profile.last_name ?? ""}`.trim() || "พนักงาน"
+            : "พนักงาน";
+          const avatarChar = profile?.first_name?.charAt(0) ?? undefined;
+
+          const mapped: OTRequest[] = otRes.data.map((r: any) => {
+            const proj = projectsMap.get(r.project_id);
+            return {
+              id: r.id,
+              userId: r.user_id,
+              userName,
+              date: r.request_date,
+              startTime: r.start_time?.slice(0, 5) ?? "",
+              endTime: r.end_time?.slice(0, 5) ?? "",
+              hours: r.hours ?? 0,
+              project: proj?.name ?? "",
+              projectNo: proj?.project_no ?? "",
+              reason: r.reason ?? "",
+              status: (r.status as OTStatus) ?? "pending",
+              submittedAt: r.created_at ?? new Date().toISOString(),
+              approvedBy: undefined, // ไม่ดึง approved_by name เพื่อหลีกเลี่ยง auth.users
+              rejectReason: r.reject_reason ?? undefined,
+              avatar: avatarChar,
+            };
+          });
           setOtRequests(mapped);
         }
-        // ถ้า error → แสดง Mock data เป็น fallback ต่อไป
+        // ถ้า error → state ยังเป็น MOCK_OT เป็น fallback
       }
       setLoading(false);
     };
