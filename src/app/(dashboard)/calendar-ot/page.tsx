@@ -224,14 +224,7 @@ function OTDayPanel({ date, otRequests, holidays, onClose }: {
                           </div>
                         </div>
 
-                        {/* Approval / Rejection Note */}
-                        {ot.status === "rejected" && ot.rejectReason && (
-                          <div className="bg-rose-50 border border-rose-200 rounded-xl px-3.5 py-2 text-xs">
-                            <p className="text-[10px] text-rose-500 font-bold mb-0.5">เหตุผลที่ไม่อนุมัติ:</p>
-                            <p className="text-rose-800 font-semibold">{ot.rejectReason}</p>
-                          </div>
-                        )}
-
+                        {/* Approved By Note */}
                         {ot.status === "approved" && ot.approvedBy && (
                           <div className="flex items-center gap-1.5 text-xs text-emerald-700 font-semibold bg-emerald-50/50 px-3 py-1.5 rounded-lg border border-emerald-100">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3.5 h-3.5 text-emerald-600">
