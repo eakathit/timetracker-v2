@@ -1279,4 +1279,60 @@ export async function returnToFactory(
     return { success: false, error: String(err) };
   }
 }
+// ─────────────────────────────────────────────────────────────────────────────
+// 12. ยกเลิกห้อง On-site ที่ยังไม่ได้ Check-in (status = "open")
+//
+// เฉพาะ Leader เท่านั้น และ Session ต้องยังไม่ได้ Check-in
+// จะลบ onsite_session_members + onsite_sessions ทั้งหมด
+// ─────────────────────────────────────────────────────────────────────────────
+export async function cancelOnsiteSession(
+  sessionId: string,
+): Promise<ActionResult> {
+  try {
+    const supabase = await getSupabaseServer();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { success: false, error: "กรุณาล็อกอินใหม่อีกครั้ง" };
 
+    // ตรวจสอบว่า session นี้มีอยู่จริง และ user เป็น Leader
+    const { data: sessions, error: sessionErr } = await supabase
+      .from("onsite_sessions")
+      .select("id, status, leader_id")
+      .eq("id", sessionId)
+      .limit(1);
+
+    if (sessionErr) return { success: false, error: sessionErr.message };
+    if (!sessions || sessions.length === 0)
+      return { success: false, error: "ไม่พบ Session" };
+
+    const session = sessions[0];
+    if (session.leader_id !== user.id)
+      return { success: false, error: "เฉพาะ Leader เท่านั้นที่ยกเลิกได้" };
+
+    if (session.status !== "open")
+      return { success: false, error: "ยกเลิกได้เฉพาะห้องที่ยังไม่ได้ Check-in เท่านั้น" };
+
+    // ลบ members ก่อน (FK constraint)
+    const { error: memberDeleteErr } = await supabase
+      .from("onsite_session_members")
+      .delete()
+      .eq("session_id", sessionId);
+
+    if (memberDeleteErr)
+      return { success: false, error: "ลบสมาชิกไม่สำเร็จ: " + memberDeleteErr.message };
+
+    // ลบ session
+    const { error: sessionDeleteErr } = await supabase
+      .from("onsite_sessions")
+      .delete()
+      .eq("id", sessionId);
+
+    if (sessionDeleteErr)
+      return { success: false, error: "ลบ Session ไม่สำเร็จ: " + sessionDeleteErr.message };
+
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: "เกิดข้อผิดพลาด: " + String(err) };
+  }
+}

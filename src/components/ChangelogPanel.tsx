@@ -17,6 +17,14 @@ interface ChangelogEntry {
 // ─── Changelog Data (Dev/Admin) ────────────
 const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "3.5.9",
+    date: "2026-08-24",
+    items: [
+      { tag: "feature", text: "เพิ่มปฏิทิน OT แสดงรายการคำขอ OT ทั้งหมดภายในองค์กร" },
+      { tag: "feature", text: "เพิ่มปุ่มยกเลิกห้อง On-site สำหรับห้อง On-site ที่ยังไม่ได้ Check-in เพิ่อลบห้องที่เปิดค้างไว้" },
+    ],
+  },
+  {
     version: "3.5.8",
     date: "2026-08-23",
     items: [
@@ -122,12 +130,12 @@ const CHANGELOG: ChangelogEntry[] = [
     version: "3.3.0",
     date: "2026-05-11",
     items: [
-      { tag: "feature",     text: "เพิ่มระบบทบลาพักร้อนข้ามปี โดยคำนวณจากยอดคงเหลือปีก่อนและจำกัดยอดสะสมลาพักร้อนไม่เกิน 12 วัน" },
-      { tag: "feature",     text: "เพิ่มเครื่องมือ Admin สำหรับ preview และสร้างสิทธิ์วันลาปีใหม่ในหน้า Settings > วันลาพนักงาน" },
+      { tag: "feature", text: "เพิ่มระบบทบลาพักร้อนข้ามปี โดยคำนวณจากยอดคงเหลือปีก่อนและจำกัดยอดสะสมลาพักร้อนไม่เกิน 12 วัน" },
+      { tag: "feature", text: "เพิ่มเครื่องมือ Admin สำหรับ preview และสร้างสิทธิ์วันลาปีใหม่ในหน้า Settings > วันลาพนักงาน" },
       { tag: "improvement", text: "ปรับหน้า Settings > นโยบายวันลา ให้แสดงหน่วยวันตามกติกาบริษัท พร้อมเทียบเป็นชั่วโมงสำหรับระบบ balance" },
       { tag: "improvement", text: "ปรับหน้า Requests ให้กรองคำขอของฉันตามช่วงเวลา เดือนนี้, เดือนก่อน และทั้งหมด พร้อม redesign การ์ดสรุปสถานะให้ดูอ่านง่ายขึ้น" },
       { tag: "improvement", text: "ปรับหน้า Leave Request และการ์ดใบลาให้ใช้ SVG icon ชุดเดียวกันทุกประเภทลา พร้อมปรับคำอธิบายประเภทลาให้ชัดเจนขึ้น" },
-      { tag: "fix",         text: "แก้การสร้างบัญชีพนักงานใหม่ให้สร้างสิทธิ์วันลาปีปัจจุบันได้ถูกต้องหลังเข้าสู่ระบบครั้งแรก" },
+      { tag: "fix", text: "แก้การสร้างบัญชีพนักงานใหม่ให้สร้างสิทธิ์วันลาปีปัจจุบันได้ถูกต้องหลังเข้าสู่ระบบครั้งแรก" },
     ],
   },
   {
@@ -135,19 +143,19 @@ const CHANGELOG: ChangelogEntry[] = [
     date: "2026-05-08",
     items: [
       { tag: "improvement", text: "เพิ่มกติกาลาพักร้อนต้องยื่นล่วงหน้าอย่างน้อย 3 วัน โดยนับรวมวันที่ทำรายการ" },
-      { tag: "fix",         text: "เพิ่มตัวตรวจสอบฝั่งฐานข้อมูลเพื่อกันการบันทึกใบลาพักร้อนที่ไม่ตรงตามกติกาบริษัท" },
+      { tag: "fix", text: "เพิ่มตัวตรวจสอบฝั่งฐานข้อมูลเพื่อกันการบันทึกใบลาพักร้อนที่ไม่ตรงตามกติกาบริษัท" },
     ],
   },
   {
     version: "3.2.0",
     date: "2026-05-07",
     items: [
-      { tag: "feature",     text: "เพิ่มระบบจัดการสถานะการเข้าใช้งานพนักงาน: รออนุมัติ, ใช้งานได้, ระงับสิทธิ์" },
-      { tag: "feature",     text: "Admin สามารถอนุมัติหรือระงับสิทธิ์พนักงานจากหน้า Settings > จัดการสิทธิ์ได้" },
+      { tag: "feature", text: "เพิ่มระบบจัดการสถานะการเข้าใช้งานพนักงาน: รออนุมัติ, ใช้งานได้, ระงับสิทธิ์" },
+      { tag: "feature", text: "Admin สามารถอนุมัติหรือระงับสิทธิ์พนักงานจากหน้า Settings > จัดการสิทธิ์ได้" },
       { tag: "improvement", text: "พนักงานใหม่ที่ Login ครั้งแรกจะเข้าสู่หน้ารอการอนุมัติ และยังใช้งานระบบไม่ได้จนกว่า Admin จะอนุมัติ" },
       { tag: "improvement", text: "พนักงานที่ถูกระงับสิทธิ์จะถูกบล็อกไม่ให้เข้าใช้งาน Web App และข้อมูลจะถูกซ่อนจากหน้ารายชื่อ/รายงานหลัก" },
-      { tag: "feature",     text: "เพิ่มระบบ Calendar Plans ส่วนตัว บันทึกแผนงานลงฐานข้อมูลและแสดงเฉพาะแผนของผู้ใช้งานแต่ละคน" },
-      { tag: "fix",         text: "แก้ไขปัญหาเพิ่มแผนใน Calendar แล้วข้อมูลหายหลัง Refresh หน้า" },
+      { tag: "feature", text: "เพิ่มระบบ Calendar Plans ส่วนตัว บันทึกแผนงานลงฐานข้อมูลและแสดงเฉพาะแผนของผู้ใช้งานแต่ละคน" },
+      { tag: "fix", text: "แก้ไขปัญหาเพิ่มแผนใน Calendar แล้วข้อมูลหายหลัง Refresh หน้า" },
       { tag: "improvement", text: "เพิ่มปุ่มทางเข้า Calendar บนหน้า Profile สำหรับมือถือ และปรับ Calendar mobile ให้กระชับขึ้น" },
     ],
   },
@@ -155,144 +163,144 @@ const CHANGELOG: ChangelogEntry[] = [
     version: "3.1.6",
     date: "2026-05-06",
     items: [
-      { tag: "feature",         text: "หน้า Daily Audit เพิ่มแท็บ 'ลา' สำหรับพนักงานที่ใบลาอนุมัติแล้ว" },
+      { tag: "feature", text: "หน้า Daily Audit เพิ่มแท็บ 'ลา' สำหรับพนักงานที่ใบลาอนุมัติแล้ว" },
     ],
   },
   {
     version: "3.1.5",
     date: "2026-04-19",
     items: [
-      { tag: "fix",             text: "แก้ไขปัญหาการ Check-out ในวันหยุดแล้วระบบไม่บันทึกเวลาทำงาน" },
-      { tag: "fix",             text: "แก้ไขข้อผิดพลาดการบันทึกสิทธิ์แลกวันหยุดไม่ลงในฐานข้อมูลระบบ" },
+      { tag: "fix", text: "แก้ไขปัญหาการ Check-out ในวันหยุดแล้วระบบไม่บันทึกเวลาทำงาน" },
+      { tag: "fix", text: "แก้ไขข้อผิดพลาดการบันทึกสิทธิ์แลกวันหยุดไม่ลงในฐานข้อมูลระบบ" },
     ],
   },
   {
     version: "3.1.0",
     date: "2026-04-17",
     items: [
-      { tag: "fix",             text: "เเก้ไข On-site ไม่ขึ้นเวลา OT" },
-      { tag: "feature",         text: "เพิ่มปุ่มดูเเผนที่ google maps หน้า Daily audit" },
-      { tag: "feature",         text: "เพิ่ม popup ปุ่มกลับโรงงานตอน Checkout On-site ก่อน 17:30" },
+      { tag: "fix", text: "เเก้ไข On-site ไม่ขึ้นเวลา OT" },
+      { tag: "feature", text: "เพิ่มปุ่มดูเเผนที่ google maps หน้า Daily audit" },
+      { tag: "feature", text: "เพิ่ม popup ปุ่มกลับโรงงานตอน Checkout On-site ก่อน 17:30" },
     ],
   },
   {
     version: "3.0.5",
     date: "2026-04-05",
     items: [
-      { tag: "fix",             text: "แก้ไข Auto-checkout 17:30 ทำงานผิดพลาดในวันหยุดปฎิทิน (วันธรรมดา)" },
-      { tag: "fix",             text: "แก้ไขหน้าวันลาพนักงาน เเปลงวันลาเป็นชม." },
-      { tag: "improvement",     text: "แสดงปุ่ม 'แลกวันหยุด' เฉพาะผู้ที่มีสิทธิ์สะสมเเลกวันหยุด" },
+      { tag: "fix", text: "แก้ไข Auto-checkout 17:30 ทำงานผิดพลาดในวันหยุดปฎิทิน (วันธรรมดา)" },
+      { tag: "fix", text: "แก้ไขหน้าวันลาพนักงาน เเปลงวันลาเป็นชม." },
+      { tag: "improvement", text: "แสดงปุ่ม 'แลกวันหยุด' เฉพาะผู้ที่มีสิทธิ์สะสมเเลกวันหยุด" },
     ],
   },
   {
     version: "3.0.1",
     date: "2026-04-05",
     items: [
-      { tag: "fix",             text: "แก้ไข summary สิทธิ์วันลา หัวข้อแสดงเป็นชม." },
+      { tag: "fix", text: "แก้ไข summary สิทธิ์วันลา หัวข้อแสดงเป็นชม." },
     ],
   },
   {
     version: "3.0.0",
     date: "2026-04-01",
     items: [
-      { tag: "improvement",             text: "ปรับปรุง On-site สร้างห้องได้โดยไม่ต้องมีสมาชิกในห้องก่อน" },
-      { tag: "feature",                 text: "On-site เพิ่มรายละเอียดคนขับรถ (ขาไป / ขากลับ) ในห้อง On-site ได้แล้ว" },
-      { tag: "feature",                 text: " เพิ่มประเภทการลา 'แลกวันหยุด' ในหน้ายื่นลา" },
-      { tag: "improvement",             text: "เปลี่ยนหน่วยสิทธิ์การลาจาก วัน เป็น ชม. เพื่อรองรับการลารายชั่วโมงได้อย่างแม่นยำ" },
+      { tag: "improvement", text: "ปรับปรุง On-site สร้างห้องได้โดยไม่ต้องมีสมาชิกในห้องก่อน" },
+      { tag: "feature", text: "On-site เพิ่มรายละเอียดคนขับรถ (ขาไป / ขากลับ) ในห้อง On-site ได้แล้ว" },
+      { tag: "feature", text: " เพิ่มประเภทการลา 'แลกวันหยุด' ในหน้ายื่นลา" },
+      { tag: "improvement", text: "เปลี่ยนหน่วยสิทธิ์การลาจาก วัน เป็น ชม. เพื่อรองรับการลารายชั่วโมงได้อย่างแม่นยำ" },
     ],
   },
   {
     version: "2.6.0",
     date: "2026-03-25",
     items: [
-      { tag: "improvement",             text: "เเก้ไข layout หน้าจัดการวันหยุด" },
+      { tag: "improvement", text: "เเก้ไข layout หน้าจัดการวันหยุด" },
     ],
   },
   {
     version: "2.5.5",
     date: "2026-03-24",
     items: [
-      { tag: "feature",             text: "เพิ่มสิทธิ์วันลา" },
+      { tag: "feature", text: "เพิ่มสิทธิ์วันลา" },
     ],
   },
   {
     version: "2.5.0",
     date: "2026-03-21",
     items: [
-      { tag: "improvement",         text: "เเก้ไขให้สามารถสเเกน qr-code ได้ง่ายขึ้น" },
-      { tag: "feature",             text: "เพิ่ม Other ในช่อง End User หน้ากรอก Report" },
-      { tag: "feature",             text: "เพิ่มฟีเจอร์ Report Sync" },
+      { tag: "improvement", text: "เเก้ไขให้สามารถสเเกน qr-code ได้ง่ายขึ้น" },
+      { tag: "feature", text: "เพิ่ม Other ในช่อง End User หน้ากรอก Report" },
+      { tag: "feature", text: "เพิ่มฟีเจอร์ Report Sync" },
     ],
   },
   {
     version: "2.0.1",
     date: "2026-03-20",
     items: [
-      { tag: "fix",                 text: "เเก้ไข HR Attendance Export Excel ไม่ขึ้นเวลา OT" },
+      { tag: "fix", text: "เเก้ไข HR Attendance Export Excel ไม่ขึ้นเวลา OT" },
     ],
   },
   {
     version: "2.0.0",
     date: "2026-03-20",
     items: [
-      { tag: "improvement",         text: "เเก้ไขกดปุ่ม Start/End OT เเล้วเด้งไปเด้งมา" },
-      { tag: "fix",                 text: "ปุ่ม Start/End OT ตรวจสอบรัศมีโรงงาน" },
-      { tag: "improvement",         text: "เเก้ไข layout หน้า Qr code เเละเพิ่มปุ่มกด Fullscreen" },
+      { tag: "improvement", text: "เเก้ไขกดปุ่ม Start/End OT เเล้วเด้งไปเด้งมา" },
+      { tag: "fix", text: "ปุ่ม Start/End OT ตรวจสอบรัศมีโรงงาน" },
+      { tag: "improvement", text: "เเก้ไข layout หน้า Qr code เเละเพิ่มปุ่มกด Fullscreen" },
     ],
   },
   {
     version: "1.9.0",
     date: "2026-03-18",
     items: [
-      { tag: "feature",         text: "เพิ่มฟีเจอร์ Daily Audit" },
+      { tag: "feature", text: "เพิ่มฟีเจอร์ Daily Audit" },
     ],
   },
   {
     version: "1.8.5",
     date: "2026-03-17",
     items: [
-      { tag: "feature",         text: "เพิ่มชื่อผู้อนุมัติ/ไม่อนุมัติหน้ารายการ Request" },
+      { tag: "feature", text: "เพิ่มชื่อผู้อนุมัติ/ไม่อนุมัติหน้ารายการ Request" },
     ],
   },
   {
     version: "1.8.0",
     date: "2026-03-17",
     items: [
-      { tag: "fix",         text: "เเก้ไขเพิ่ม End User ใหม่เเล้ว default เป็นสีฟ้า" },
+      { tag: "fix", text: "เเก้ไขเพิ่ม End User ใหม่เเล้ว default เป็นสีฟ้า" },
       { tag: "improvement", text: "สร้างห้อง On-site ลบช่องกรอก Project No. ตอนเลือก Other End User" },
-      { tag: "fix",         text: "เเก้ไข On-site เพิ่มพนักงานเข้าห้องก่อน 8:30 ขึ้นว่ามาสาย" },
+      { tag: "fix", text: "เเก้ไข On-site เพิ่มพนักงานเข้าห้องก่อน 8:30 ขึ้นว่ามาสาย" },
     ],
   },
   {
     version: "1.7.5",
     date: "2026-03-16",
     items: [
-      { tag: "feature",     text: "Qr-code Check-in เพิ่มรายชื่อพนักงาน Checkin factory/on-site" },
+      { tag: "feature", text: "Qr-code Check-in เพิ่มรายชื่อพนักงาน Checkin factory/on-site" },
       { tag: "improvement", text: "ลบการ์ดเนื้อหาหน้า profile ที่ไม่ได้ใช้งานออก" },
-      { tag: "fix",         text: "เเก้ไขหน้า Report กรอก Daily Report เเล้วหน้าจอซูมเข้า-ออก" },
+      { tag: "fix", text: "เเก้ไขหน้า Report กรอก Daily Report เเล้วหน้าจอซูมเข้า-ออก" },
     ],
   },
   {
     version: "1.7.0",
     date: "2026-03-16",
     items: [
-      { tag: "feature",     text: "เพิ่ม Checkin สเเกน qr-code" },
-      { tag: "fix",         text: "เเก้ไข Check-in qr-code ไม่ตรวจสอบเวลาให้" },
+      { tag: "feature", text: "เพิ่ม Checkin สเเกน qr-code" },
+      { tag: "fix", text: "เเก้ไข Check-in qr-code ไม่ตรวจสอบเวลาให้" },
     ],
   },
   {
     version: "1.6.0",
     date: "2026-03-13",
     items: [
-      { tag: "feature",     text: "เพิ่มพนักงานมาทำงานระหว่างวัน On-site" },
-      { tag: "feature",     text: "ลบ session code ออกจาก On-site" },
+      { tag: "feature", text: "เพิ่มพนักงานมาทำงานระหว่างวัน On-site" },
+      { tag: "feature", text: "ลบ session code ออกจาก On-site" },
     ],
   },
   {
     version: "1.5.0",
     date: "2026-03-10",
     items: [
-      { tag: "feature",     text: "เพิ่ม Other Enduser ตอนสร้างห้อง On-site" },
+      { tag: "feature", text: "เพิ่ม Other Enduser ตอนสร้างห้อง On-site" },
       { tag: "fix", text: "ประเภทนงานเเละ Enduser ไม่สามารถลบได้" },
       { tag: "fix", text: "เเก้ไข Project Export excel ช่องเกินมา" },
     ],
@@ -301,27 +309,27 @@ const CHANGELOG: ChangelogEntry[] = [
     version: "1.4.5",
     date: "2026-03-10",
     items: [
-      { tag: "feature",     text: "HR Attendance Export Excel รายบุคคลเพิ่มช่องรายละเอียด OT" },
-      { tag: "feature",     text: "Project Summary ตัวกรองลบประเภทงานออก เเล้วใส่ EndUser เเทน" },
-      { tag: "feature",     text: "เพิ่มรายละเอียดข้อมูลหน้า HR Attendance เเยกชม.เเละโอที วันปกติกับวันหยุด" },
+      { tag: "feature", text: "HR Attendance Export Excel รายบุคคลเพิ่มช่องรายละเอียด OT" },
+      { tag: "feature", text: "Project Summary ตัวกรองลบประเภทงานออก เเล้วใส่ EndUser เเทน" },
+      { tag: "feature", text: "เพิ่มรายละเอียดข้อมูลหน้า HR Attendance เเยกชม.เเละโอที วันปกติกับวันหยุด" },
     ],
   },
   {
     version: "1.4.1",
     date: "2026-03-09",
     items: [
-      { tag: "feature",     text: "Project Summary เพิ่มช่อง Total (hrs.) ตอน Export Excel" },
-      { tag: "feature",     text: "หน้า Request ใบลาเเละใบขอคำโอทีเเยกช่องตามเเผนก" },
-      { tag: "feature",     text: "ตกเเต่ง Redesign  หน้า Login หน้า Webapp" },
+      { tag: "feature", text: "Project Summary เพิ่มช่อง Total (hrs.) ตอน Export Excel" },
+      { tag: "feature", text: "หน้า Request ใบลาเเละใบขอคำโอทีเเยกช่องตามเเผนก" },
+      { tag: "feature", text: "ตกเเต่ง Redesign  หน้า Login หน้า Webapp" },
       { tag: "fix", text: "เเก้ไขกดสร้างห้อง On-site ในมือถือไม่ได้" },
     ],
   },
-    {
-    version: "1.4.0", 
+  {
+    version: "1.4.0",
     date: "2026-03-09",
     items: [
-      { tag: "feature",     text: "เพิ่มระบบแจ้งเตือน Changelog 🎉" },
-      { tag: "fix",         text: "แก้ไขปุ่ม Check-in กดแล้ว delay นาน" },
+      { tag: "feature", text: "เพิ่มระบบแจ้งเตือน Changelog 🎉" },
+      { tag: "fix", text: "แก้ไขปุ่ม Check-in กดแล้ว delay นาน" },
       { tag: "improvement", text: "ปรับ UI หน้า Dashboard ให้โหลดเร็วขึ้น" },
     ],
   },
@@ -329,10 +337,10 @@ const CHANGELOG: ChangelogEntry[] = [
 
 // ─── Tag Badge ─────────────────────────────────────────────────────────────────
 const TAG_CONFIG: Record<ChangelogTag, { label: string; className: string }> = {
-  feature:     { label: "Feature",     className: "bg-sky-100 text-sky-700" },
-  fix:         { label: "Bug Fix",     className: "bg-rose-100 text-rose-700" },
-  improvement: { label: "ปรับปรุง",    className: "bg-amber-100 text-amber-700" },
-  breaking:    { label: "Breaking",    className: "bg-purple-100 text-purple-700" },
+  feature: { label: "Feature", className: "bg-sky-100 text-sky-700" },
+  fix: { label: "Bug Fix", className: "bg-rose-100 text-rose-700" },
+  improvement: { label: "ปรับปรุง", className: "bg-amber-100 text-amber-700" },
+  breaking: { label: "Breaking", className: "bg-purple-100 text-purple-700" },
 };
 
 const LAST_READ_KEY = "changelog_last_read";
@@ -439,7 +447,7 @@ export function ChangelogPanel({ isOpen, onClose }: ChangelogPanelProps) {
 
 // ─── Bell Button with Unread Dot ──────────────────────────────────────────────
 export function ChangelogBellButton() {
-  const [isOpen, setIsOpen]       = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
   const hasUnread = useSyncExternalStore(
     (onStoreChange) => {
       window.addEventListener("storage", onStoreChange);

@@ -18,6 +18,7 @@ import {
   returnToFactory,
   getOnsiteReportDetails,
   createOnsiteReportForSession,
+  cancelOnsiteSession,    // ← ยกเลิกห้องที่ยังไม่ Check-in
 } from "@/app/actions/onsite";
 import { supabase } from "@/lib/supabase";
 import type {
@@ -930,6 +931,53 @@ function OnsiteReportModal({
   );
 }
 
+// ─── Cancel Session Modal ─────────────────────────────────────────────────────
+function CancelSessionModal({
+  siteName,
+  onConfirm,
+  onCancel,
+  loading,
+}: {
+  siteName: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+  loading: boolean;
+}) {
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-6">
+      <div className="w-full max-w-sm bg-white rounded-3xl p-6 space-y-4">
+        <div className="text-center">
+          <div className="w-12 h-12 bg-rose-50 rounded-2xl flex items-center justify-center mx-auto mb-3">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-6 h-6 text-rose-500">
+              <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
+            </svg>
+          </div>
+          <h3 className="text-base font-extrabold text-gray-800">ยกเลิกห้อง On-site?</h3>
+          <p className="text-sm text-gray-500 mt-1">
+            ห้อง <strong className="text-gray-700">{siteName}</strong> จะถูกลบออกทันที
+          </p>
+          <p className="text-xs text-rose-500 mt-2 font-medium">ไม่สามารถกู้คืนได้</p>
+        </div>
+        <div className="flex gap-3">
+          <button
+            onClick={onCancel}
+            className="flex-1 py-3 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition"
+          >
+            ไม่ยกเลิก
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={loading}
+            className="flex-1 py-3 rounded-xl bg-rose-500 text-white text-sm font-bold hover:bg-rose-600 disabled:opacity-50 transition"
+          >
+            {loading ? "กำลังลบ..." : "ยืนยัน ยกเลิก"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function DriverPickerSheet({
   member,
   isDriverTo,
@@ -1034,6 +1082,7 @@ export default function OnsiteSessionPage() {
   const [showAddMember, setShowAddMember]                 = useState(false);
   const [showReturnToFactory, setShowReturnToFactory]     = useState(false);
   const [showOnsiteReport, setShowOnsiteReport]           = useState(false);
+  const [showCancelSession, setShowCancelSession]         = useState(false);
   const [pendingReturnScope, setPendingReturnScope]       = useState<"group" | "member" | null>(null);
 
   const [driverPicker, setDriverPicker] = useState<{
@@ -1082,6 +1131,19 @@ const handleSetDriver = async (trip: "to" | "from", userId: string | null) => {
       const res = await groupCheckIn(sessionId);
       if (res.success) await loadSession();
       else setError(res.error ?? "Check-in ไม่สำเร็จ");
+    });
+  };
+
+  const handleCancelSession = () => {
+    setShowCancelSession(false);
+    setError(null);
+    startTransition(async () => {
+      const res = await cancelOnsiteSession(sessionId);
+      if (res.success) {
+        router.push("/onsite");
+      } else {
+        setError(res.error ?? "ยกเลิก Session ไม่สำเร็จ");
+      }
     });
   };
 
@@ -1267,6 +1329,14 @@ const handleCheckOutClick = () => {
           onClose={() => setShowOnsiteReport(false)}
         />
       )}
+      {showCancelSession && (
+        <CancelSessionModal
+          siteName={session.site_name}
+          onConfirm={handleCancelSession}
+          onCancel={() => setShowCancelSession(false)}
+          loading={isPending}
+        />
+      )}
       {driverPicker && session && (
         <DriverPickerSheet
           member={driverPicker.member}
@@ -1428,24 +1498,33 @@ const handleCheckOutClick = () => {
         <div className="fixed bottom-20 md:bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-4 py-4 shadow-[0_-4px_20px_rgba(0,0,0,0.06)]">
           {/* Leader Actions */}
           {isLeader && session.status === "open" && (
-            <button
-              onClick={handleGroupCheckIn}
-              disabled={isPending}
-              className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-extrabold py-4 rounded-2xl transition-colors flex items-center justify-center gap-2"
-            >
-              {isPending ? (
-                <svg className="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="white" strokeWidth="4"/>
-                  <path className="opacity-75" fill="white" d="M4 12a8 8 0 018-8v8H4z"/>
-                </svg>
-              ) : (
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-5 h-5">
-                  <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/>
-                  <path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>
-                </svg>
-              )}
-              Check-in ทั้งกลุ่ม ({session.members.length} คน)
-            </button>
+            <div className="space-y-2">
+              <button
+                onClick={handleGroupCheckIn}
+                disabled={isPending}
+                className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-extrabold py-4 rounded-2xl transition-colors flex items-center justify-center gap-2"
+              >
+                {isPending ? (
+                  <svg className="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="white" strokeWidth="4"/>
+                    <path className="opacity-75" fill="white" d="M4 12a8 8 0 018-8v8H4z"/>
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-5 h-5">
+                    <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/>
+                    <path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>
+                  </svg>
+                )}
+                Check-in ทั้งกลุ่ม ({session.members.length} คน)
+              </button>
+              <button
+                onClick={() => setShowCancelSession(true)}
+                disabled={isPending}
+                className="w-full bg-white hover:bg-rose-50 disabled:opacity-50 text-rose-500 font-bold py-3 rounded-2xl border border-rose-200 transition-colors text-sm"
+              >
+                ยกเลิกห้อง On-site นี้
+              </button>
+            </div>
           )}
 
           {isLeader && session.status === "checked_in" && (
