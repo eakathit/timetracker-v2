@@ -663,7 +663,10 @@ function OTRangeSummary({ userId }: { userId: string }) {
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
   function toDateStr(d: Date) {
-    return d.toISOString().split("T")[0];
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
   }
   function getPayrollRange() {
     // รอบเงินเดือน: วันที่ 21 เดือนก่อน → วันที่ 20 เดือนนี้
@@ -758,7 +761,7 @@ function OTRangeSummary({ userId }: { userId: string }) {
             }
           }
 
-          const isFuture = r.log_date > new Date().toISOString().split("T")[0];
+          const isFuture = r.log_date > toDateStr(new Date());
           logMap[r.log_date] = {
             date: r.log_date,
             checkIn: fmtTime(r.first_check_in),
@@ -1076,7 +1079,7 @@ export default function ProfilePage() {
     setLogsLoading(true);
 
     const { start, end } = getMonthRange(viewYear, viewMonth);
-    const todayStr = today.toISOString().split("T")[0];
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
 
     try {
       const [timeRes, holidayRes, reportRes, otReqRes, driverRes] = await Promise.all([
