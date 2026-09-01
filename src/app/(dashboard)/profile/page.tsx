@@ -689,9 +689,9 @@ function OTRangeSummary({ userId }: { userId: string }) {
 
   // ── State ────────────────────────────────────────────────────────────────────
   const payroll = getPayrollRange();
-  const [fromDate, setFromDate] = useState(payroll.from);
-  const [toDate, setToDate] = useState(payroll.to);
-  const [activePreset, setActivePreset] = useState<string>("payroll");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const [activePreset, setActivePreset] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{
     totalMinutes: number;
@@ -806,8 +806,7 @@ function OTRangeSummary({ userId }: { userId: string }) {
   );
 
   useEffect(() => {
-    if (userId) fetchOTRange(payroll.from, payroll.to);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // ไม่ดึงข้อมูลอัตโนมัติ ปล่อยให้ว่างจนกว่า user จะเลือกวันที่หรือกด Preset
   }, [userId]);
 
   // ── Preset handler ───────────────────────────────────────────────────────────
@@ -983,16 +982,32 @@ function OTRangeSummary({ userId }: { userId: string }) {
           </div>
         )}
 
-        {/* Empty state */}
-        {!loading && hasSearched && result && result.totalMinutes === 0 && (
+        {/* Empty state (No data found) */}
+        {!loading && hasSearched && result && result.days.length === 0 && (
           <div className="text-center py-8">
             <div className="w-14 h-14 rounded-2xl bg-gray-50 flex items-center justify-center mx-auto mb-3">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-7 h-7 text-gray-200">
                 <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
               </svg>
             </div>
-            <p className="text-sm font-bold text-gray-300">ไม่มี OT ในช่วงนี้</p>
+            <p className="text-sm font-bold text-gray-400">ไม่มีข้อมูลในช่วงนี้</p>
             <p className="text-xs text-gray-300 mt-0.5">{fmtDateTh(fromDate)} – {fmtDateTh(toDate)}</p>
+          </div>
+        )}
+
+        {/* Initial state (Not searched yet) */}
+        {!loading && !hasSearched && (
+          <div className="text-center py-10">
+            <div className="w-14 h-14 rounded-2xl bg-gray-50 flex items-center justify-center mx-auto mb-3">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-7 h-7 text-gray-300">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                <line x1="16" y1="2" x2="16" y2="6" />
+                <line x1="8" y1="2" x2="8" y2="6" />
+                <line x1="3" y1="10" x2="21" y2="10" />
+              </svg>
+            </div>
+            <p className="text-sm font-bold text-gray-400">เลือกช่วงวันที่เพื่อดูประวัติและ OT</p>
+            <p className="text-xs text-gray-300 mt-1">สามารถกดปุ่ม "รอบเดือน" ด้านบนได้เลย</p>
           </div>
         )}
     </div>
