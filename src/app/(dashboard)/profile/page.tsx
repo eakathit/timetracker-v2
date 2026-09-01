@@ -696,7 +696,7 @@ function OTRangeSummary({ userId }: { userId: string }) {
   const [result, setResult] = useState<{
     totalMinutes: number;
     daysWithOT: number;
-    days: { date: string; minutes: number }[];
+    days: DayLog[];
   } | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
 
@@ -717,44 +717,65 @@ function OTRangeSummary({ userId }: { userId: string }) {
             .lte("request_date", to),
           supabase
             .from("daily_time_logs")
-            .select("log_date, ot_hours, timeline_events")
+            .select("log_date, first_check_in, last_check_out, ot_hours, status, timeline_events, daily_allowance")
             .eq("user_id", userId)
             .gte("log_date", from)
             .lte("log_date", to),
         ]);
 
-        const dayMap: Record<string, number> = {};
+        const logMap: Record<string, DayLog> = {};
 
-        // จาก ot_requests (approved)
-        ((otReqRes.data ?? []) as OTRequestRow[]).forEach((r) => {
-          const mins = Math.round(calcOTHours(r.start_time.slice(0, 5), r.end_time.slice(0, 5)) * 60);
-          dayMap[r.request_date] = (dayMap[r.request_date] ?? 0) + mins;
-        });
-
-        // จาก daily_time_logs (timeline ot_start/ot_end หรือ ot_hours)
+        // จาก daily_time_logs (ข้อมูลพื้นฐาน + timeline)
         ((timeLogRes.data ?? []) as TimeLogRow[]).forEach((r) => {
+          let otHours = r.ot_hours ?? 0;
           const events = r.timeline_events ?? [];
           const otStart = events.find((e) => e.event === "ot_start");
           const otEnd = events.find((e) => e.event === "ot_end");
           if (otStart && otEnd) {
-            const h = calcOTHours(
-              fmtTime(otStart.timestamp),
-              fmtTime(otEnd.timestamp),
-            );
-            const existMins = dayMap[r.log_date] ?? 0;
-            dayMap[r.log_date] = Math.max(existMins, Math.round(h * 60));
-          } else if (r.ot_hours && r.ot_hours > 0) {
-            const existMins = dayMap[r.log_date] ?? 0;
-            dayMap[r.log_date] = Math.max(existMins, Math.round(r.ot_hours * 60));
+            const h = calcOTHours(fmtTime(otStart.timestamp), fmtTime(otEnd.timestamp));
+            otHours = Math.max(otHours, h);
+          }
+
+          const isFuture = r.log_date > new Date().toISOString().split("T")[0];
+          logMap[r.log_date] = {
+            date: r.log_date,
+            checkIn: fmtTime(r.first_check_in),
+            checkOut: fmtTime(r.last_check_out),
+            otHours: otHours,
+            status: classifyStatus(r.first_check_in, r, isFuture),
+            dailyAllowance: !!r.daily_allowance,
+            workType: r.work_type as any,
+            isReportSent: false,
+            isDriverTo: false,
+            isDriverFrom: false,
+          };
+        });
+
+        // จาก ot_requests (approved) - นำไปบวกหรือสร้างวันใหม่ถ้าไม่มีใน log
+        ((otReqRes.data ?? []) as OTRequestRow[]).forEach((r) => {
+          const h = calcOTHours(r.start_time.slice(0, 5), r.end_time.slice(0, 5));
+          if (logMap[r.request_date]) {
+             logMap[r.request_date].otHours += h;
+          } else {
+             logMap[r.request_date] = {
+                date: r.request_date,
+                checkIn: null,
+                checkOut: null,
+                otHours: h,
+                status: "holiday",
+                dailyAllowance: false,
+                workType: null,
+                isReportSent: false,
+                isDriverTo: false,
+                isDriverFrom: false,
+             };
           }
         });
 
-        const days = Object.entries(dayMap)
-          .filter(([, m]) => m > 0)
-          .map(([date, minutes]) => ({ date, minutes }))
-          .sort((a, b) => a.date.localeCompare(b.date));
+        const logs = Object.values(logMap).sort((a, b) => b.date.localeCompare(a.date)); // เรียงจากใหม่ไปเก่า
+        const totalMinutes = logs.reduce((s, d) => s + Math.round(d.otHours * 60), 0);
 
-        setResult({ totalMinutes: days.reduce((s, d) => s + d.minutes, 0), daysWithOT: days.length, days });
+        setResult({ totalMinutes, daysWithOT: logs.filter(l => l.otHours > 0).length, days: logs as any });
       } catch (err) {
         console.error("fetchOTRange error:", err);
       } finally {
@@ -802,23 +823,8 @@ function OTRangeSummary({ userId }: { userId: string }) {
   ];
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-      {/* Header */}
-      <div className="px-5 py-4 border-b border-gray-50 flex items-center gap-3">
-        <span className="w-9 h-9 rounded-2xl bg-amber-50 text-amber-500 flex items-center justify-center flex-shrink-0">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4.5 h-4.5 w-[18px] h-[18px]">
-            <circle cx="12" cy="12" r="10" />
-            <polyline points="12 6 12 12 16 14" />
-          </svg>
-        </span>
-        <div>
-          <h3 className="text-sm font-bold text-gray-700">สรุปโอที ตามช่วงเวลา</h3>
-          <p className="text-xs text-gray-400 mt-0.5">เลือกช่วงวันที่แล้วดู OT รวมได้เลย</p>
-        </div>
-      </div>
-
-      <div className="p-5 space-y-4">
-        {/* Preset Buttons */}
+    <div className="space-y-4">
+      {/* Preset Buttons */}
         <div className="flex gap-1.5 flex-wrap">
           {presets.map((p) => (
             <button
@@ -937,18 +943,33 @@ function OTRangeSummary({ userId }: { userId: string }) {
             {result.days.length > 0 && (
               <div>
                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider px-1 mb-1.5">รายละเอียดต่อวัน</p>
-                <div className="max-h-52 overflow-y-auto rounded-xl border border-gray-100 divide-y divide-gray-50">
-                  {result.days.map((d) => (
-                    <div key={d.date} className="flex items-center justify-between px-3 py-2.5 hover:bg-amber-50/60 transition-colors">
-                      <div className="flex items-center gap-2">
-                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" />
-                        <span className="text-xs font-semibold text-gray-700">
-                          {new Date(d.date + "T00:00:00").toLocaleDateString("th-TH", { weekday: "short", day: "numeric", month: "short" })}
-                        </span>
+                <div className="max-h-72 overflow-y-auto rounded-xl border border-gray-100 divide-y divide-gray-50">
+                  {result.days.map((log) => (
+                    <div
+                      key={log.date}
+                      className="flex items-center gap-3 py-2 px-3 hover:bg-gray-50 transition-colors"
+                    >
+                      <StatusDot status={log.status} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-bold text-gray-700 truncate">
+                          {new Date(log.date + "T00:00:00").toLocaleDateString("th-TH", {
+                            weekday: "short",
+                            day: "numeric",
+                            month: "short",
+                          })}
+                        </p>
+                        <p className="text-[10px] text-gray-400">
+                          {log.checkIn ?? "-"} → {log.checkOut ?? "-"}
+                          {log.otHours > 0 && (
+                            <span className="ml-2 text-amber-500 font-bold">
+                              +{log.otHours}h OT
+                            </span>
+                          )}
+                          {log.dailyAllowance && (
+                            <span className="ml-2 text-emerald-600 font-bold">+50฿</span>
+                          )}
+                        </p>
                       </div>
-                      <span className="text-xs font-bold text-amber-600 bg-amber-50 border border-amber-100 px-2 py-0.5 rounded-lg">
-                        {fmtHrMin(d.minutes)}
-                      </span>
                     </div>
                   ))}
                 </div>
@@ -969,7 +990,6 @@ function OTRangeSummary({ userId }: { userId: string }) {
             <p className="text-xs text-gray-300 mt-0.5">{fmtDateTh(fromDate)} – {fmtDateTh(toDate)}</p>
           </div>
         )}
-      </div>
     </div>
   );
 }
@@ -1592,17 +1612,13 @@ export default function ProfilePage() {
         </div>
 
 
-        {/* OT Range — Desktop: full-width above grid */}
-        <div className="hidden lg:block">
-          <OTRangeSummary userId={userId ?? ""} />
-        </div>
-
         {/* ── 2-column layout on PC ── */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           {/* LEFT: Month Nav + Stats + Calendar/List */}
           <div className="space-y-5">
-            {/* Month Navigator */}
-            <div className="flex items-center justify-between bg-white rounded-2xl border border-gray-100 shadow-sm px-4 py-3">
+            {/* Month Navigator (Only for Calendar) */}
+            {activeTab === "calendar" && (
+              <div className="flex items-center justify-between bg-white rounded-2xl border border-gray-100 shadow-sm px-4 py-3">
               <button
                 onClick={prevMonth}
                 className="w-9 h-9 rounded-xl hover:bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-700 transition-colors"
@@ -1646,6 +1662,7 @@ export default function ProfilePage() {
                 </svg>
               </button>
             </div>
+          )}
 
             {/* Calendar / List */}
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
@@ -1675,7 +1692,7 @@ export default function ProfilePage() {
                     logs={logs}
                   />
                 ) : (
-                  <ListView logs={logs} />
+                  <OTRangeSummary userId={userId ?? ""} />
                 )}
               </div>
             </div>
@@ -1735,7 +1752,6 @@ export default function ProfilePage() {
                 </span>
               </Link>
 
-              <OTRangeSummary userId={userId ?? ""} />
             </div>
 
             {/* Leave Quota */}
