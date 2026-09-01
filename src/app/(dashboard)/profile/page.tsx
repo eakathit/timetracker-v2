@@ -656,6 +656,324 @@ function LeaveQuotaSection({ userId }: { userId: string }) {
   );
 }
 
+// ─── OT Range Summary ────────────────────────────────────────────────────────
+function OTRangeSummary({ userId }: { userId: string }) {
+  const supabase = useSupabase();
+  const today = new Date();
+
+  // ── Helpers ─────────────────────────────────────────────────────────────────
+  function toDateStr(d: Date) {
+    return d.toISOString().split("T")[0];
+  }
+  function getPayrollRange() {
+    // รอบเงินเดือน: วันที่ 21 เดือนก่อน → วันที่ 20 เดือนนี้
+    const y = today.getFullYear();
+    const m = today.getMonth();
+    return { from: toDateStr(new Date(y, m - 1, 21)), to: toDateStr(new Date(y, m, 20)) };
+  }
+  function getThisMonth() {
+    const y = today.getFullYear(); const m = today.getMonth();
+    return { from: toDateStr(new Date(y, m, 1)), to: toDateStr(new Date(y, m + 1, 0)) };
+  }
+  function getLastMonth() {
+    const y = today.getFullYear(); const m = today.getMonth();
+    return { from: toDateStr(new Date(y, m - 1, 1)), to: toDateStr(new Date(y, m, 0)) };
+  }
+  function getLast30() {
+    const from = new Date(today); from.setDate(from.getDate() - 29);
+    return { from: toDateStr(from), to: toDateStr(today) };
+  }
+  function getLast3Months() {
+    return { from: toDateStr(new Date(today.getFullYear(), today.getMonth() - 2, 1)), to: toDateStr(today) };
+  }
+
+  // ── State ────────────────────────────────────────────────────────────────────
+  const payroll = getPayrollRange();
+  const [fromDate, setFromDate] = useState(payroll.from);
+  const [toDate, setToDate] = useState(payroll.to);
+  const [activePreset, setActivePreset] = useState<string>("payroll");
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<{
+    totalMinutes: number;
+    daysWithOT: number;
+    days: { date: string; minutes: number }[];
+  } | null>(null);
+  const [hasSearched, setHasSearched] = useState(false);
+
+  // ── Fetch ─────────────────────────────────────────────────────────────────────
+  const fetchOTRange = useCallback(
+    async (from: string, to: string) => {
+      if (!userId || !from || !to) return;
+      setLoading(true);
+      setHasSearched(true);
+      try {
+        const [otReqRes, timeLogRes] = await Promise.all([
+          supabase
+            .from("ot_requests")
+            .select("request_date, start_time, end_time, hours")
+            .eq("user_id", userId)
+            .eq("status", "approved")
+            .gte("request_date", from)
+            .lte("request_date", to),
+          supabase
+            .from("daily_time_logs")
+            .select("log_date, ot_hours, timeline_events")
+            .eq("user_id", userId)
+            .gte("log_date", from)
+            .lte("log_date", to),
+        ]);
+
+        const dayMap: Record<string, number> = {};
+
+        // จาก ot_requests (approved)
+        ((otReqRes.data ?? []) as OTRequestRow[]).forEach((r) => {
+          const mins = Math.round(calcOTHours(r.start_time.slice(0, 5), r.end_time.slice(0, 5)) * 60);
+          dayMap[r.request_date] = (dayMap[r.request_date] ?? 0) + mins;
+        });
+
+        // จาก daily_time_logs (timeline ot_start/ot_end หรือ ot_hours)
+        ((timeLogRes.data ?? []) as TimeLogRow[]).forEach((r) => {
+          const events = r.timeline_events ?? [];
+          const otStart = events.find((e) => e.event === "ot_start");
+          const otEnd = events.find((e) => e.event === "ot_end");
+          if (otStart && otEnd) {
+            const h = calcOTHours(
+              fmtTime(otStart.timestamp),
+              fmtTime(otEnd.timestamp),
+            );
+            const existMins = dayMap[r.log_date] ?? 0;
+            dayMap[r.log_date] = Math.max(existMins, Math.round(h * 60));
+          } else if (r.ot_hours && r.ot_hours > 0) {
+            const existMins = dayMap[r.log_date] ?? 0;
+            dayMap[r.log_date] = Math.max(existMins, Math.round(r.ot_hours * 60));
+          }
+        });
+
+        const days = Object.entries(dayMap)
+          .filter(([, m]) => m > 0)
+          .map(([date, minutes]) => ({ date, minutes }))
+          .sort((a, b) => a.date.localeCompare(b.date));
+
+        setResult({ totalMinutes: days.reduce((s, d) => s + d.minutes, 0), daysWithOT: days.length, days });
+      } catch (err) {
+        console.error("fetchOTRange error:", err);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [userId],
+  );
+
+  useEffect(() => {
+    if (userId) fetchOTRange(payroll.from, payroll.to);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
+
+  // ── Preset handler ───────────────────────────────────────────────────────────
+  function applyPreset(key: string) {
+    setActivePreset(key);
+    let r = { from: fromDate, to: toDate };
+    if (key === "thisMonth") r = getThisMonth();
+    else if (key === "lastMonth") r = getLastMonth();
+    else if (key === "last30") r = getLast30();
+    else if (key === "last3m") r = getLast3Months();
+    else if (key === "payroll") r = getPayrollRange();
+    setFromDate(r.from);
+    setToDate(r.to);
+    fetchOTRange(r.from, r.to);
+  }
+
+  // ── Format ───────────────────────────────────────────────────────────────────
+  function fmtHrMin(minutes: number) {
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    if (h === 0) return `${m} นาที`;
+    if (m === 0) return `${h} ชั่วโมง`;
+    return `${h} ชั่วโมง ${m} นาที`;
+  }
+  function fmtDateTh(dateStr: string) {
+    return new Date(dateStr + "T00:00:00").toLocaleDateString("th-TH", { day: "numeric", month: "short" });
+  }
+
+  const presets = [
+    { key: "payroll", label: "รอบเดือน" },
+    { key: "thisMonth", label: "เดือนนี้" },
+    { key: "lastMonth", label: "เดือนที่แล้ว" },
+  ];
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      {/* Header */}
+      <div className="px-5 py-4 border-b border-gray-50 flex items-center gap-3">
+        <span className="w-9 h-9 rounded-2xl bg-amber-50 text-amber-500 flex items-center justify-center flex-shrink-0">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4.5 h-4.5 w-[18px] h-[18px]">
+            <circle cx="12" cy="12" r="10" />
+            <polyline points="12 6 12 12 16 14" />
+          </svg>
+        </span>
+        <div>
+          <h3 className="text-sm font-bold text-gray-700">สรุปโอที ตามช่วงเวลา</h3>
+          <p className="text-xs text-gray-400 mt-0.5">เลือกช่วงวันที่แล้วดู OT รวมได้เลย</p>
+        </div>
+      </div>
+
+      <div className="p-5 space-y-4">
+        {/* Preset Buttons */}
+        <div className="flex gap-1.5 flex-wrap">
+          {presets.map((p) => (
+            <button
+              key={p.key}
+              onClick={() => applyPreset(p.key)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                activePreset === p.key
+                  ? "bg-amber-500 text-white shadow-sm"
+                  : "bg-gray-100 text-gray-500 hover:bg-amber-50 hover:text-amber-600"
+              }`}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Date Range Inputs */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-2">
+          <div className="flex-1 min-w-0">
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">ตั้งแต่</label>
+            <input
+              type="date"
+              value={fromDate}
+              max={toDate}
+              onChange={(e) => { setFromDate(e.target.value); setActivePreset("custom"); }}
+              className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-800 focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-400 transition-all"
+            />
+          </div>
+          <div className="hidden sm:flex items-center pb-2 text-gray-300 font-bold text-xl px-1">→</div>
+          <div className="flex-1 min-w-0">
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">ถึง</label>
+            <input
+              type="date"
+              value={toDate}
+              min={fromDate}
+              max={toDateStr(today)}
+              onChange={(e) => { setToDate(e.target.value); setActivePreset("custom"); }}
+              className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-800 focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-400 transition-all"
+            />
+          </div>
+          <button
+            onClick={() => fetchOTRange(fromDate, toDate)}
+            disabled={loading || !fromDate || !toDate}
+            className="sm:flex-shrink-0 px-4 py-2 bg-amber-500 hover:bg-amber-600 active:bg-amber-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5 h-[38px]"
+          >
+            {loading ? (
+              <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+              </svg>
+            ) : (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
+                <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+            )}
+            {loading ? "กำลังโหลด" : "ดู OT"}
+          </button>
+        </div>
+
+        {/* Skeleton */}
+        {loading && (
+          <div className="animate-pulse space-y-3">
+            <div className="h-24 bg-gray-100 rounded-2xl" />
+            <div className="h-2 bg-gray-100 rounded-full w-2/3" />
+          </div>
+        )}
+
+        {/* Result */}
+        {!loading && hasSearched && result && (
+          <div className="space-y-3">
+            {/* OT Total Card */}
+            <div className={`rounded-2xl p-4 ${result.totalMinutes > 0 ? "bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-100" : "bg-gray-50 border border-gray-100"}`}>
+              <div className="flex items-start justify-between gap-3 flex-wrap">
+                <div>
+                  <p className="text-[11px] text-gray-400 font-medium mb-1">
+                    OT รวม {fmtDateTh(fromDate)} – {fmtDateTh(toDate)}
+                  </p>
+                  {result.totalMinutes > 0 ? (
+                    <p className="text-2xl font-extrabold text-amber-600 leading-tight">
+                      {fmtHrMin(result.totalMinutes)}
+                    </p>
+                  ) : (
+                    <p className="text-xl font-extrabold text-gray-300 leading-tight">ไม่มี OT</p>
+                  )}
+                </div>
+                <div className="text-right flex-shrink-0">
+                  <p className="text-[11px] text-gray-400 font-medium mb-1">วันที่มี OT</p>
+                  <p className={`text-2xl font-extrabold leading-tight ${result.daysWithOT > 0 ? "text-amber-500" : "text-gray-300"}`}>
+                    {result.daysWithOT}
+                    <span className="text-sm font-bold ml-1">วัน</span>
+                  </p>
+                </div>
+              </div>
+
+              {/* Pill badges */}
+              {result.totalMinutes > 0 && (
+                <div className="flex gap-2 mt-3 flex-wrap">
+                  <span className="inline-flex items-center gap-1 bg-white border border-amber-200 text-amber-700 text-xs font-bold px-2.5 py-1 rounded-full">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3 h-3">
+                      <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+                    </svg>
+                    {Math.floor(result.totalMinutes / 60)} ชั่วโมง
+                  </span>
+                  {(result.totalMinutes % 60) > 0 && (
+                    <span className="inline-flex items-center gap-1 bg-white border border-orange-200 text-orange-600 text-xs font-bold px-2.5 py-1 rounded-full">
+                      {result.totalMinutes % 60} นาที
+                    </span>
+                  )}
+                </div>
+              )}
+
+
+            </div>
+
+            {/* Day-by-day */}
+            {result.days.length > 0 && (
+              <div>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider px-1 mb-1.5">รายละเอียดต่อวัน</p>
+                <div className="max-h-52 overflow-y-auto rounded-xl border border-gray-100 divide-y divide-gray-50">
+                  {result.days.map((d) => (
+                    <div key={d.date} className="flex items-center justify-between px-3 py-2.5 hover:bg-amber-50/60 transition-colors">
+                      <div className="flex items-center gap-2">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" />
+                        <span className="text-xs font-semibold text-gray-700">
+                          {new Date(d.date + "T00:00:00").toLocaleDateString("th-TH", { weekday: "short", day: "numeric", month: "short" })}
+                        </span>
+                      </div>
+                      <span className="text-xs font-bold text-amber-600 bg-amber-50 border border-amber-100 px-2 py-0.5 rounded-lg">
+                        {fmtHrMin(d.minutes)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Empty state */}
+        {!loading && hasSearched && result && result.totalMinutes === 0 && (
+          <div className="text-center py-8">
+            <div className="w-14 h-14 rounded-2xl bg-gray-50 flex items-center justify-center mx-auto mb-3">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-7 h-7 text-gray-200">
+                <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+              </svg>
+            </div>
+            <p className="text-sm font-bold text-gray-300">ไม่มี OT ในช่วงนี้</p>
+            <p className="text-xs text-gray-300 mt-0.5">{fmtDateTh(fromDate)} – {fmtDateTh(toDate)}</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function ProfilePage() {
   const supabase = useSupabase();
@@ -1235,51 +1553,6 @@ export default function ProfilePage() {
           </span>
         </Link>
 
-        {/* ── OT Calendar Button (mobile only) ── */}
-        <Link
-          href="/calendar-ot"
-          className="md:hidden flex items-center gap-3 bg-white rounded-2xl border border-gray-100 shadow-sm px-4 py-3 active:scale-[0.99] transition-transform"
-        >
-          <span className="w-11 h-11 rounded-2xl bg-amber-50 text-amber-500 flex items-center justify-center flex-shrink-0">
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.9"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="w-5 h-5"
-            >
-              <rect x="3" y="4" width="18" height="18" rx="2" />
-              <line x1="3" y1="9" x2="21" y2="9" />
-              <line x1="8" y1="2" x2="8" y2="6" />
-              <line x1="16" y1="2" x2="16" y2="6" />
-              <circle cx="16" cy="16" r="3" />
-              <polyline points="16 14.5 16 16 17 17" />
-            </svg>
-          </span>
-          <span className="flex-1 min-w-0">
-            <span className="block text-sm font-bold text-gray-800">
-              ปฏิทินโอที
-            </span>
-            <span className="block text-xs text-gray-400 mt-0.5">
-              ดู Request OT ในปฏิทิน
-            </span>
-          </span>
-          <span className="w-8 h-8 rounded-xl bg-gray-50 text-gray-400 flex items-center justify-center flex-shrink-0">
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.3"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="w-4 h-4"
-            >
-              <polyline points="9 18 15 12 9 6" />
-            </svg>
-          </span>
-        </Link>
 
         {/* ── Quick Stats Strip ── */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
@@ -1316,6 +1589,12 @@ export default function ProfilePage() {
               <p className="text-[10px] text-gray-400 font-medium">ส่งรายงาน</p>
             </div>
           </div>
+        </div>
+
+
+        {/* OT Range — Desktop: full-width above grid */}
+        <div className="hidden lg:block">
+          <OTRangeSummary userId={userId ?? ""} />
         </div>
 
         {/* ── 2-column layout on PC ── */}
@@ -1427,6 +1706,36 @@ export default function ProfilePage() {
                   />
                 )}
               </div>
+            </div>
+
+            {/* ── Mobile only: ปฏิทินโอที + OT Range ── */}
+            <div className="lg:hidden space-y-5">
+              <Link
+                href="/calendar-ot"
+                className="flex items-center gap-3 bg-white rounded-2xl border border-gray-100 shadow-sm px-4 py-3 active:scale-[0.99] transition-transform"
+              >
+                <span className="w-11 h-11 rounded-2xl bg-amber-50 text-amber-500 flex items-center justify-center flex-shrink-0">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+                    <rect x="3" y="4" width="18" height="18" rx="2" />
+                    <line x1="3" y1="9" x2="21" y2="9" />
+                    <line x1="8" y1="2" x2="8" y2="6" />
+                    <line x1="16" y1="2" x2="16" y2="6" />
+                    <circle cx="16" cy="16" r="3" />
+                    <polyline points="16 14.5 16 16 17 17" />
+                  </svg>
+                </span>
+                <span className="flex-1 min-w-0">
+                  <span className="block text-sm font-bold text-gray-800">ปฏิทินโอที</span>
+                  <span className="block text-xs text-gray-400 mt-0.5">ดู Request OT ในปฏิทิน</span>
+                </span>
+                <span className="w-8 h-8 rounded-xl bg-gray-50 text-gray-400 flex items-center justify-center flex-shrink-0">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                    <polyline points="9 18 15 12 9 6" />
+                  </svg>
+                </span>
+              </Link>
+
+              <OTRangeSummary userId={userId ?? ""} />
             </div>
 
             {/* Leave Quota */}

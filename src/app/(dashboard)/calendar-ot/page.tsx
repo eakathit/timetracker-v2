@@ -473,7 +473,6 @@ export default function CalendarOTPage() {
   const monthOTs = filteredOTRequests.filter(r => r.date.startsWith(monthStr));
   const pendingOTs = monthOTs.filter(r => r.status==="pending");
   const approvedOTs = monthOTs.filter(r => r.status==="approved");
-  const approvedHours = approvedOTs.reduce((s,r) => s+r.hours, 0);
   const listDays = Array.from(new Set(monthOTs.map(r => r.date))).sort();
 
   return (
@@ -561,17 +560,6 @@ export default function CalendarOTPage() {
             <h2 className="text-base md:text-lg font-extrabold text-gray-800 leading-tight">
               {MONTHS_TH[viewMonth]} {viewYear+543}
             </h2>
-            <div className="flex items-center justify-center gap-1.5 mt-0.5 text-[11px] md:text-xs text-gray-500 font-medium">
-              <span>{monthOTs.length} คำขอ</span>
-              <span>·</span>
-              <span className="text-emerald-600 font-semibold">{approvedHours} ชม.</span>
-              {pendingOTs.length > 0 && (
-                <>
-                  <span>·</span>
-                  <span className="text-amber-600 font-semibold">รอ {pendingOTs.length}</span>
-                </>
-              )}
-            </div>
           </div>
 
           <div className="flex items-center gap-1">
