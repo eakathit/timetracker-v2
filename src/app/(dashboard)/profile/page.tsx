@@ -725,15 +725,37 @@ function OTRangeSummary({ userId }: { userId: string }) {
 
         const logMap: Record<string, DayLog> = {};
 
-        // จาก daily_time_logs (ข้อมูลพื้นฐาน + timeline)
+        // 1. จัดกลุ่ม ot_requests ตามวันที่
+        const otRequestMap: Record<string, { start: string; end: string }[]> = {};
+        ((otReqRes.data ?? []) as OTRequestRow[]).forEach((r) => {
+          if (!otRequestMap[r.request_date]) otRequestMap[r.request_date] = [];
+          otRequestMap[r.request_date].push({
+            start: r.start_time.slice(0, 5),
+            end: r.end_time.slice(0, 5),
+          });
+        });
+
+        // 2. ประมวลผลจาก daily_time_logs (ข้อมูลพื้นฐาน + timeline)
         ((timeLogRes.data ?? []) as TimeLogRow[]).forEach((r) => {
-          let otHours = r.ot_hours ?? 0;
           const events = r.timeline_events ?? [];
           const otStart = events.find((e) => e.event === "ot_start");
           const otEnd = events.find((e) => e.event === "ot_end");
-          if (otStart && otEnd) {
-            const h = calcOTHours(fmtTime(otStart.timestamp), fmtTime(otEnd.timestamp));
-            otHours = Math.max(otHours, h);
+          const timelineOT = (otStart && otEnd) ? {
+            start: fmtTime(otStart.timestamp),
+            end: fmtTime(otEnd.timestamp)
+          } : null;
+
+          const reqPeriods = otRequestMap[r.log_date] ?? [];
+          const allPeriods = [...(timelineOT ? [timelineOT] : []), ...reqPeriods];
+
+          let combinedOT = r.ot_hours ?? 0;
+          if (allPeriods.length > 0) {
+            const fromPeriods = calcTotalOT(allPeriods);
+            if (!timelineOT && r.ot_hours && r.ot_hours > 0) {
+              combinedOT = Math.round((fromPeriods + r.ot_hours) * 100) / 100;
+            } else {
+              combinedOT = fromPeriods;
+            }
           }
 
           const isFuture = r.log_date > new Date().toISOString().split("T")[0];
@@ -741,7 +763,7 @@ function OTRangeSummary({ userId }: { userId: string }) {
             date: r.log_date,
             checkIn: fmtTime(r.first_check_in),
             checkOut: fmtTime(r.last_check_out),
-            otHours: otHours,
+            otHours: combinedOT,
             status: classifyStatus(r.first_check_in, r, isFuture),
             dailyAllowance: !!r.daily_allowance,
             workType: r.work_type as any,
@@ -751,17 +773,15 @@ function OTRangeSummary({ userId }: { userId: string }) {
           };
         });
 
-        // จาก ot_requests (approved) - นำไปบวกหรือสร้างวันใหม่ถ้าไม่มีใน log
-        ((otReqRes.data ?? []) as OTRequestRow[]).forEach((r) => {
-          const h = calcOTHours(r.start_time.slice(0, 5), r.end_time.slice(0, 5));
-          if (logMap[r.request_date]) {
-             logMap[r.request_date].otHours += h;
-          } else {
-             logMap[r.request_date] = {
-                date: r.request_date,
+        // 3. จัดการวันที่มี ot_requests แต่ไม่มีใน daily_time_logs (เช่น วันหยุดที่ไม่ได้ลงเวลา)
+        Object.keys(otRequestMap).forEach((date) => {
+          if (!logMap[date]) {
+             const combinedOT = calcTotalOT(otRequestMap[date]);
+             logMap[date] = {
+                date: date,
                 checkIn: null,
                 checkOut: null,
-                otHours: h,
+                otHours: combinedOT,
                 status: "holiday",
                 dailyAllowance: false,
                 workType: null,
@@ -919,22 +939,7 @@ function OTRangeSummary({ userId }: { userId: string }) {
                 </div>
               </div>
 
-              {/* Pill badges */}
-              {result.totalMinutes > 0 && (
-                <div className="flex gap-2 mt-3 flex-wrap">
-                  <span className="inline-flex items-center gap-1 bg-white border border-amber-200 text-amber-700 text-xs font-bold px-2.5 py-1 rounded-full">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3 h-3">
-                      <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
-                    </svg>
-                    {Math.floor(result.totalMinutes / 60)} ชั่วโมง
-                  </span>
-                  {(result.totalMinutes % 60) > 0 && (
-                    <span className="inline-flex items-center gap-1 bg-white border border-orange-200 text-orange-600 text-xs font-bold px-2.5 py-1 rounded-full">
-                      {result.totalMinutes % 60} นาที
-                    </span>
-                  )}
-                </div>
-              )}
+              {/* Removed Pill Badges */}
 
 
             </div>
