@@ -113,6 +113,13 @@ function classifyStatus(
   return h > 8 || (h === 8 && m > 15) ? "late" : "on_time";
 }
 
+function formatDecimalToHHMM(decimalHours: number) {
+  const totalMins = Math.round(decimalHours * 60);
+  const h = Math.floor(totalMins / 60);
+  const m = totalMins % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
 /** คำนวณ OT hours จาก time string "HH:mm:ss" หรือ "HH:mm" */
 function calcOTHours(startTime: string, endTime: string): number {
   const parseMin = (t: string) => {
@@ -468,7 +475,7 @@ function ListView({ logs }: { logs: DayLog[] }) {
               {log.checkIn ?? "-"} → {log.checkOut ?? "-"}
               {log.otHours > 0 && (
                 <span className="ml-2 text-amber-500 font-bold">
-                  +{log.otHours}h OT
+                  +{formatDecimalToHHMM(log.otHours)} OT
                 </span>
               )}
               {log.dailyAllowance && (
@@ -969,7 +976,7 @@ function OTRangeSummary({ userId }: { userId: string }) {
                           {log.checkIn ?? "-"} → {log.checkOut ?? "-"}
                           {log.otHours > 0 && (
                             <span className="ml-2 text-amber-500 font-bold">
-                              +{log.otHours}h OT
+                              +{formatDecimalToHHMM(log.otHours)} OT
                             </span>
                           )}
                           {log.dailyAllowance && (
