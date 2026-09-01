@@ -871,28 +871,30 @@ function OTRangeSummary({ userId }: { userId: string }) {
         </div>
 
         {/* Date Range Inputs */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-2">
-          <div className="flex-1 min-w-0">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">ตั้งแต่</label>
-            <input
-              type="date"
-              value={fromDate}
-              max={toDate}
-              onChange={(e) => { setFromDate(e.target.value); setActivePreset("custom"); }}
-              className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-800 focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-400 transition-all"
-            />
-          </div>
-          <div className="hidden sm:flex items-center pb-2 text-gray-300 font-bold text-xl px-1">→</div>
-          <div className="flex-1 min-w-0">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">ถึง</label>
-            <input
-              type="date"
-              value={toDate}
-              min={fromDate}
-              max={toDateStr(today)}
-              onChange={(e) => { setToDate(e.target.value); setActivePreset("custom"); }}
-              className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-800 focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-400 transition-all"
-            />
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-3">
+          <div className="flex flex-row items-end gap-2 flex-1 min-w-0">
+            <div className="flex-1 min-w-0">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">ตั้งแต่</label>
+              <input
+                type="date"
+                value={fromDate}
+                max={toDate}
+                onChange={(e) => { setFromDate(e.target.value); setActivePreset("custom"); }}
+                className="w-full px-2 sm:px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs sm:text-sm font-medium text-gray-800 focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-400 transition-all"
+              />
+            </div>
+            <div className="flex items-center pb-2 text-gray-300 font-bold text-lg px-1">→</div>
+            <div className="flex-1 min-w-0">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">ถึง</label>
+              <input
+                type="date"
+                value={toDate}
+                min={fromDate}
+                max={toDateStr(today)}
+                onChange={(e) => { setToDate(e.target.value); setActivePreset("custom"); }}
+                className="w-full px-2 sm:px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs sm:text-sm font-medium text-gray-800 focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-400 transition-all"
+              />
+            </div>
           </div>
           <button
             onClick={() => fetchOTRange(fromDate, toDate)}
