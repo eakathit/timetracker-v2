@@ -1110,26 +1110,17 @@ function OTRangeSummary({ userId }: { userId: string }) {
           <div className="space-y-3">
             {/* OT Total Card */}
             <div className={`rounded-2xl p-4 ${result.totalMinutes > 0 ? "bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-100" : "bg-gray-50 border border-gray-100"}`}>
-              <div className="flex items-start justify-between gap-3 flex-wrap">
-                <div>
-                  <p className="text-[11px] text-gray-400 font-medium mb-1">
-                    OT รวม {fmtDateTh(fromDate)} – {fmtDateTh(toDate)}
+              <div>
+                <p className="text-[11px] text-gray-400 font-medium mb-1">
+                  OT รวม {fmtDateTh(fromDate)} – {fmtDateTh(toDate)}
+                </p>
+                {result.totalMinutes > 0 ? (
+                  <p className="text-2xl font-extrabold text-amber-600 leading-tight">
+                    {fmtHrMin(result.totalMinutes)}
                   </p>
-                  {result.totalMinutes > 0 ? (
-                    <p className="text-2xl font-extrabold text-amber-600 leading-tight">
-                      {fmtHrMin(result.totalMinutes)}
-                    </p>
-                  ) : (
-                    <p className="text-xl font-extrabold text-gray-300 leading-tight">ไม่มี OT</p>
-                  )}
-                </div>
-                <div className="text-right flex-shrink-0">
-                  <p className="text-[11px] text-gray-400 font-medium mb-1">วันที่มี OT</p>
-                  <p className={`text-2xl font-extrabold leading-tight ${result.daysWithOT > 0 ? "text-amber-500" : "text-gray-300"}`}>
-                    {result.daysWithOT}
-                    <span className="text-sm font-bold ml-1">วัน</span>
-                  </p>
-                </div>
+                ) : (
+                  <p className="text-xl font-extrabold text-gray-300 leading-tight">ไม่มี OT</p>
+                )}
               </div>
 
               {/* Removed Pill Badges */}
