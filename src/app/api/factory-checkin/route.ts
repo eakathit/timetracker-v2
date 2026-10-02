@@ -87,12 +87,25 @@ export async function POST(req: NextRequest) {
     // ── 4. เช็ค check-in ซ้ำก่อน (ก่อน consume nonce) ────────────────────
     const { data: existing } = await supabase
       .from("daily_time_logs")
-      .select("id, first_check_in")
+      .select("id, first_check_in, work_type, last_check_out, timeline_events, status")
       .eq("user_id", user.id)
       .eq("log_date", today)
       .maybeSingle();
 
-    if (existing?.first_check_in) {
+    // เช็คกรณีเคยทำงาน On-site (หรือ WFH ผ่าน On-site) มาก่อนในวันนี้
+    // และได้ Check-out จาก On-site แล้ว → อนุญาตให้ Check-in เข้าโรงงานต่อได้
+    const isTransitionFromOnsite =
+      !!existing?.first_check_in &&
+      (existing.work_type === "on_site" || existing.work_type === "mixed") &&
+      existing.last_check_out !== null;
+
+    if (existing?.first_check_in && !isTransitionFromOnsite) {
+      if (existing.work_type === "on_site" && existing.last_check_out === null) {
+        return NextResponse.json(
+          { error: "คุณมีห้อง On-site ที่ยังไม่ได้ Check-out กรุณา Check-out จาก On-site ก่อนเข้าโรงงาน" },
+          { status: 409 }
+        );
+      }
       return NextResponse.json(
         { error: "คุณ Check-in วันนี้ไปแล้ว" },
         { status: 409 }
@@ -156,17 +169,34 @@ export async function POST(req: NextRequest) {
     };
 
     if (existing) {
-      await supabase
-        .from("daily_time_logs")
-        .update({
-          first_check_in:  now,
-          status:          attendanceStatus,
-          work_type:       "in_factory",
-          shift_type:      shiftType,
-          dayoff_credit:   dayoffCredit,
-          timeline_events: [newEvent],
-        })
-        .eq("id", existing.id);
+      if (isTransitionFromOnsite) {
+        // ต่อกะจาก On-site (เช่น WFH เช้ามืด แล้วเข้าโรงงานตอน 08:30)
+        // คง first_check_in และ status เดิมไว้, ปรับเป็น mixed, ล้าง last_check_out เพื่อให้สถานะกลับมาทำงาน
+        await supabase
+          .from("daily_time_logs")
+          .update({
+            work_type:        "mixed",
+            last_check_out:   null,
+            auto_checked_out: false,
+            timeline_events:  [
+              ...((existing.timeline_events as unknown[]) ?? []),
+              newEvent,
+            ],
+          })
+          .eq("id", existing.id);
+      } else {
+        await supabase
+          .from("daily_time_logs")
+          .update({
+            first_check_in:  now,
+            status:          attendanceStatus,
+            work_type:       "in_factory",
+            shift_type:      shiftType,
+            dayoff_credit:   dayoffCredit,
+            timeline_events: [newEvent],
+          })
+          .eq("id", existing.id);
+      }
     } else {
       await supabase.from("daily_time_logs").insert({
         user_id:         user.id,

@@ -169,8 +169,8 @@ const calcOtHours = (otStart: string | null, otEnd: string | null): number => {
 
 const HOLIDAY_SWAP_MIN_NET_HOURS = 8;
 
-const canClaimHolidayDayoff = (role: string | undefined, netHours: number) =>
-  role === "manager" || netHours >= HOLIDAY_SWAP_MIN_NET_HOURS;
+const canClaimHolidayDayoff = (_role: string | undefined, netHours: number) =>
+  netHours >= HOLIDAY_SWAP_MIN_NET_HOURS;
 
 // นับเวลาผ่านไปแบบ live
 const elapsedStr = (isoStart: string | null): string => {

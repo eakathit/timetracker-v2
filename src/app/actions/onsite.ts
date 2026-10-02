@@ -57,13 +57,18 @@ function getBangkokDateFromIso(iso: string): string {
 
 function getCrossDayCheckoutError(
   groupCheckIn: string | null,
-  today: string,
+  nowIso?: string,
 ): string | null {
   if (!groupCheckIn) return "Session has no group check-in time";
 
-  const sessionCheckInDate = getBangkokDateFromIso(groupCheckIn);
-  if (sessionCheckInDate !== today) {
-    return `ห้อง On-site นี้เปิดค้างจากวันที่ ${sessionCheckInDate} กรุณาให้ Admin ปิดห้องด้วยวันที่และเวลาที่ถูกต้อง`;
+  const checkInMs = new Date(groupCheckIn).getTime();
+  const nowMs = nowIso ? new Date(nowIso).getTime() : Date.now();
+  const diffHours = (nowMs - checkInMs) / (1000 * 60 * 60);
+
+  // ป้องกันเคสลืมปิดห้องเกิน 24 ชม.
+  if (diffHours > 24) {
+    const sessionCheckInDate = getBangkokDateFromIso(groupCheckIn);
+    return `ห้อง On-site นี้เปิดค้างเกิน 24 ชั่วโมง (ตั้งแต่ ${sessionCheckInDate}) กรุณาให้ Admin ปิดห้องด้วยวันที่และเวลาที่ถูกต้อง`;
   }
 
   return null;
@@ -280,7 +285,6 @@ export async function getTodayActiveSession(): Promise<
       `,
       )
       .in("id", sessionIds)
-      .eq("session_date", today)
       .neq("status", "closed")
       .order("created_at", { ascending: false })
       .limit(1);
@@ -328,17 +332,23 @@ function calcDailyAllowance(checkInIso: string): boolean {
 
 // Helper: คำนวณ OT On-site นับจาก 17:30 Bangkok (UTC+7)
 // ⚠️ ใช้ UTC+7 offset ตรงๆ ไม่ใช้ setHours() เพราะ server อาจ run บน UTC
-function calcOnsiteOTHours(checkoutIso: string): number {
+function calcOnsiteOTHours(checkoutIso: string, checkInIso?: string): number {
   const checkout = new Date(checkoutIso);
-  // หา "YYYY-MM-DD" ตาม Bangkok timezone จาก checkout timestamp
   const BANGKOK_OFFSET_MS = 7 * 60 * 60 * 1000;
-  const bangkokDateStr = new Date(checkout.getTime() + BANGKOK_OFFSET_MS)
+  // ใช้วันที่ของ checkIn เป็นหลัก เพื่อรองรับการทำงานข้ามวัน (ถ้าไม่มีให้ fallback เป็น checkout)
+  const baseDateIso = checkInIso ?? checkoutIso;
+  const bangkokDateStr = new Date(new Date(baseDateIso).getTime() + BANGKOK_OFFSET_MS)
     .toISOString()
     .split("T")[0]; // "YYYY-MM-DD" ใน Bangkok
   // 17:30 Bangkok = 10:30 UTC (UTC+7 offset = -7h)
   const otStart = new Date(bangkokDateStr + "T10:30:00.000Z");
-  if (checkout <= otStart) return 0;
-  const diffHours = (checkout.getTime() - otStart.getTime()) / (1000 * 60 * 60);
+
+  // ถ้าเวลา check-in หลัง 17:30 ให้นับ OT จากเวลา check-in
+  const checkIn = checkInIso ? new Date(checkInIso) : null;
+  const effectiveStart = checkIn && checkIn > otStart ? checkIn : otStart;
+
+  if (checkout <= effectiveStart) return 0;
+  const diffHours = (checkout.getTime() - effectiveStart.getTime()) / (1000 * 60 * 60);
   return Math.round(diffHours * 100) / 100;
 }
 
@@ -509,6 +519,7 @@ export async function groupCheckOut(
   checkoutLat?: number | null,
   checkoutLng?: number | null,
   recordOT: boolean = true,
+  claimedMemberUserIds?: string[],
 ): Promise<ActionResult> {
   try {
     const supabase = await getSupabaseServer();
@@ -523,7 +534,7 @@ export async function groupCheckOut(
     const { data: sessions, error: sessionErr } = await supabase
       .from("onsite_sessions")
       .select(
-        "id, status, group_check_in, members:onsite_session_members(user_id, checkout_type)",
+        "id, status, group_check_in, session_date, members:onsite_session_members(user_id, checkout_type, checkin_at)",
       )
       .eq("id", sessionId)
       .eq("leader_id", user.id)
@@ -536,12 +547,15 @@ export async function groupCheckOut(
     if (session.status !== "checked_in")
       return { success: false, error: "Session ยังไม่ได้ Check-in" };
 
-    const crossDayError = getCrossDayCheckoutError(session.group_check_in, today);
+    const crossDayError = getCrossDayCheckoutError(session.group_check_in, now);
     if (crossDayError) return { success: false, error: crossDayError };
 
-    const pendingUids = (
-      session.members as { user_id: string; checkout_type: string }[]
-    )
+    const sessionLogDate =
+      session.session_date ||
+      (session.group_check_in ? getBangkokDateFromIso(session.group_check_in) : today);
+
+    const sessionMembers = (session.members as { user_id: string; checkout_type: string; checkin_at: string | null }[]) ?? [];
+    const pendingUids = sessionMembers
       .filter((m) => m.checkout_type === "pending")
       .map((m) => m.user_id);
 
@@ -558,7 +572,7 @@ export async function groupCheckOut(
 
     if (pendingUids.length > 0) {
       // ── คำนวณ OT ก่อน checkoutEvent ──────────────────────────
-      const rawOT = recordOT ? calcOnsiteOTHours(now) : 0;
+      const rawOT = recordOT ? calcOnsiteOTHours(now, session.group_check_in ?? undefined) : 0;
       const adjHours = recordOT ? Math.max(0, rawOT - breakMinutes / 60) : 0;
       const otHours = Math.round(adjHours * 100) / 100;
 
@@ -578,12 +592,16 @@ export async function groupCheckOut(
 
       const { data: existingLogs } = await supabase
         .from("daily_time_logs")
-        .select("user_id, timeline_events, first_check_in, work_type")
+        .select("user_id, timeline_events, first_check_in, work_type, shift_type, dayoff_credit")
         .in("user_id", pendingUids)
-        .eq("log_date", today);
+        .eq("log_date", sessionLogDate);
 
       const existingMap = new Map(
         (existingLogs ?? []).map((l) => [l.user_id, l]),
+      );
+
+      const memberCheckinMap = new Map<string, string | null>(
+        sessionMembers.map((m) => [m.user_id, m.checkin_at]),
       );
 
       await supabase.from("daily_time_logs").upsert(
@@ -591,12 +609,32 @@ export async function groupCheckOut(
           const existing = existingMap.get(uid);
           const currentWorkType = existing?.work_type ?? "on_site";
 
+          // คำนวณสิทธิ์แลกวันหยุด (ถ้าเป็นกะวันหยุด) ครบ 8 ชม.
+          let dayoffCreditUpdate = existing?.dayoff_credit;
+          if (existing?.shift_type === "holiday") {
+            const memberCheckIn = memberCheckinMap.get(uid) ?? existing.first_check_in ?? session.group_check_in ?? now;
+            const netHours = Math.max(
+              0,
+              (new Date(now).getTime() - new Date(memberCheckIn).getTime()) / 3_600_000 - 1,
+            );
+            if (netHours >= 8) {
+              if (claimedMemberUserIds !== undefined) {
+                dayoffCreditUpdate = claimedMemberUserIds.includes(uid) ? "earned" : "forfeited";
+              } else {
+                dayoffCreditUpdate = "earned";
+              }
+            } else {
+              dayoffCreditUpdate = "forfeited";
+            }
+          }
+
           return {
             user_id: uid,
-            log_date: today,
-            work_type: currentWorkType, // ← ใช้ตรงนี้
+            log_date: sessionLogDate,
+            work_type: currentWorkType,
             last_check_out: now,
             ot_hours: otHours,
+            ...(dayoffCreditUpdate ? { dayoff_credit: dayoffCreditUpdate } : {}),
             timeline_events: [
               ...(existing?.timeline_events ?? []),
               checkoutEvent,
@@ -621,6 +659,7 @@ export async function earlyLeave(
   note: string,
   checkoutLat?: number | null,
   checkoutLng?: number | null,
+  claimDayoff?: boolean,
 ): Promise<ActionResult> {
   try {
     const supabase = await getSupabaseServer();
@@ -634,7 +673,7 @@ export async function earlyLeave(
 
     const { data: session, error: sessionErr } = await supabase
       .from("onsite_sessions")
-      .select("id, status, group_check_in")
+      .select("id, status, group_check_in, session_date")
       .eq("id", sessionId)
       .maybeSingle();
     if (sessionErr) return { success: false, error: sessionErr.message };
@@ -643,8 +682,12 @@ export async function earlyLeave(
       return { success: false, error: "Session ยังไม่ได้ Check-in" };
     }
 
-    const crossDayError = getCrossDayCheckoutError(session.group_check_in, today);
+    const crossDayError = getCrossDayCheckoutError(session.group_check_in, now);
     if (crossDayError) return { success: false, error: crossDayError };
+
+    const sessionLogDate =
+      session.session_date ||
+      (session.group_check_in ? getBangkokDateFromIso(session.group_check_in) : today);
 
     const { error: memberErr } = await supabase
       .from("onsite_session_members")
@@ -661,16 +704,30 @@ export async function earlyLeave(
 
     const { data: existingRows } = await supabase
       .from("daily_time_logs")
-      .select("timeline_events")
+      .select("timeline_events, first_check_in, shift_type, dayoff_credit")
       .eq("user_id", user.id)
-      .eq("log_date", today)
+      .eq("log_date", sessionLogDate)
       .limit(1);
 
     const existing =
       existingRows && existingRows.length > 0 ? existingRows[0] : null;
 
-    // ── เปลี่ยนจาก otHours → rawOtHours ──────────────────────────
-    const rawOtHours = calcOnsiteOTHours(now); // นับจาก 17:30
+    // ── เปลี่ยนจาก otHours → rawOtHours (รองรับข้ามวัน) ──────────────────────────
+    const rawOtHours = calcOnsiteOTHours(now, session.group_check_in ?? undefined);
+
+    let extraUpdate: Record<string, unknown> = {};
+    if (existing?.shift_type === "holiday") {
+      const checkInTime = existing?.first_check_in ?? session.group_check_in ?? now;
+      const netHours = Math.max(
+        0,
+        (new Date(now).getTime() - new Date(checkInTime).getTime()) / 3_600_000 - 1,
+      );
+      if (netHours >= 8) {
+        extraUpdate.dayoff_credit = claimDayoff === true ? "earned" : "forfeited";
+      } else {
+        extraUpdate.dayoff_credit = "forfeited";
+      }
+    }
 
     const timeline = [
       ...(existing?.timeline_events ?? []),
@@ -699,11 +756,12 @@ export async function earlyLeave(
       .from("daily_time_logs")
       .update({
         last_check_out: now,
-        ot_hours: rawOtHours, // ← เปลี่ยนจาก otHours
+        ot_hours: rawOtHours,
+        ...extraUpdate,
         timeline_events: timeline,
       })
       .eq("user_id", user.id)
-      .eq("log_date", today);
+      .eq("log_date", sessionLogDate);
 
     return { success: true };
   } catch (err) {
@@ -1138,13 +1196,14 @@ export async function returnToFactory(
     } = await supabase.auth.getUser();
     if (!user) return { success: false, error: "Unauthorized" };
 
+    const now = new Date().toISOString();
     const today = getLocalToday();
 
     if (scope === "group") {
       // ── ตรวจสิทธิ์ Leader ─────────────────────────────────────────────────
       const { data: sessions } = await supabase
         .from("onsite_sessions")
-        .select("id, status, group_check_in, members:onsite_session_members(user_id, checkout_type)")
+        .select("id, status, group_check_in, session_date, members:onsite_session_members(user_id, checkout_type)")
         .eq("id", sessionId)
         .eq("leader_id", user.id)
         .limit(1);
@@ -1156,8 +1215,12 @@ export async function returnToFactory(
       if (session.status !== "checked_in")
         return { success: false, error: "Session ยังไม่ได้ Check-in" };
 
-      const crossDayError = getCrossDayCheckoutError(session.group_check_in, today);
+      const crossDayError = getCrossDayCheckoutError(session.group_check_in, now);
       if (crossDayError) return { success: false, error: crossDayError };
+
+      const sessionLogDate =
+        session.session_date ||
+        (session.group_check_in ? getBangkokDateFromIso(session.group_check_in) : today);
 
       // รวบ pending UIDs
       const pendingUids = (
@@ -1176,14 +1239,14 @@ export async function returnToFactory(
       // ── ปิด session ทันที แต่ไม่ตั้ง group_check_out ─────────────────────
       await supabase
         .from("onsite_sessions")
-        .update({ status: "closed", closed_at: new Date().toISOString() })
+        .update({ status: "closed", closed_at: now })
         .eq("id", sessionId);
 
       // ── เปลี่ยน daily_time_logs → work_type='mixed', ล้าง last_check_out ─
       if (pendingUids.length > 0) {
         const returnEvent = {
           event: "onsite_return_to_factory",
-          timestamp: new Date().toISOString(),
+          timestamp: now,
           session_id: sessionId,
           note: "กลับโรงงาน — รอ Auto-checkout 17:30",
         };
@@ -1192,7 +1255,7 @@ export async function returnToFactory(
           .from("daily_time_logs")
           .select("user_id, timeline_events, work_type")
           .in("user_id", pendingUids)
-          .eq("log_date", today);
+          .eq("log_date", sessionLogDate);
 
         const existingMap = new Map(
           (existingLogs ?? []).map((l) => [l.user_id, l]),
@@ -1213,7 +1276,7 @@ export async function returnToFactory(
                 ],
               })
               .eq("user_id", uid)
-              .eq("log_date", today);
+              .eq("log_date", sessionLogDate);
           }),
         );
       }
@@ -1224,7 +1287,7 @@ export async function returnToFactory(
     // ── scope = 'member' ──────────────────────────────────────────────────────
     const { data: memberSession, error: memberSessionErr } = await supabase
       .from("onsite_sessions")
-      .select("id, status, group_check_in")
+      .select("id, status, group_check_in, session_date")
       .eq("id", sessionId)
       .maybeSingle();
     if (memberSessionErr) return { success: false, error: memberSessionErr.message };
@@ -1232,8 +1295,12 @@ export async function returnToFactory(
     if (memberSession.status !== "checked_in")
       return { success: false, error: "Session ยังไม่ได้ Check-in" };
 
-    const crossDayError = getCrossDayCheckoutError(memberSession.group_check_in, today);
+    const crossDayError = getCrossDayCheckoutError(memberSession.group_check_in, now);
     if (crossDayError) return { success: false, error: crossDayError };
+
+    const sessionLogDate =
+      memberSession.session_date ||
+      (memberSession.group_check_in ? getBangkokDateFromIso(memberSession.group_check_in) : today);
 
     const { error: memberErr } = await supabase
       .from("onsite_session_members")
@@ -1246,7 +1313,7 @@ export async function returnToFactory(
 
     const returnEvent = {
       event: "onsite_return_to_factory",
-      timestamp: new Date().toISOString(),
+      timestamp: now,
       session_id: sessionId,
       note: "กลับโรงงาน — รอ Auto-checkout 17:30",
     };
@@ -1255,7 +1322,7 @@ export async function returnToFactory(
       .from("daily_time_logs")
       .select("timeline_events, work_type")
       .eq("user_id", user.id)
-      .eq("log_date", today)
+      .eq("log_date", sessionLogDate)
       .limit(1);
 
     const existing = existingRows?.[0];
@@ -1272,7 +1339,7 @@ export async function returnToFactory(
         ],
       })
       .eq("user_id", user.id)
-      .eq("log_date", today);
+      .eq("log_date", sessionLogDate);
 
     return { success: true };
   } catch (err) {

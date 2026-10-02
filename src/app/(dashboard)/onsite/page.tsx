@@ -259,12 +259,10 @@ export default function OnsitePage() {
 
   if (loading) return <OnsitePageSkeleton />;
   
-  // ── แยก today vs history ──────────────────────────────────────────────────
-  const todaySessions   = sessions.filter((s) => s.session_date === today);
-  const historySessions = sessions.filter((s) => s.session_date !== today);
-
-  // ── Active session วันนี้ (open หรือ checked_in) ─────────────────────────
-  const activeSession = todaySessions.find((s) => s.status !== "closed");
+  // ── แยก today vs history (รองรับห้องข้ามวันที่ยังไม่ปิด) ─────────────────────
+  const activeSession   = sessions.find((s) => s.status !== "closed");
+  const todaySessions   = sessions.filter((s) => s.session_date === today || s.id === activeSession?.id);
+  const historySessions = sessions.filter((s) => s.session_date !== today && s.id !== activeSession?.id);
 
   return (
     <div className="min-h-screen bg-gray-50 pb-32">

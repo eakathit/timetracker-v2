@@ -29,6 +29,7 @@ import type {
   OnsiteReportDetail,
 } from "@/types/onsite";
 import SessionDetailLoading from "./loading";
+import HolidayCheckoutModal from "@/components/HolidayCheckoutModal";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const getFullName = (m: OnsiteSessionMemberWithProfile) =>
@@ -54,13 +55,18 @@ const getInitials = (m: OnsiteSessionMemberWithProfile) => {
     : "?";
 };
 
-// คำนวณ OT On-site เหมือนใน actions (นับจาก 17:30, floor nearest 0.5)
-function calcOnsiteOTHoursPreview(checkoutIso: string): number {
+// คำนวณ OT On-site เหมือนใน actions (นับจาก 17:30 ของวัน Check-in, floor nearest 0.5)
+function calcOnsiteOTHoursPreview(checkoutIso: string, checkInIso?: string): number {
   const checkout = new Date(checkoutIso);
-  const otStart  = new Date(checkout);
+  const baseDate = checkInIso ? new Date(checkInIso) : new Date(checkout);
+  const otStart  = new Date(baseDate);
   otStart.setHours(17, 30, 0, 0);
-  if (checkout <= otStart) return 0;
-  const diffHours = (checkout.getTime() - otStart.getTime()) / (1000 * 60 * 60);
+
+  const checkIn = checkInIso ? new Date(checkInIso) : null;
+  const effectiveStart = checkIn && checkIn > otStart ? checkIn : otStart;
+
+  if (checkout <= effectiveStart) return 0;
+  const diffHours = (checkout.getTime() - effectiveStart.getTime()) / (1000 * 60 * 60);
   return Math.floor(diffHours * 2) / 2;
 }
 
@@ -337,7 +343,166 @@ function EarlyLeaveModal({
   );
 }
 
-// ─── OT Break Modal (ใช้แทน GroupCheckoutModal เมื่อมี OT) ──────────────────
+// ─── Group Holiday Claim Modal (Leader เลือกสมาชิกที่ต้องการแลกวันหยุด) ───────────
+function GroupHolidayClaimModal({
+  eligibleMembers,
+  holidayName,
+  onConfirm,
+  onCancel,
+  loading,
+}: {
+  eligibleMembers: OnsiteSessionMemberWithProfile[];
+  holidayName: string | null;
+  onConfirm: (claimedUserIds: string[]) => void;
+  onCancel: () => void;
+  loading: boolean;
+}) {
+  const [selectedIds, setSelectedIds] = useState<string[]>(() =>
+    eligibleMembers.map((m) => m.user_id),
+  );
+
+  const toggleMember = (uid: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(uid) ? prev.filter((id) => id !== uid) : [...prev, uid],
+    );
+  };
+
+  const selectAll = () => {
+    if (selectedIds.length === eligibleMembers.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(eligibleMembers.map((m) => m.user_id));
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div className="w-full max-w-md bg-white rounded-3xl p-6 space-y-4 max-h-[90vh] flex flex-col">
+        {/* Header */}
+        <div className="text-center flex-shrink-0">
+          <div className="w-12 h-12 bg-amber-50 rounded-2xl flex items-center justify-center mx-auto mb-2 text-2xl">
+            🎁
+          </div>
+          <h3 className="text-base font-extrabold text-gray-800">
+            เลือกผู้ต้องการแลกวันหยุด
+          </h3>
+          <p className="text-xs text-amber-600 font-semibold mt-0.5">
+            {holidayName ?? "กะวันหยุดพิเศษ"} (ทำงานครบ 8 ชม.)
+          </p>
+          <p className="text-xs text-gray-400 mt-1">
+            สมาชิกที่ไม่ถูกเลือกจะได้รับเป็นค่าตอบแทนวันหยุดตามปกติ
+          </p>
+        </div>
+
+        {/* Action Toggle All */}
+        <div className="flex items-center justify-between px-1 flex-shrink-0">
+          <span className="text-xs font-bold text-gray-500">
+            เลือกแล้ว {selectedIds.length}/{eligibleMembers.length} คน
+          </span>
+          <button
+            type="button"
+            onClick={selectAll}
+            className="text-xs font-bold text-sky-600 hover:text-sky-700"
+          >
+            {selectedIds.length === eligibleMembers.length
+              ? "ยกเลิกทั้งหมด"
+              : "เลือกทั้งหมด"}
+          </button>
+        </div>
+
+        {/* Member Checklist List */}
+        <div className="flex-1 overflow-y-auto space-y-2 pr-1 divide-y divide-gray-50">
+          {eligibleMembers.map((member) => {
+            const isChecked = selectedIds.includes(member.user_id);
+            const fullName = getFullName(member);
+            const dept = member.profile?.department || "ไม่ระบุแผนก";
+
+            return (
+              <div
+                key={member.user_id}
+                onClick={() => toggleMember(member.user_id)}
+                className={`flex items-center justify-between p-3 rounded-2xl cursor-pointer transition-all border ${
+                  isChecked
+                    ? "bg-amber-50/60 border-amber-200"
+                    : "bg-gray-50 border-gray-100 hover:bg-gray-100/70"
+                }`}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div
+                    className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold text-white flex-shrink-0 ${
+                      AVATAR_COLORS[
+                        member.user_id.charCodeAt(0) % AVATAR_COLORS.length
+                      ]
+                    }`}
+                  >
+                    {member.profile?.avatar_url ? (
+                      <img
+                        src={member.profile.avatar_url}
+                        alt=""
+                        className="w-full h-full rounded-xl object-cover"
+                      />
+                    ) : (
+                      fullName.charAt(0)
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-gray-800 truncate">
+                      {fullName}
+                    </p>
+                    <p className="text-[11px] text-gray-400 truncate">{dept}</p>
+                  </div>
+                </div>
+
+                <div className="flex-shrink-0 ml-3">
+                  <div
+                    className={`w-6 h-6 rounded-lg flex items-center justify-center border transition-all ${
+                      isChecked
+                        ? "bg-amber-500 border-amber-500 text-white"
+                        : "border-gray-300 bg-white"
+                    }`}
+                  >
+                    {isChecked && (
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="3"
+                        className="w-3.5 h-3.5"
+                      >
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Buttons */}
+        <div className="flex gap-3 pt-2 flex-shrink-0">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={loading}
+            className="flex-1 py-3 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition"
+          >
+            ยกเลิก
+          </button>
+          <button
+            type="button"
+            onClick={() => onConfirm(selectedIds)}
+            disabled={loading}
+            className="flex-1 py-3 rounded-xl bg-amber-500 text-white text-sm font-bold hover:bg-amber-600 active:scale-98 transition shadow-sm shadow-amber-200"
+          >
+            ต่อไป
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Group Checkout Confirm Modal ─────────────────────────────────────────────
 function GroupCheckoutModal({
   memberCount,
@@ -1083,6 +1248,12 @@ export default function OnsiteSessionPage() {
   const [showReturnToFactory, setShowReturnToFactory]     = useState(false);
   const [showOnsiteReport, setShowOnsiteReport]           = useState(false);
   const [showCancelSession, setShowCancelSession]         = useState(false);
+  const [showHolidayModal, setShowHolidayModal]           = useState(false);
+  const [showGroupHolidayModal, setShowGroupHolidayModal] = useState(false);
+  const [eligibleHolidayMembers, setEligibleHolidayMembers] = useState<OnsiteSessionMemberWithProfile[]>([]);
+  const [pendingClaimedUserIds, setPendingClaimedUserIds] = useState<string[]>([]);
+  const [pendingEarlyLeaveNote, setPendingEarlyLeaveNote] = useState<string>("");
+  const [holidayName, setHolidayName]                     = useState<string | null>(null);
   const [pendingReturnScope, setPendingReturnScope]       = useState<"group" | "member" | null>(null);
 
   const [driverPicker, setDriverPicker] = useState<{
@@ -1150,6 +1321,13 @@ const handleSetDriver = async (trip: "to" | "from", userId: string | null) => {
   // ── helper: เวลาปัจจุบันก่อน 17:30 ไหม ──────────────────────────────────
   const isBeforeEOD = () => {
     const now = new Date();
+    if (!session?.group_check_in) return true;
+
+    // ถ้าเป็นการทำงานข้ามวัน (คนละวันกับเวลา check-in) ไม่ถือเป็น before EOD
+    const checkInDate = new Date(session.group_check_in).toLocaleDateString("en-CA", { timeZone: "Asia/Bangkok" });
+    const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Bangkok" });
+    if (checkInDate !== today) return false;
+
     const cutoff = new Date(now);
     cutoff.setHours(17, 30, 0, 0);
     return now < cutoff;
@@ -1170,41 +1348,91 @@ const handleSetDriver = async (trip: "to" | "from", userId: string | null) => {
   const gpsPromiseRef = useRef<Promise<{ lat: number; lng: number } | null> | null>(null);
 
   const handleGroupCheckOut = async (breakMinutes: number = 0, recordOT: boolean = true) => {
-  setShowGroupCheckout(false);
-  setShowOTConfirm(false);
-  setShowOTBreak(false);
-  // GPS ถูกยิงไปแล้วตั้งแต่กดปุ่ม Checkout ครั้งแรก
-  // await ตรงนี้มักจะ resolve ทันทีเพราะ user ใช้เวลาอ่าน modal ไปแล้ว
-  const gps = gpsPromiseRef.current ? await gpsPromiseRef.current : null;
-  gpsPromiseRef.current = null;
-  startTransition(async () => {
-    const res = await groupCheckOut(sessionId, breakMinutes, gps?.lat, gps?.lng, recordOT);
-    if (res.success) await loadSession();
-    else setError(res.error ?? "Check-out ไม่สำเร็จ");
-  });
-};
+    setShowGroupCheckout(false);
+    setShowOTConfirm(false);
+    setShowOTBreak(false);
+    setShowGroupHolidayModal(false);
+    // GPS ถูกยิงไปแล้วตั้งแต่กดปุ่ม Checkout ครั้งแรก
+    // await ตรงนี้มักจะ resolve ทันทีเพราะ user ใช้เวลาอ่าน modal ไปแล้ว
+    const gps = gpsPromiseRef.current ? await gpsPromiseRef.current : null;
+    gpsPromiseRef.current = null;
+    startTransition(async () => {
+      const res = await groupCheckOut(
+        sessionId,
+        breakMinutes,
+        gps?.lat,
+        gps?.lng,
+        recordOT,
+        pendingClaimedUserIds,
+      );
+      if (res.success) await loadSession();
+      else setError(res.error ?? "Check-out ไม่สำเร็จ");
+    });
+  };
 
-const handleCheckOutClick = () => {
-  // เริ่ม GPS ทันทีที่กดปุ่ม — ทำ background ไม่บล็อก UI
-  gpsPromiseRef.current = getGPS();
-  if (isBeforeEOD()) {
-    setPendingReturnScope("group");
-    setShowReturnToFactory(true);
-    return;
-  }
-  const otHours = calcOnsiteOTHoursPreview(new Date().toISOString());
-  if (otHours > 0) {
-    setShowOTConfirm(true);
-  } else {
-    setShowGroupCheckout(true);
-  }
-};
+  const handleCheckOutClick = async () => {
+    // เริ่ม GPS ทันทีที่กดปุ่ม — ทำ background ไม่บล็อก UI
+    gpsPromiseRef.current = getGPS();
+    if (isBeforeEOD()) {
+      setPendingReturnScope("group");
+      setShowReturnToFactory(true);
+      return;
+    }
+    await checkHolidayAndProceed();
+  };
 
-  const proceedGroupCheckout = () => {
+  const proceedGroupCheckout = async () => {
     setShowReturnToFactory(false);
-    const otHours = calcOnsiteOTHoursPreview(new Date().toISOString());
-    if (otHours > 0) setShowOTConfirm(true);
-    else setShowGroupCheckout(true);
+    await checkHolidayAndProceed();
+  };
+
+  const checkHolidayAndProceed = async () => {
+    const now = new Date();
+    const sessionDate =
+      session?.session_date ||
+      (session?.group_check_in
+        ? new Date(session.group_check_in).toLocaleDateString("en-CA", { timeZone: "Asia/Bangkok" })
+        : new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Bangkok" }));
+
+    const holidayInfo = await checkHolidayStatus(sessionDate);
+
+    if (holidayInfo.isHoliday && session) {
+      // ค้นหาสมาชิกในห้องที่ยัง pending และทำงานครบ 8 ชม.
+      const eligible = pendingMembers.filter((m) => {
+        const checkIn = m.checkin_at ?? session.group_check_in;
+        if (!checkIn) return false;
+        const netHours = Math.max(
+          0,
+          (now.getTime() - new Date(checkIn).getTime()) / 3_600_000 - 1,
+        );
+        return netHours >= 8;
+      });
+
+      if (eligible.length > 0) {
+        setEligibleHolidayMembers(eligible);
+        setHolidayName(holidayInfo.holidayName);
+        setShowGroupHolidayModal(true);
+        return;
+      }
+    }
+
+    setPendingClaimedUserIds([]);
+    proceedToOTCheck();
+  };
+
+  const handleGroupHolidayConfirm = (claimedUserIds: string[]) => {
+    setShowGroupHolidayModal(false);
+    setPendingClaimedUserIds(claimedUserIds);
+    proceedToOTCheck();
+  };
+
+  const proceedToOTCheck = () => {
+    const otHours = calcOnsiteOTHoursPreview(new Date().toISOString(), session?.group_check_in ?? undefined);
+    if (otHours > 0) {
+      setShowOTConfirm(true);
+    } else {
+      setShowGroupCheckout(true);
+    }
   };
 
   const proceedGroupCheckoutWithOT = () => {
@@ -1237,12 +1465,58 @@ const handleCheckOutClick = () => {
     });
   };
 
+  const checkHolidayStatus = async (dateStr: string) => {
+    const { data } = await supabase
+      .from("holidays")
+      .select("name, holiday_type")
+      .eq("holiday_date", dateStr)
+      .maybeSingle();
+
+    if (data) {
+      return {
+        isHoliday: data.holiday_type !== "working_sat",
+        holidayName: data.name,
+      };
+    }
+    const dayOfWeek = new Date(dateStr).getDay();
+    return {
+      isHoliday: dayOfWeek === 0 || dayOfWeek === 6,
+      holidayName: dayOfWeek === 0 ? "วันอาทิตย์" : dayOfWeek === 6 ? "วันเสาร์" : null,
+    };
+  };
+
   const handleEarlyLeave = async (note: string) => {
     setShowEarlyLeave(false);
+    const now = new Date().toISOString();
+    const effectiveCheckIn = myMembership?.checkin_at ?? session?.group_check_in;
+
+    if (session && effectiveCheckIn) {
+      const sessionDate =
+        session.session_date ||
+        new Date(effectiveCheckIn).toLocaleDateString("en-CA", { timeZone: "Asia/Bangkok" });
+      const holidayInfo = await checkHolidayStatus(sessionDate);
+      const netHours = Math.max(
+        0,
+        (new Date(now).getTime() - new Date(effectiveCheckIn).getTime()) / 3_600_000 - 1,
+      );
+
+      if (holidayInfo.isHoliday && netHours >= 8) {
+        setPendingEarlyLeaveNote(note);
+        setHolidayName(holidayInfo.holidayName);
+        setShowHolidayModal(true);
+        return;
+      }
+    }
+
+    executeEarlyLeave(note);
+  };
+
+  const executeEarlyLeave = async (note: string, claimDayoff?: boolean) => {
+    setShowHolidayModal(false);
     const gps = gpsPromiseRef.current ? await gpsPromiseRef.current : null;
     gpsPromiseRef.current = null;
     startTransition(async () => {
-      const res = await earlyLeave(sessionId, note, gps?.lat, gps?.lng);
+      const res = await earlyLeave(sessionId, note, gps?.lat, gps?.lng, claimDayoff);
       if (res.success) await loadSession();
       else setError(res.error ?? "บันทึกไม่สำเร็จ");
     });
@@ -1285,6 +1559,15 @@ const handleCheckOutClick = () => {
           loading={isPending}
         />
       )}
+      {showGroupHolidayModal && (
+        <GroupHolidayClaimModal
+          eligibleMembers={eligibleHolidayMembers}
+          holidayName={holidayName}
+          onConfirm={handleGroupHolidayConfirm}
+          onCancel={() => setShowGroupHolidayModal(false)}
+          loading={isPending}
+        />
+      )}
       {showGroupCheckout && (
         <GroupCheckoutModal
           memberCount={session.members.length}
@@ -1298,7 +1581,7 @@ const handleCheckOutClick = () => {
         <OTConfirmModal
           pendingCount={pendingMembers.length}
           memberCount={session.members.length}
-          currentOTHours={calcOnsiteOTHoursPreview(new Date().toISOString())}
+          currentOTHours={calcOnsiteOTHoursPreview(new Date().toISOString(), session?.group_check_in ?? undefined)}
           onNoOT={() => handleGroupCheckOut(0, false)}
           onYesOT={proceedGroupCheckoutWithOT}
           onCancel={() => setShowOTConfirm(false)}
@@ -1309,10 +1592,22 @@ const handleCheckOutClick = () => {
         <OTBreakModal
           pendingCount={pendingMembers.length}
           memberCount={session.members.length}
-          currentOTHours={calcOnsiteOTHoursPreview(new Date().toISOString())}
+          currentOTHours={calcOnsiteOTHoursPreview(new Date().toISOString(), session?.group_check_in ?? undefined)}
           onConfirm={(breakMins) => handleGroupCheckOut(breakMins)}
           onCancel={() => setShowOTBreak(false)}
           loading={isPending}
+        />
+      )}
+      {showHolidayModal && session && (
+        <HolidayCheckoutModal
+          isOpen={showHolidayModal}
+          checkInIso={myMembership?.checkin_at ?? session.group_check_in ?? new Date().toISOString()}
+          checkOutIso={new Date().toISOString()}
+          holidayName={holidayName}
+          onClaim={() => executeEarlyLeave(pendingEarlyLeaveNote, true)}
+          onSkip={() => executeEarlyLeave(pendingEarlyLeaveNote, false)}
+          onClose={() => setShowHolidayModal(false)}
+          isLoading={isPending}
         />
       )}
       {showAddMember && (
