@@ -55,19 +55,19 @@ const getInitials = (m: OnsiteSessionMemberWithProfile) => {
     : "?";
 };
 
-// คำนวณ OT On-site เหมือนใน actions (นับจาก 17:30 ของวัน Check-in, floor nearest 0.5)
+// คำนวณ OT On-site เหมือนใน actions (นับจาก 17:30 Bangkok ของวัน Check-in/Session)
 function calcOnsiteOTHoursPreview(checkoutIso: string, checkInIso?: string): number {
   const checkout = new Date(checkoutIso);
-  const baseDate = checkInIso ? new Date(checkInIso) : new Date(checkout);
-  const otStart  = new Date(baseDate);
-  otStart.setHours(17, 30, 0, 0);
+  const BANGKOK_OFFSET_MS = 7 * 60 * 60 * 1000;
+  const baseDateIso = checkInIso ?? checkoutIso;
+  const bangkokDateStr = new Date(new Date(baseDateIso).getTime() + BANGKOK_OFFSET_MS)
+    .toISOString()
+    .split("T")[0];
+  const otStart = new Date(bangkokDateStr + "T10:30:00.000Z");
 
-  const checkIn = checkInIso ? new Date(checkInIso) : null;
-  const effectiveStart = checkIn && checkIn > otStart ? checkIn : otStart;
-
-  if (checkout <= effectiveStart) return 0;
-  const diffHours = (checkout.getTime() - effectiveStart.getTime()) / (1000 * 60 * 60);
-  return Math.floor(diffHours * 2) / 2;
+  if (checkout <= otStart) return 0;
+  const diffMinutes = Math.floor((checkout.getTime() - otStart.getTime()) / (1000 * 60));
+  return Math.round((diffMinutes / 60) * 100) / 100;
 }
 
 // ─── Status Badge Map ─────────────────────────────────────────────────────────
@@ -586,7 +586,7 @@ function OTBreakModal({
   // OT หลังหักเบรค (preview)
   const adjOT = useMemo(() => {
     const adj = Math.max(0, currentOTHours - breakMinutes / 60);
-    return Math.floor(adj * 2) / 2;
+    return Math.round(adj * 100) / 100;
   }, [currentOTHours, breakMinutes]);
 
   const isValid = !hasBreak || (breakEnd !== "" && breakMinutes >= 0);
@@ -1427,8 +1427,9 @@ const handleSetDriver = async (trip: "to" | "from", userId: string | null) => {
   };
 
   const proceedToOTCheck = () => {
+    // ถ้า Check-out หลัง 17:30 หรือมีเวลา OT ให้เด้ง Popup ถามว่าเอา OT ไหมเสมอเหมือน Production
     const otHours = calcOnsiteOTHoursPreview(new Date().toISOString(), session?.group_check_in ?? undefined);
-    if (otHours > 0) {
+    if (!isBeforeEOD() || otHours > 0) {
       setShowOTConfirm(true);
     } else {
       setShowGroupCheckout(true);
