@@ -130,6 +130,30 @@ function calcOTHours(startTime: string, endTime: string): number {
   return diff > 0 ? Math.round((diff / 60) * 100) / 100 : 0;
 }
 
+/** คำนวณ OT On-site นับจาก 17:30 Bangkok (UTC+7) */
+function calcOnsiteOTHours(checkoutIso: string, checkInIso?: string): number {
+  if (!checkoutIso) return 0;
+  const checkout = new Date(checkoutIso);
+  if (isNaN(checkout.getTime())) return 0;
+  const BANGKOK_OFFSET_MS = 7 * 60 * 60 * 1000;
+  const baseDateIso = checkInIso ?? checkoutIso;
+  const baseDate = new Date(baseDateIso);
+  if (isNaN(baseDate.getTime())) return 0;
+  const bangkokDateStr = new Date(baseDate.getTime() + BANGKOK_OFFSET_MS)
+    .toISOString()
+    .split("T")[0];
+  // 17:30 Bangkok = 10:30 UTC
+  const otStart = new Date(bangkokDateStr + "T10:30:00.000Z");
+
+  const checkIn = checkInIso ? new Date(checkInIso) : null;
+  const effectiveStart =
+    checkIn && !isNaN(checkIn.getTime()) && checkIn > otStart ? checkIn : otStart;
+
+  if (checkout <= effectiveStart) return 0;
+  const diffHours = (checkout.getTime() - effectiveStart.getTime()) / (1000 * 60 * 60);
+  return Math.round(diffHours * 100) / 100;
+}
+
 function calcTotalOT(periods: { start: string; end: string }[]): number {
   if (!periods.length) return 0;
   const toMins = (t: string) => {
@@ -717,7 +741,7 @@ function OTRangeSummary({ userId }: { userId: string }) {
       setLoading(true);
       setHasSearched(true);
       try {
-        const [otReqRes, timeLogRes] = await Promise.all([
+        const [otReqRes, timeLogRes, onsiteMemberRes] = await Promise.all([
           supabase
             .from("ot_requests")
             .select("request_date, start_time, end_time, hours")
@@ -727,10 +751,27 @@ function OTRangeSummary({ userId }: { userId: string }) {
             .lte("request_date", to),
           supabase
             .from("daily_time_logs")
-            .select("log_date, first_check_in, last_check_out, ot_hours, status, timeline_events, daily_allowance")
+            .select("log_date, work_type, first_check_in, last_check_out, ot_hours, status, timeline_events, daily_allowance")
             .eq("user_id", userId)
             .gte("log_date", from)
             .lte("log_date", to),
+          supabase
+            .from("onsite_session_members")
+            .select(`
+              session_id,
+              checkout_type,
+              checkin_at,
+              early_checkout_at,
+              onsite_sessions (
+                id,
+                site_name,
+                session_date,
+                group_check_in,
+                group_check_out,
+                status
+              )
+            `)
+            .eq("user_id", userId),
         ]);
 
         const logMap: Record<string, DayLog> = {};
@@ -745,7 +786,58 @@ function OTRangeSummary({ userId }: { userId: string }) {
           });
         });
 
-        // 2. ประมวลผลจาก daily_time_logs (ข้อมูลพื้นฐาน + timeline)
+        // 2. จัดกลุ่ม On-site Sessions ตามวันที่
+        type OnsiteSessionData = {
+          checkIn: string | null;
+          checkOut: string | null;
+          otHours: number;
+          periods: { start: string; end: string }[];
+        };
+        const onsiteMap: Record<string, OnsiteSessionData> = {};
+
+        ((onsiteMemberRes.data ?? []) as any[]).forEach((m) => {
+          const session = m.onsite_sessions;
+          if (!session || session.status === "open") return;
+
+          const date = session.session_date;
+          if (!date || date < from || date > to) return;
+
+          const checkInIso = m.checkin_at || session.group_check_in;
+          const checkOutIso =
+            (m.checkout_type === "early" ? m.early_checkout_at : session.group_check_out) ||
+            session.group_check_out;
+
+          const otHours = checkOutIso ? calcOnsiteOTHours(checkOutIso, checkInIso ?? undefined) : 0;
+          const checkInTime = checkInIso ? fmtTime(checkInIso) : null;
+          const checkOutTime = checkOutIso ? fmtTime(checkOutIso) : null;
+
+          let period: { start: string; end: string } | null = null;
+          if (otHours > 0 && checkOutTime) {
+            const start = checkInTime && checkInTime > "17:30" ? checkInTime : "17:30";
+            period = { start, end: checkOutTime };
+          }
+
+          if (!onsiteMap[date]) {
+            onsiteMap[date] = {
+              checkIn: checkInTime,
+              checkOut: checkOutTime,
+              otHours,
+              periods: period ? [period] : [],
+            };
+          } else {
+            const existing = onsiteMap[date];
+            if (checkInTime && (!existing.checkIn || checkInTime < existing.checkIn)) {
+              existing.checkIn = checkInTime;
+            }
+            if (checkOutTime && (!existing.checkOut || checkOutTime > existing.checkOut)) {
+              existing.checkOut = checkOutTime;
+            }
+            if (period) existing.periods.push(period);
+            existing.otHours = Math.max(existing.otHours, otHours);
+          }
+        });
+
+        // 3. ประมวลผลจาก daily_time_logs (ข้อมูลพื้นฐาน + timeline)
         ((timeLogRes.data ?? []) as TimeLogRow[]).forEach((r) => {
           const events = r.timeline_events ?? [];
           const otStart = events.find((e) => e.event === "ot_start");
@@ -755,35 +847,125 @@ function OTRangeSummary({ userId }: { userId: string }) {
             end: fmtTime(otEnd.timestamp)
           } : null;
 
-          const reqPeriods = otRequestMap[r.log_date] ?? [];
-          const allPeriods = [...(timelineOT ? [timelineOT] : []), ...reqPeriods];
+          // ดึง On-site checkout event จาก timeline_events (ถ้ามี)
+          const onsiteCheckout = events.find(
+            (e: any) => e.event === "onsite_checkout" || e.event === "admin_onsite_checkout_override"
+          ) as any;
 
-          let combinedOT = r.ot_hours ?? 0;
+          let onsiteEventOT = 0;
+          let onsitePeriod: { start: string; end: string } | null = null;
+          if (onsiteCheckout) {
+            if (typeof onsiteCheckout.net_ot_hours === "number" && onsiteCheckout.net_ot_hours > 0) {
+              onsiteEventOT = onsiteCheckout.net_ot_hours;
+            } else if (typeof onsiteCheckout.raw_ot_hours === "number" && onsiteCheckout.raw_ot_hours > 0) {
+              const breakH = (onsiteCheckout.break_minutes ?? 0) / 60;
+              onsiteEventOT = Math.max(0, onsiteCheckout.raw_ot_hours - breakH);
+            } else if (onsiteCheckout.timestamp) {
+              onsiteEventOT = calcOnsiteOTHours(onsiteCheckout.timestamp, r.first_check_in ?? undefined);
+            }
+
+            if (onsiteEventOT > 0 && onsiteCheckout.timestamp) {
+              const checkInTime = fmtTime(r.first_check_in);
+              const start =
+                checkInTime !== "-" && checkInTime > "17:30"
+                  ? checkInTime
+                  : (onsiteCheckout.ot_starts_from || "17:30");
+              onsitePeriod = { start, end: fmtTime(onsiteCheckout.timestamp) };
+            }
+          }
+
+          // กรณีไม่มี onsiteCheckout ใน timeline แต่เป็นงาน on_site/mixed ที่ checkout หลัง 17:30
+          if (!onsiteCheckout && (r.work_type === "on_site" || r.work_type === "mixed") && r.last_check_out) {
+            const calculatedOnsiteOT = calcOnsiteOTHours(r.last_check_out, r.first_check_in ?? undefined);
+            if (calculatedOnsiteOT > 0) {
+              onsiteEventOT = calculatedOnsiteOT;
+              const checkInTime = fmtTime(r.first_check_in);
+              const start = checkInTime !== "-" && checkInTime > "17:30" ? checkInTime : "17:30";
+              onsitePeriod = { start, end: fmtTime(r.last_check_out) };
+            }
+          }
+
+          const onsiteSessionData = onsiteMap[r.log_date];
+          const onsiteSessionPeriods = onsiteSessionData?.periods ?? [];
+          const allOnsitePeriods = [
+            ...(onsitePeriod ? [onsitePeriod] : []),
+            ...onsiteSessionPeriods,
+          ];
+
+          const reqPeriods = otRequestMap[r.log_date] ?? [];
+          const allPeriods = [
+            ...(timelineOT ? [timelineOT] : []),
+            ...allOnsitePeriods,
+            ...reqPeriods,
+          ];
+
+          const baseOT = Math.max(
+            r.ot_hours ?? 0,
+            onsiteEventOT,
+            onsiteSessionData?.otHours ?? 0
+          );
+
+          let combinedOT = baseOT;
           if (allPeriods.length > 0) {
             const fromPeriods = calcTotalOT(allPeriods);
-            if (!timelineOT && r.ot_hours && r.ot_hours > 0) {
+            if (!timelineOT && allOnsitePeriods.length === 0 && r.ot_hours && r.ot_hours > 0) {
               combinedOT = Math.round((fromPeriods + r.ot_hours) * 100) / 100;
             } else {
-              combinedOT = fromPeriods;
+              combinedOT = Math.max(fromPeriods, baseOT);
             }
           }
 
           const isFuture = r.log_date > toDateStr(new Date());
+          const checkIn =
+            fmtTime(r.first_check_in) !== "-"
+              ? fmtTime(r.first_check_in)
+              : (onsiteSessionData?.checkIn ?? null);
+          const checkOut =
+            fmtTime(r.last_check_out) !== "-"
+              ? fmtTime(r.last_check_out)
+              : (onsiteSessionData?.checkOut ?? null);
+          const workType = (r.work_type as any) || (onsiteSessionData ? "on_site" : null);
+
           logMap[r.log_date] = {
             date: r.log_date,
-            checkIn: fmtTime(r.first_check_in),
-            checkOut: fmtTime(r.last_check_out),
+            checkIn,
+            checkOut,
             otHours: combinedOT,
-            status: classifyStatus(r.first_check_in, r, isFuture),
+            status: classifyStatus(checkIn, r, isFuture),
             dailyAllowance: !!r.daily_allowance,
-            workType: r.work_type as any,
+            workType,
             isReportSent: false,
             isDriverTo: false,
             isDriverFrom: false,
           };
         });
 
-        // 3. จัดการวันที่มี ot_requests แต่ไม่มีใน daily_time_logs (เช่น วันหยุดที่ไม่ได้ลงเวลา)
+        // 4. จัดการวันที่มี On-site session แต่ไม่มีใน daily_time_logs
+        Object.keys(onsiteMap).forEach((date) => {
+          if (!logMap[date]) {
+            const onsite = onsiteMap[date];
+            const reqPeriods = otRequestMap[date] ?? [];
+            const allPeriods = [...onsite.periods, ...reqPeriods];
+            const fromPeriods = allPeriods.length > 0 ? calcTotalOT(allPeriods) : onsite.otHours;
+            const combinedOT = Math.max(fromPeriods, onsite.otHours);
+
+            const isFuture = date > toDateStr(new Date());
+            logMap[date] = {
+              date,
+              checkIn: onsite.checkIn,
+              checkOut: onsite.checkOut,
+              otHours: combinedOT,
+              status: classifyStatus(onsite.checkIn, undefined, isFuture),
+              dailyAllowance: false,
+              workType: "on_site",
+              isReportSent: false,
+              isDriverTo: false,
+              isDriverFrom: false,
+            };
+          }
+        });
+
+        // 5. จัดการวันที่มี ot_requests แต่ไม่มีใน daily_time_logs และไม่มีใน onsite
         Object.keys(otRequestMap).forEach((date) => {
           if (!logMap[date]) {
              const combinedOT = calcTotalOT(otRequestMap[date]);
@@ -984,6 +1166,16 @@ function OTRangeSummary({ userId }: { userId: string }) {
                           {log.dailyAllowance && (
                             <span className="ml-2 text-emerald-600 font-bold">+50฿</span>
                           )}
+                          {log.workType === "on_site" && (
+                            <span className="ml-1.5 text-[9px] bg-sky-50 text-sky-600 font-bold px-1.5 py-0.5 rounded-full border border-sky-100">
+                              On-site
+                            </span>
+                          )}
+                          {log.workType === "mixed" && (
+                            <span className="ml-1.5 text-[9px] bg-purple-50 text-purple-600 font-bold px-1.5 py-0.5 rounded-full border border-purple-100">
+                              Mixed
+                            </span>
+                          )}
                         </p>
                       </div>
                     </div>
@@ -1091,7 +1283,7 @@ export default function ProfilePage() {
     const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
 
     try {
-      const [timeRes, holidayRes, reportRes, otReqRes, driverRes] = await Promise.all([
+      const [timeRes, holidayRes, reportRes, otReqRes, driverRes, onsiteMemberRes] = await Promise.all([
         // ── time logs ของ user เดือนนี้
         supabase
           .from("daily_time_logs")
@@ -1133,6 +1325,25 @@ export default function ProfilePage() {
           .or(`driver_to_id.eq.${userId},driver_from_id.eq.${userId}`)
           .gte("session_date", start)
           .lte("session_date", end),
+
+        // query onsite members
+        supabase
+          .from("onsite_session_members")
+          .select(`
+            session_id,
+            checkout_type,
+            checkin_at,
+            early_checkout_at,
+            onsite_sessions (
+              id,
+              site_name,
+              session_date,
+              group_check_in,
+              group_check_out,
+              status
+            )
+          `)
+          .eq("user_id", userId),
       ]);
 
       // ── Build lookup maps ────────────────────────────────────────────────────
@@ -1177,6 +1388,57 @@ export default function ProfilePage() {
         });
       });
 
+      // จัดกลุ่ม On-site Sessions ตามวันที่
+      type OnsiteSessionData = {
+        checkIn: string | null;
+        checkOut: string | null;
+        otHours: number;
+        periods: { start: string; end: string }[];
+      };
+      const onsiteMap: Record<string, OnsiteSessionData> = {};
+
+      ((onsiteMemberRes.data ?? []) as any[]).forEach((m) => {
+        const session = m.onsite_sessions;
+        if (!session || session.status === "open") return;
+
+        const date = session.session_date;
+        if (!date || date < start || date > end) return;
+
+        const checkInIso = m.checkin_at || session.group_check_in;
+        const checkOutIso =
+          (m.checkout_type === "early" ? m.early_checkout_at : session.group_check_out) ||
+          session.group_check_out;
+
+        const otHours = checkOutIso ? calcOnsiteOTHours(checkOutIso, checkInIso ?? undefined) : 0;
+        const checkInTime = checkInIso ? fmtTime(checkInIso) : null;
+        const checkOutTime = checkOutIso ? fmtTime(checkOutIso) : null;
+
+        let period: { start: string; end: string } | null = null;
+        if (otHours > 0 && checkOutTime) {
+          const startTime = checkInTime && checkInTime > "17:30" ? checkInTime : "17:30";
+          period = { start: startTime, end: checkOutTime };
+        }
+
+        if (!onsiteMap[date]) {
+          onsiteMap[date] = {
+            checkIn: checkInTime,
+            checkOut: checkOutTime,
+            otHours,
+            periods: period ? [period] : [],
+          };
+        } else {
+          const existing = onsiteMap[date];
+          if (checkInTime && (!existing.checkIn || checkInTime < existing.checkIn)) {
+            existing.checkIn = checkInTime;
+          }
+          if (checkOutTime && (!existing.checkOut || checkOutTime > existing.checkOut)) {
+            existing.checkOut = checkOutTime;
+          }
+          if (period) existing.periods.push(period);
+          existing.otHours = Math.max(existing.otHours, otHours);
+        }
+      });
+
       // ── สร้าง DayLog ครบทุกวันในเดือน ───────────────────────────────────────
       const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
       const result: DayLog[] = [];
@@ -1188,6 +1450,7 @@ export default function ProfilePage() {
         const isWeekend = dow === 0 || (dow === 6 && !isWorkingSat);
         const isHoliday = holidaySet.has(dateStr);
         const timeLog = timeLogMap[dateStr];
+        const onsiteSessionData = onsiteMap[dateStr];
         const isFuture = dateStr > todayStr;
 
         // ── 1. Leave มา priority สูงสุด ──────────────────────────────────────
@@ -1207,8 +1470,17 @@ export default function ProfilePage() {
           continue;
         }
 
+        const effectiveCheckIn =
+          (timeLog?.first_check_in ? fmtTime(timeLog.first_check_in) : null) ||
+          onsiteSessionData?.checkIn ||
+          null;
+        const effectiveCheckOut =
+          (timeLog?.last_check_out ? fmtTime(timeLog.last_check_out) : null) ||
+          onsiteSessionData?.checkOut ||
+          null;
+
         // ── 2. Weekend / Holiday — แต่ถ้ามี check-in จริงให้ไหลต่อ ──────────
-        if ((isWeekend || isHoliday) && !timeLog?.first_check_in) {
+        if ((isWeekend || isHoliday) && !timeLog?.first_check_in && !onsiteSessionData?.checkIn) {
           result.push({
             date: dateStr,
             checkIn: null,
@@ -1224,42 +1496,116 @@ export default function ProfilePage() {
           continue;
         }
 
-        // ── 3. วันทำงานปกติ (รวม weekend / holiday ที่มี check-in จริง) ──────
-        const checkIn = timeLog?.first_check_in
-          ? fmtTime(timeLog.first_check_in)
-          : null;
-        const checkOut = timeLog?.last_check_out
-          ? fmtTime(timeLog.last_check_out)
-          : null;
-
+        // ── 3. วันทำงานปกติ (รวม weekend / holiday ที่มี check-in จริง หรือ onsite) ──────
         // ดึง timeline OT range จาก timeline_events
-        const timelineOT = (() => {
-          const events = timeLog?.timeline_events ?? [];
-          const otStart = events.find((e) => e.event === "ot_start");
-          const otEnd = events.find((e) => e.event === "ot_end");
-          if (!otStart || !otEnd) return null;
-          return {
-            start: fmtTime(otStart.timestamp),
-            end: fmtTime(otEnd.timestamp),
-          };
-        })();
+        const events = timeLog?.timeline_events ?? [];
+        const otStart = events.find((e) => e.event === "ot_start");
+        const otEnd = events.find((e) => e.event === "ot_end");
+        const timelineOT =
+          otStart && otEnd
+            ? {
+                start: fmtTime(otStart.timestamp),
+                end: fmtTime(otEnd.timestamp),
+              }
+            : null;
+
+        // ดึง On-site checkout event จาก timeline_events (ถ้ามี)
+        const onsiteCheckout = events.find(
+          (e: any) =>
+            e.event === "onsite_checkout" ||
+            e.event === "admin_onsite_checkout_override",
+        ) as any;
+
+        let onsiteEventOT = 0;
+        let onsitePeriod: { start: string; end: string } | null = null;
+        if (onsiteCheckout) {
+          if (
+            typeof onsiteCheckout.net_ot_hours === "number" &&
+            onsiteCheckout.net_ot_hours > 0
+          ) {
+            onsiteEventOT = onsiteCheckout.net_ot_hours;
+          } else if (
+            typeof onsiteCheckout.raw_ot_hours === "number" &&
+            onsiteCheckout.raw_ot_hours > 0
+          ) {
+            const breakH = (onsiteCheckout.break_minutes ?? 0) / 60;
+            onsiteEventOT = Math.max(0, onsiteCheckout.raw_ot_hours - breakH);
+          } else if (onsiteCheckout.timestamp) {
+            onsiteEventOT = calcOnsiteOTHours(
+              onsiteCheckout.timestamp,
+              timeLog?.first_check_in ?? undefined,
+            );
+          }
+
+          if (onsiteEventOT > 0 && onsiteCheckout.timestamp) {
+            const checkInTime = timeLog?.first_check_in
+              ? fmtTime(timeLog.first_check_in)
+              : null;
+            const start =
+              checkInTime && checkInTime > "17:30"
+                ? checkInTime
+                : (onsiteCheckout.ot_starts_from || "17:30");
+            onsitePeriod = { start, end: fmtTime(onsiteCheckout.timestamp) };
+          }
+        }
+
+        // กรณีไม่มี onsiteCheckout ใน timeline แต่เป็นงาน on_site/mixed ที่ checkout หลัง 17:30
+        if (
+          !onsiteCheckout &&
+          (timeLog?.work_type === "on_site" || timeLog?.work_type === "mixed") &&
+          timeLog?.last_check_out
+        ) {
+          const calculatedOnsiteOT = calcOnsiteOTHours(
+            timeLog.last_check_out,
+            timeLog.first_check_in ?? undefined,
+          );
+          if (calculatedOnsiteOT > 0) {
+            onsiteEventOT = calculatedOnsiteOT;
+            const checkInTime = timeLog.first_check_in
+              ? fmtTime(timeLog.first_check_in)
+              : null;
+            const start =
+              checkInTime && checkInTime > "17:30" ? checkInTime : "17:30";
+            onsitePeriod = { start, end: fmtTime(timeLog.last_check_out) };
+          }
+        }
+
+        const onsiteSessionPeriods = onsiteSessionData?.periods ?? [];
+        const allOnsitePeriods = [
+          ...(onsitePeriod ? [onsitePeriod] : []),
+          ...onsiteSessionPeriods,
+        ];
 
         const reqPeriods = otRequestMap[dateStr] ?? [];
+        const allPeriods = [
+          ...(timelineOT ? [timelineOT] : []),
+          ...allOnsitePeriods,
+          ...reqPeriods,
+        ];
 
-        const allPeriods = [...(timelineOT ? [timelineOT] : []), ...reqPeriods];
+        const baseOT = Math.max(
+          timeLog?.ot_hours ?? 0,
+          onsiteEventOT,
+          onsiteSessionData?.otHours ?? 0,
+        );
 
-        const hasTimelineOT = !!timelineOT;
-        const combinedOT = (() => {
-          if (allPeriods.length === 0) return timeLog?.ot_hours ?? 0;
+        let combinedOT = baseOT;
+        if (allPeriods.length > 0) {
           const fromPeriods = calcTotalOT(allPeriods);
-          if (!hasTimelineOT && timeLog?.ot_hours && timeLog.ot_hours > 0) {
-            return Math.round((fromPeriods + timeLog.ot_hours) * 100) / 100;
+          if (
+            !timelineOT &&
+            allOnsitePeriods.length === 0 &&
+            timeLog?.ot_hours &&
+            timeLog.ot_hours > 0
+          ) {
+            combinedOT = Math.round((fromPeriods + timeLog.ot_hours) * 100) / 100;
+          } else {
+            combinedOT = Math.max(fromPeriods, baseOT);
           }
-          return fromPeriods;
-        })();
+        }
 
         // ── 3a. ขาดงาน ───────────────────────────────────────────────────────
-        if (!checkIn && !isFuture) {
+        if (!effectiveCheckIn && !isFuture) {
           result.push({
             date: dateStr,
             checkIn: null,
@@ -1276,16 +1622,20 @@ export default function ProfilePage() {
         }
 
         // ── 3b. อนาคตที่ยังไม่มีข้อมูล → ข้ามไม่แสดง ────────────────────────
-        if (isFuture && !checkIn) continue;
+        if (isFuture && !effectiveCheckIn) continue;
 
         // ── 3c. มี check-in → แสดงปกติ ───────────────────────────────────────
+        const effectiveWorkType =
+          (timeLog?.work_type as DayLog["workType"]) ||
+          (onsiteSessionData ? "on_site" : null);
+
         result.push({
           date: dateStr,
-          checkIn,
-          checkOut,
-          workType: (timeLog?.work_type as DayLog["workType"]) ?? null,
+          checkIn: effectiveCheckIn,
+          checkOut: effectiveCheckOut,
+          workType: effectiveWorkType,
           status: classifyStatus(
-            timeLog?.first_check_in ?? null,
+            timeLog?.first_check_in ?? effectiveCheckIn,
             timeLog,
             isFuture,
           ),

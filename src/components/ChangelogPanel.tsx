@@ -16,6 +16,13 @@ interface ChangelogEntry {
 
 // ─── Changelog Data (Dev/Admin) ────────────
 const CHANGELOG: ChangelogEntry[] = [
+  // {
+  //   version: "3.6.0",
+  //   date: "2026-09-01",
+  //   items: [
+  //     { tag: "feature", text: "เพิ่มสรุปโอทีรวมตามช่วงเวลามารวมไว้ในแท็บประวัติเข้างานหน้า Profile" },
+  //   ],
+  // },
   {
     version: "3.5.9",
     date: "2026-08-24",
