@@ -152,8 +152,8 @@ function calcOnsiteOTHours(checkoutIso: string, checkInIso?: string): number {
     checkIn && !isNaN(checkIn.getTime()) && checkIn > otStart ? checkIn : otStart;
 
   if (checkout <= effectiveStart) return 0;
-  const diffHours = (checkout.getTime() - effectiveStart.getTime()) / (1000 * 60 * 60);
-  return Math.round(diffHours * 100) / 100;
+  const diffMinutes = Math.floor((checkout.getTime() - effectiveStart.getTime()) / (1000 * 60));
+  return Math.round((diffMinutes / 60) * 100) / 100;
 }
 
 function calcTotalOT(periods: { start: string; end: string }[]): number {
@@ -928,10 +928,13 @@ function OTRangeSummary({ userId }: { userId: string }) {
 
           let combinedOT = baseOT;
           if (allPeriods.length > 0) {
-            const workOT = calcTotalOT(validWorkPeriods);
-            const allOT = calcTotalOT(allPeriods);
-            const additionalReqOT = Math.max(0, Math.round((allOT - workOT) * 100) / 100);
-            combinedOT = Math.round((baseOT + additionalReqOT) * 100) / 100;
+            const fromPeriods = calcTotalOT(allPeriods);
+            if (validWorkPeriods.length === 0 && reqPeriods.length > 0 && baseOT > 0) {
+              const reqOT = calcTotalOT(reqPeriods);
+              combinedOT = Math.round((baseOT + reqOT) * 100) / 100;
+            } else {
+              combinedOT = fromPeriods;
+            }
           }
 
           const isFuture = r.log_date > toDateStr(new Date());
@@ -972,10 +975,13 @@ function OTRangeSummary({ userId }: { userId: string }) {
             const allPeriods = [...validOnsitePeriods, ...reqPeriods];
             let combinedOT = onsite.otHours;
             if (allPeriods.length > 0) {
-              const workOT = calcTotalOT(validOnsitePeriods);
-              const allOT = calcTotalOT(allPeriods);
-              const additionalReqOT = Math.max(0, Math.round((allOT - workOT) * 100) / 100);
-              combinedOT = Math.round((onsite.otHours + additionalReqOT) * 100) / 100;
+              const fromPeriods = calcTotalOT(allPeriods);
+              if (validOnsitePeriods.length === 0 && reqPeriods.length > 0 && onsite.otHours > 0) {
+                const reqOT = calcTotalOT(reqPeriods);
+                combinedOT = Math.round((onsite.otHours + reqOT) * 100) / 100;
+              } else {
+                combinedOT = fromPeriods;
+              }
             }
 
             const isFuture = date > toDateStr(new Date());
@@ -1630,10 +1636,13 @@ export default function ProfilePage() {
 
         let combinedOT = baseOT;
         if (allPeriods.length > 0) {
-          const workOT = calcTotalOT(validWorkPeriods);
-          const allOT = calcTotalOT(allPeriods);
-          const additionalReqOT = Math.max(0, Math.round((allOT - workOT) * 100) / 100);
-          combinedOT = Math.round((baseOT + additionalReqOT) * 100) / 100;
+          const fromPeriods = calcTotalOT(allPeriods);
+          if (validWorkPeriods.length === 0 && reqPeriods.length > 0 && baseOT > 0) {
+            const reqOT = calcTotalOT(reqPeriods);
+            combinedOT = Math.round((baseOT + reqOT) * 100) / 100;
+          } else {
+            combinedOT = fromPeriods;
+          }
         }
 
         // ── 3a. ขาดงาน ───────────────────────────────────────────────────────

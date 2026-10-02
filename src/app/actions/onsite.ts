@@ -348,8 +348,8 @@ function calcOnsiteOTHours(checkoutIso: string, checkInIso?: string): number {
   const effectiveStart = checkIn && checkIn > otStart ? checkIn : otStart;
 
   if (checkout <= effectiveStart) return 0;
-  const diffHours = (checkout.getTime() - effectiveStart.getTime()) / (1000 * 60 * 60);
-  return Math.round(diffHours * 100) / 100;
+  const diffMinutes = Math.floor((checkout.getTime() - effectiveStart.getTime()) / (1000 * 60));
+  return Math.round((diffMinutes / 60) * 100) / 100;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
