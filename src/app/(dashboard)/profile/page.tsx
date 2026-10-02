@@ -147,12 +147,8 @@ function calcOnsiteOTHours(checkoutIso: string, checkInIso?: string): number {
   // 17:30 Bangkok = 10:30 UTC
   const otStart = new Date(bangkokDateStr + "T10:30:00.000Z");
 
-  const checkIn = checkInIso ? new Date(checkInIso) : null;
-  const effectiveStart =
-    checkIn && !isNaN(checkIn.getTime()) && checkIn > otStart ? checkIn : otStart;
-
-  if (checkout <= effectiveStart) return 0;
-  const diffMinutes = Math.floor((checkout.getTime() - effectiveStart.getTime()) / (1000 * 60));
+  if (checkout <= otStart) return 0;
+  const diffMinutes = Math.floor((checkout.getTime() - otStart.getTime()) / (1000 * 60));
   return Math.round((diffMinutes / 60) * 100) / 100;
 }
 
