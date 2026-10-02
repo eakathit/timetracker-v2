@@ -120,13 +120,15 @@ function formatDecimalToHHMM(decimalHours: number) {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
+function toMins(t: string): number {
+  if (!t) return 0;
+  const [h, m] = t.split(":").map(Number);
+  return (h || 0) * 60 + (m || 0);
+}
+
 /** คำนวณ OT hours จาก time string "HH:mm:ss" หรือ "HH:mm" */
 function calcOTHours(startTime: string, endTime: string): number {
-  const parseMin = (t: string) => {
-    const p = t.split(":").map(Number);
-    return p[0] * 60 + (p[1] ?? 0);
-  };
-  const diff = parseMin(endTime) - parseMin(startTime);
+  const diff = toMins(endTime) - toMins(startTime);
   return diff > 0 ? Math.round((diff / 60) * 100) / 100 : 0;
 }
 
@@ -155,12 +157,11 @@ function calcOnsiteOTHours(checkoutIso: string, checkInIso?: string): number {
 }
 
 function calcTotalOT(periods: { start: string; end: string }[]): number {
-  if (!periods.length) return 0;
-  const toMins = (t: string) => {
-    const [h, m] = t.split(":").map(Number);
-    return h * 60 + m;
-  };
-  const sorted = [...periods].sort((a, b) => toMins(a.start) - toMins(b.start));
+  const valid = periods.filter(
+    (p) => p.start && p.end && toMins(p.end) > toMins(p.start),
+  );
+  if (!valid.length) return 0;
+  const sorted = [...valid].sort((a, b) => toMins(a.start) - toMins(b.start));
   let total = 0;
   let curStart = toMins(sorted[0].start);
   let curEnd = toMins(sorted[0].end);
@@ -813,8 +814,13 @@ function OTRangeSummary({ userId }: { userId: string }) {
 
           let period: { start: string; end: string } | null = null;
           if (otHours > 0 && checkOutTime) {
-            const start = checkInTime && checkInTime > "17:30" ? checkInTime : "17:30";
-            period = { start, end: checkOutTime };
+            const start =
+              checkInTime && checkInTime > "17:30" && checkInTime < checkOutTime
+                ? checkInTime
+                : "17:30";
+            if (toMins(checkOutTime) > toMins(start)) {
+              period = { start, end: checkOutTime };
+            }
           }
 
           if (!onsiteMap[date]) {
@@ -866,11 +872,14 @@ function OTRangeSummary({ userId }: { userId: string }) {
 
             if (onsiteEventOT > 0 && onsiteCheckout.timestamp) {
               const checkInTime = fmtTime(r.first_check_in);
+              const checkoutTime = fmtTime(onsiteCheckout.timestamp);
               const start =
-                checkInTime !== "-" && checkInTime > "17:30"
+                checkInTime !== "-" && checkInTime > "17:30" && checkInTime < checkoutTime
                   ? checkInTime
                   : (onsiteCheckout.ot_starts_from || "17:30");
-              onsitePeriod = { start, end: fmtTime(onsiteCheckout.timestamp) };
+              if (toMins(checkoutTime) > toMins(start)) {
+                onsitePeriod = { start, end: checkoutTime };
+              }
             }
           }
 
@@ -880,24 +889,36 @@ function OTRangeSummary({ userId }: { userId: string }) {
             if (calculatedOnsiteOT > 0) {
               onsiteEventOT = calculatedOnsiteOT;
               const checkInTime = fmtTime(r.first_check_in);
-              const start = checkInTime !== "-" && checkInTime > "17:30" ? checkInTime : "17:30";
-              onsitePeriod = { start, end: fmtTime(r.last_check_out) };
+              const checkoutTime = fmtTime(r.last_check_out);
+              const start =
+                checkInTime !== "-" && checkInTime > "17:30" && checkInTime < checkoutTime
+                  ? checkInTime
+                  : "17:30";
+              if (toMins(checkoutTime) > toMins(start)) {
+                onsitePeriod = { start, end: checkoutTime };
+              }
             }
           }
 
           const onsiteSessionData = onsiteMap[r.log_date];
-          const onsiteSessionPeriods = onsiteSessionData?.periods ?? [];
+          const onsiteSessionPeriods = (onsiteSessionData?.periods ?? []).filter(
+            (p) => toMins(p.end) > toMins(p.start)
+          );
           const allOnsitePeriods = [
             ...(onsitePeriod ? [onsitePeriod] : []),
             ...onsiteSessionPeriods,
-          ];
+          ].filter((p) => toMins(p.end) > toMins(p.start));
 
-          const reqPeriods = otRequestMap[r.log_date] ?? [];
-          const allPeriods = [
+          const reqPeriods = (otRequestMap[r.log_date] ?? []).filter(
+            (p) => toMins(p.end) > toMins(p.start)
+          );
+
+          const validWorkPeriods = [
             ...(timelineOT ? [timelineOT] : []),
             ...allOnsitePeriods,
-            ...reqPeriods,
-          ];
+          ].filter((p) => toMins(p.end) > toMins(p.start));
+
+          const allPeriods = [...validWorkPeriods, ...reqPeriods];
 
           const baseOT = Math.max(
             r.ot_hours ?? 0,
@@ -908,8 +929,9 @@ function OTRangeSummary({ userId }: { userId: string }) {
           let combinedOT = baseOT;
           if (allPeriods.length > 0) {
             const fromPeriods = calcTotalOT(allPeriods);
-            if (!timelineOT && allOnsitePeriods.length === 0 && r.ot_hours && r.ot_hours > 0) {
-              combinedOT = Math.round((fromPeriods + r.ot_hours) * 100) / 100;
+            if (validWorkPeriods.length === 0 && reqPeriods.length > 0 && baseOT > 0) {
+              const reqOT = calcTotalOT(reqPeriods);
+              combinedOT = Math.round((baseOT + reqOT) * 100) / 100;
             } else {
               combinedOT = Math.max(fromPeriods, baseOT);
             }
@@ -944,10 +966,23 @@ function OTRangeSummary({ userId }: { userId: string }) {
         Object.keys(onsiteMap).forEach((date) => {
           if (!logMap[date]) {
             const onsite = onsiteMap[date];
-            const reqPeriods = otRequestMap[date] ?? [];
-            const allPeriods = [...onsite.periods, ...reqPeriods];
-            const fromPeriods = allPeriods.length > 0 ? calcTotalOT(allPeriods) : onsite.otHours;
-            const combinedOT = Math.max(fromPeriods, onsite.otHours);
+            const reqPeriods = (otRequestMap[date] ?? []).filter(
+              (p) => toMins(p.end) > toMins(p.start)
+            );
+            const validOnsitePeriods = (onsite.periods ?? []).filter(
+              (p) => toMins(p.end) > toMins(p.start)
+            );
+            const allPeriods = [...validOnsitePeriods, ...reqPeriods];
+            let combinedOT = onsite.otHours;
+            if (allPeriods.length > 0) {
+              const fromPeriods = calcTotalOT(allPeriods);
+              if (validOnsitePeriods.length === 0 && reqPeriods.length > 0 && onsite.otHours > 0) {
+                const reqOT = calcTotalOT(reqPeriods);
+                combinedOT = Math.round((onsite.otHours + reqOT) * 100) / 100;
+              } else {
+                combinedOT = Math.max(fromPeriods, onsite.otHours);
+              }
+            }
 
             const isFuture = date > toDateStr(new Date());
             logMap[date] = {
@@ -1406,8 +1441,13 @@ export default function ProfilePage() {
 
         let period: { start: string; end: string } | null = null;
         if (otHours > 0 && checkOutTime) {
-          const startTime = checkInTime && checkInTime > "17:30" ? checkInTime : "17:30";
-          period = { start: startTime, end: checkOutTime };
+          const startTime =
+            checkInTime && checkInTime > "17:30" && checkInTime < checkOutTime
+              ? checkInTime
+              : "17:30";
+          if (toMins(checkOutTime) > toMins(startTime)) {
+            period = { start: startTime, end: checkOutTime };
+          }
         }
 
         if (!onsiteMap[date]) {
@@ -1532,11 +1572,14 @@ export default function ProfilePage() {
             const checkInTime = timeLog?.first_check_in
               ? fmtTime(timeLog.first_check_in)
               : null;
+            const checkoutTime = fmtTime(onsiteCheckout.timestamp);
             const start =
-              checkInTime && checkInTime > "17:30"
+              checkInTime && checkInTime > "17:30" && checkInTime < checkoutTime
                 ? checkInTime
                 : (onsiteCheckout.ot_starts_from || "17:30");
-            onsitePeriod = { start, end: fmtTime(onsiteCheckout.timestamp) };
+            if (toMins(checkoutTime) > toMins(start)) {
+              onsitePeriod = { start, end: checkoutTime };
+            }
           }
         }
 
@@ -1555,24 +1598,35 @@ export default function ProfilePage() {
             const checkInTime = timeLog.first_check_in
               ? fmtTime(timeLog.first_check_in)
               : null;
+            const checkoutTime = fmtTime(timeLog.last_check_out);
             const start =
-              checkInTime && checkInTime > "17:30" ? checkInTime : "17:30";
-            onsitePeriod = { start, end: fmtTime(timeLog.last_check_out) };
+              checkInTime && checkInTime > "17:30" && checkInTime < checkoutTime
+                ? checkInTime
+                : "17:30";
+            if (toMins(checkoutTime) > toMins(start)) {
+              onsitePeriod = { start, end: checkoutTime };
+            }
           }
         }
 
-        const onsiteSessionPeriods = onsiteSessionData?.periods ?? [];
+        const onsiteSessionPeriods = (onsiteSessionData?.periods ?? []).filter(
+          (p) => toMins(p.end) > toMins(p.start)
+        );
         const allOnsitePeriods = [
           ...(onsitePeriod ? [onsitePeriod] : []),
           ...onsiteSessionPeriods,
-        ];
+        ].filter((p) => toMins(p.end) > toMins(p.start));
 
-        const reqPeriods = otRequestMap[dateStr] ?? [];
-        const allPeriods = [
+        const reqPeriods = (otRequestMap[dateStr] ?? []).filter(
+          (p) => toMins(p.end) > toMins(p.start)
+        );
+
+        const validWorkPeriods = [
           ...(timelineOT ? [timelineOT] : []),
           ...allOnsitePeriods,
-          ...reqPeriods,
-        ];
+        ].filter((p) => toMins(p.end) > toMins(p.start));
+
+        const allPeriods = [...validWorkPeriods, ...reqPeriods];
 
         const baseOT = Math.max(
           timeLog?.ot_hours ?? 0,
@@ -1583,13 +1637,9 @@ export default function ProfilePage() {
         let combinedOT = baseOT;
         if (allPeriods.length > 0) {
           const fromPeriods = calcTotalOT(allPeriods);
-          if (
-            !timelineOT &&
-            allOnsitePeriods.length === 0 &&
-            timeLog?.ot_hours &&
-            timeLog.ot_hours > 0
-          ) {
-            combinedOT = Math.round((fromPeriods + timeLog.ot_hours) * 100) / 100;
+          if (validWorkPeriods.length === 0 && reqPeriods.length > 0 && baseOT > 0) {
+            const reqOT = calcTotalOT(reqPeriods);
+            combinedOT = Math.round((baseOT + reqOT) * 100) / 100;
           } else {
             combinedOT = Math.max(fromPeriods, baseOT);
           }
