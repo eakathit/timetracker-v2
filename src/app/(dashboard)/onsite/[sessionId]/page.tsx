@@ -379,18 +379,12 @@ function GroupHolidayClaimModal({
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md bg-white rounded-3xl p-6 space-y-4 max-h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="text-center flex-shrink-0">
-          <div className="w-12 h-12 bg-amber-50 rounded-2xl flex items-center justify-center mx-auto mb-2 text-2xl">
-            🎁
-          </div>
+        <div className="text-center flex-shrink-0 pt-1">
           <h3 className="text-base font-extrabold text-gray-800">
             เลือกผู้ต้องการแลกวันหยุด
           </h3>
           <p className="text-xs text-amber-600 font-semibold mt-0.5">
             {holidayName ?? "กะวันหยุดพิเศษ"} (ทำงานครบ 8 ชม.)
-          </p>
-          <p className="text-xs text-gray-400 mt-1">
-            สมาชิกที่ไม่ถูกเลือกจะได้รับเป็นค่าตอบแทนวันหยุดตามปกติ
           </p>
         </div>
 
@@ -1373,21 +1367,7 @@ const handleSetDriver = async (trip: "to" | "from", userId: string | null) => {
   const handleCheckOutClick = async () => {
     // เริ่ม GPS ทันทีที่กดปุ่ม — ทำ background ไม่บล็อก UI
     gpsPromiseRef.current = getGPS();
-    if (isBeforeEOD()) {
-      setPendingReturnScope("group");
-      setShowReturnToFactory(true);
-      return;
-    }
-    await checkHolidayAndProceed();
-  };
 
-  const proceedGroupCheckout = async () => {
-    setShowReturnToFactory(false);
-    await checkHolidayAndProceed();
-  };
-
-  const checkHolidayAndProceed = async () => {
-    const now = new Date();
     const sessionDate =
       session?.session_date ||
       (session?.group_check_in
@@ -1395,6 +1375,32 @@ const handleSetDriver = async (trip: "to" | "from", userId: string | null) => {
         : new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Bangkok" }));
 
     const holidayInfo = await checkHolidayStatus(sessionDate);
+
+    // เฉพาะวันทำงานปกติ (ไม่ใช่กะวันหยุด) ที่เลิกก่อน 17:30 เท่านั้น ที่ต้องถามว่าจะกลับโรงงานหรือไม่
+    if (!holidayInfo.isHoliday && isBeforeEOD()) {
+      setPendingReturnScope("group");
+      setShowReturnToFactory(true);
+      return;
+    }
+    await checkHolidayAndProceed(holidayInfo);
+  };
+
+  const proceedGroupCheckout = async () => {
+    setShowReturnToFactory(false);
+    await checkHolidayAndProceed();
+  };
+
+  const checkHolidayAndProceed = async (
+    existingHolidayInfo?: { isHoliday: boolean; holidayName: string | null },
+  ) => {
+    const now = new Date();
+    const sessionDate =
+      session?.session_date ||
+      (session?.group_check_in
+        ? new Date(session.group_check_in).toLocaleDateString("en-CA", { timeZone: "Asia/Bangkok" })
+        : new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Bangkok" }));
+
+    const holidayInfo = existingHolidayInfo ?? (await checkHolidayStatus(sessionDate));
 
     if (holidayInfo.isHoliday && session) {
       // ค้นหาสมาชิกในห้องที่ยัง pending และทำงานครบ 8 ชม.
@@ -1441,10 +1447,21 @@ const handleSetDriver = async (trip: "to" | "from", userId: string | null) => {
     setShowOTBreak(true);
   };
 
-  const handleEarlyLeaveClick = () => {
+  const handleEarlyLeaveClick = async () => {
     // เริ่ม GPS ทันทีที่กดปุ่ม — ทำ background ไม่บล็อก UI
     gpsPromiseRef.current = getGPS();
-    if (isBeforeEOD()) {
+
+    const effectiveCheckIn = myMembership?.checkin_at ?? session?.group_check_in;
+    const sessionDate =
+      session?.session_date ||
+      (effectiveCheckIn
+        ? new Date(effectiveCheckIn).toLocaleDateString("en-CA", { timeZone: "Asia/Bangkok" })
+        : new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Bangkok" }));
+
+    const holidayInfo = await checkHolidayStatus(sessionDate);
+
+    // เฉพาะวันทำงานปกติ (ไม่ใช่กะวันหยุด) ที่เลิกก่อน 17:30 เท่านั้น ที่ต้องถามว่าจะกลับโรงงานหรือไม่
+    if (!holidayInfo.isHoliday && isBeforeEOD()) {
       setPendingReturnScope("member");
       setShowReturnToFactory(true);
       return;

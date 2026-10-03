@@ -496,6 +496,26 @@ function EmployeeCard({ emp, auditDate }: { emp: AuditEmployee; auditDate: strin
     </span>
   )}
 
+  {/* Dayoff Credit — แลกวันหยุด */}
+  {emp.dayoffCredit === "earned" && (
+    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold border bg-teal-50 text-teal-700 border-teal-200">
+      <span className="w-1.5 h-1.5 rounded-full bg-teal-500 inline-block" />
+      แลกวันหยุด (+8 ชม.)
+    </span>
+  )}
+  {emp.dayoffCredit === "forfeited" && emp.shiftType === "holiday" && (
+    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold border bg-slate-50 text-slate-500 border-slate-200">
+      <span className="w-1.5 h-1.5 rounded-full bg-slate-400 inline-block" />
+      ไม่แลกวันหยุด
+    </span>
+  )}
+  {emp.dayoffCredit === "pending" && emp.shiftType === "holiday" && (
+    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold border bg-amber-50 text-amber-700 border-amber-200">
+      <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
+      กะวันหยุด (รอยืนยัน)
+    </span>
+  )}
+
 </div>
 
             {/* Row 4: Time row */}
@@ -744,6 +764,62 @@ function EmployeeCard({ emp, auditDate }: { emp: AuditEmployee; auditDate: strin
   </div>
 )}
 
+                {/* Dayoff Credit badge */}
+                {emp.dayoffCredit && (
+                  <div
+                    className={`flex items-center gap-2.5 rounded-xl px-3 py-2.5 border ${
+                      emp.dayoffCredit === "earned"
+                        ? "bg-teal-50/70 border-teal-200"
+                        : emp.dayoffCredit === "pending"
+                        ? "bg-amber-50/70 border-amber-200"
+                        : "bg-slate-50 border-slate-200"
+                    }`}
+                  >
+                    <div
+                      className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                        emp.dayoffCredit === "earned"
+                          ? "bg-teal-100 text-teal-700"
+                          : emp.dayoffCredit === "pending"
+                          ? "bg-amber-100 text-amber-700"
+                          : "bg-slate-200 text-slate-500"
+                      }`}
+                    >
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        className="w-3.5 h-3.5"
+                      >
+                        <path d="M17 2l4 4-4 4" />
+                        <path d="M3 11V9a3 3 0 0 1 3-3h15" />
+                        <path d="M7 22l-4-4 4-4" />
+                        <path d="M21 13v2a3 3 0 0 1-3 3H3" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                        สิทธิ์วันหยุดชดเชย (Holiday Swap)
+                      </p>
+                      <p
+                        className={`text-xs font-bold ${
+                          emp.dayoffCredit === "earned"
+                            ? "text-teal-700"
+                            : emp.dayoffCredit === "pending"
+                            ? "text-amber-700"
+                            : "text-slate-600"
+                        }`}
+                      >
+                        {emp.dayoffCredit === "earned"
+                          ? "ได้รับสิทธิ์แลกวันหยุด (+8 ชม. เข้าสู่โควตาวันลา)"
+                          : emp.dayoffCredit === "pending"
+                          ? "กำลังรอยืนยันสิทธิ์ตอน Check-out"
+                          : "สละสิทธิ์การแลกวันหยุด (รับเป็นค่าตอบแทนตามปกติ)"}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 {/* Google Maps button — แสดงเฉพาะเมื่อมี GPS coordinates */}
                 {emp.onsiteSession.checkoutLat != null && emp.onsiteSession.checkoutLng != null ? (
                   <a
@@ -816,6 +892,11 @@ export default function AuditClient({
   const today   = todayBangkok();
   const isToday = auditDate === today;
 
+  const dayoffClaimCount = useMemo(
+    () => employees.filter((e) => e.dayoffCredit === "earned").length,
+    [employees],
+  );
+
   const filtered = useMemo(() => {
     return employees.filter((emp) => {
       const fullName    = `${emp.firstName} ${emp.lastName} ${emp.department}`.toLowerCase();
@@ -827,6 +908,7 @@ export default function AuditClient({
         (filterStatus === "leave"   && emp.attendanceStatus === "leave") ||
         (filterStatus === "onsite"  && emp.workType === "on_site") ||
         (filterStatus === "ot"      && emp.otHours > 0) ||
+        (filterStatus === "holiday_swap" && emp.dayoffCredit === "earned") ||
         (filterStatus === "no_report" && emp.checkIn && !emp.reportFiled);
       return matchSearch && matchStatus;
     });
@@ -906,6 +988,9 @@ export default function AuditClient({
             { key: "leave",     label: `ลา (${summary.leave})`          },
             { key: "onsite",    label: `On-site (${summary.onsite})`   },
             { key: "ot",        label: `มี OT (${summary.withOT})`     },
+            ...(dayoffClaimCount > 0
+              ? [{ key: "holiday_swap", label: `แลกวันหยุด (${dayoffClaimCount})` }]
+              : []),
             { key: "no_report", label: "ยังไม่รายงาน"                  },
           ].map((f) => (
             <button

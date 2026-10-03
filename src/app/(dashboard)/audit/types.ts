@@ -93,6 +93,8 @@ export interface AuditEmployee {
   autoCheckedOut: boolean;
   dailyAllowance: boolean;
   payMultiplier: number;
+  shiftType: "regular" | "holiday" | null;
+  dayoffCredit: "pending" | "earned" | "forfeited" | null;
 
   // OT
   otStart: string | null;

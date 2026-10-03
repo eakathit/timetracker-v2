@@ -83,7 +83,7 @@ export default async function AuditPage({
     supabase
       .from("daily_time_logs")
       .select(
-        "id, user_id, log_date, work_type, first_check_in, last_check_out, timeline_events, ot_hours, regular_hours, status, day_type, onsite_session_id, auto_checked_out, daily_allowance, pay_multiplier, holiday_name, ot_intent"
+        "id, user_id, log_date, work_type, first_check_in, last_check_out, timeline_events, ot_hours, regular_hours, status, day_type, onsite_session_id, auto_checked_out, daily_allowance, pay_multiplier, holiday_name, ot_intent, shift_type, dayoff_credit"
       )
       .eq("log_date", auditDate),
 
@@ -222,6 +222,8 @@ const otEnd = (log?.timeline_events as Record<string, string>[])
       autoCheckedOut: log?.auto_checked_out ?? false,
       dailyAllowance: log?.daily_allowance ?? false,
       payMultiplier: log?.pay_multiplier ?? 1.0,
+      shiftType: (log?.shift_type ?? null) as AuditEmployee["shiftType"],
+      dayoffCredit: (log?.dayoff_credit ?? null) as AuditEmployee["dayoffCredit"],
 
       // OT timestamps
       otStart: fmtTime(otStart),
