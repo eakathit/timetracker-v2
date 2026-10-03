@@ -120,6 +120,16 @@ function formatDecimalToHHMM(decimalHours: number) {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
+function formatOTHrMin(decimalHours: number): string {
+  if (!decimalHours || decimalHours <= 0) return "0h";
+  const totalMins = Math.round(decimalHours * 60);
+  const h = Math.floor(totalMins / 60);
+  const m = totalMins % 60;
+  if (h === 0) return `${m}m`;
+  if (m === 0) return `${h}h`;
+  return `${h}h ${m}m`;
+}
+
 function toMins(t: string): number {
   if (!t) return 0;
   const [h, m] = t.split(":").map(Number);
@@ -1992,6 +2002,51 @@ export default function ProfilePage() {
           </span>
         </Link>
 
+        <Link
+          href="/calendar-ot"
+          className="md:hidden flex items-center gap-3 bg-white rounded-2xl border border-gray-100 shadow-sm px-4 py-3 active:scale-[0.99] transition-transform"
+        >
+          <span className="w-11 h-11 rounded-2xl bg-amber-50 text-amber-500 flex items-center justify-center flex-shrink-0">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.9"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="w-5 h-5"
+            >
+              <rect x="3" y="4" width="18" height="18" rx="2" />
+              <line x1="3" y1="9" x2="21" y2="9" />
+              <line x1="8" y1="2" x2="8" y2="6" />
+              <line x1="16" y1="2" x2="16" y2="6" />
+              <circle cx="16" cy="16" r="3" />
+              <polyline points="16 14.5 16 16 17 17" />
+            </svg>
+          </span>
+          <span className="flex-1 min-w-0">
+            <span className="block text-sm font-bold text-gray-800">
+              ปฏิทินโอที
+            </span>
+            <span className="block text-xs text-gray-400 mt-0.5">
+              ดู Request OT ในปฏิทิน
+            </span>
+          </span>
+          <span className="w-8 h-8 rounded-xl bg-gray-50 text-gray-400 flex items-center justify-center flex-shrink-0">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.3"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="w-4 h-4"
+            >
+              <polyline points="9 18 15 12 9 6" />
+            </svg>
+          </span>
+        </Link>
+
 
         {/* ── Quick Stats Strip ── */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
@@ -2012,13 +2067,13 @@ export default function ProfilePage() {
                 มาสาย (วัน)
               </p>
             </div>
-            <div className="text-center px-2">
+            <div className="text-center px-2" title={`${otTotal.toFixed(2)} ชม.`}>
               {/* OT total รวมจาก ot_requests ที่อนุมัติ + daily_time_logs */}
               <p className="text-lg font-extrabold text-amber-600">
-                {logsLoading ? "..." : otTotal.toFixed(2)}
+                {logsLoading ? "..." : formatOTHrMin(otTotal)}
               </p>
               <p className="text-[10px] text-gray-400 font-medium">
-                OT เดือนนี้ (ชม.)
+                OT เดือนนี้
               </p>
             </div>
             <div className="text-center px-2">
@@ -2144,34 +2199,6 @@ export default function ProfilePage() {
               </div>
             </div>
 
-            {/* ── Mobile only: ปฏิทินโอที + OT Range ── */}
-            <div className="lg:hidden space-y-5">
-              <Link
-                href="/calendar-ot"
-                className="flex items-center gap-3 bg-white rounded-2xl border border-gray-100 shadow-sm px-4 py-3 active:scale-[0.99] transition-transform"
-              >
-                <span className="w-11 h-11 rounded-2xl bg-amber-50 text-amber-500 flex items-center justify-center flex-shrink-0">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
-                    <rect x="3" y="4" width="18" height="18" rx="2" />
-                    <line x1="3" y1="9" x2="21" y2="9" />
-                    <line x1="8" y1="2" x2="8" y2="6" />
-                    <line x1="16" y1="2" x2="16" y2="6" />
-                    <circle cx="16" cy="16" r="3" />
-                    <polyline points="16 14.5 16 16 17 17" />
-                  </svg>
-                </span>
-                <span className="flex-1 min-w-0">
-                  <span className="block text-sm font-bold text-gray-800">ปฏิทินโอที</span>
-                  <span className="block text-xs text-gray-400 mt-0.5">ดู Request OT ในปฏิทิน</span>
-                </span>
-                <span className="w-8 h-8 rounded-xl bg-gray-50 text-gray-400 flex items-center justify-center flex-shrink-0">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-                    <polyline points="9 18 15 12 9 6" />
-                  </svg>
-                </span>
-              </Link>
-
-            </div>
 
             {/* Leave Quota */}
             <LeaveQuotaSection userId={userId ?? ""} />
