@@ -8,7 +8,6 @@ import OTWindowCard from "@/components/OTWindowCard";
 import HolidayProgressCard from "@/components/HolidayProgressCard";
 import HolidayCheckoutModal from "@/components/HolidayCheckoutModal";
 import { ChangelogBellButton } from "@/components/ChangelogPanel";
-import WeeklyChart from "@/components/WeeklyChart";
 import { isAdminRole } from "@/lib/roles";
 import dynamic from "next/dynamic";
 const QRScannerModal = dynamic(() => import("@/components/QRScannerModal"), {
@@ -1524,9 +1523,6 @@ export default function DashboardUI({
           )}
         </div>
       </div>
-
-      {/* ── 5. WEEKLY SUMMARY CHART ─────────────────────────────────────────── */}
-      <WeeklyChart userId={userId} />
 
       {/* ── 6. DAILY REPORT POPUP (MODAL) ─────────────────────────────────── */}
       {showReportPopup && (
