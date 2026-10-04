@@ -13,7 +13,11 @@ import type {
   OnsiteReportDetail,
   CreateOnsiteReportInput,
 } from "@/types/onsite";
-import { getEffectiveThreshold, computeAttendanceStatus } from "@/lib/attendance";
+import {
+  getEffectiveThreshold,
+  computeAttendanceStatus,
+  autoCancelLeaveForAttendance,
+} from "@/lib/attendance";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Supabase Server Client — Server Action version
@@ -307,7 +311,7 @@ async function calcAttendanceStatusForUser(
   logDate: string,
   checkInIso: string,
   shiftType: ShiftType = "regular",
-): Promise<"on_time" | "late" | "leave"> {
+): Promise<"on_time" | "late"> {
   if (shiftType === "holiday") return "on_time";
   const threshold = await getEffectiveThreshold(supabase, userId, logDate);
   return computeAttendanceStatus(checkInIso, threshold);
@@ -421,6 +425,13 @@ export async function groupCheckIn(sessionId: string): Promise<ActionResult> {
 
     const existingUids = memberUserIds.filter((uid) =>  existingMap.has(uid));
     const newUids      = memberUserIds.filter((uid) => !existingMap.has(uid));
+
+    // ✅ Auto-cancel ใบลาเต็มวัน (ถ้ามี) สำหรับสมาชิกทุกคนที่ Check-in พร้อมคืนโควตาวันลาทันที
+    await Promise.all(
+      memberUserIds.map((uid) =>
+        autoCancelLeaveForAttendance(supabase, uid, today, now, user.id),
+      ),
+    );
 
     // ── UPDATE existing rows (เคย checkin factory มาก่อน) ────────────────
     if (existingUids.length > 0) {
@@ -850,6 +861,11 @@ export async function addMidSessionMember(
     const now = new Date().toISOString();
     const today = getLocalToday();
     const { shiftType, dayoffCredit } = await getOnsiteShiftInfo(supabase, today);
+
+    // ✅ Auto-cancel full-day leave (ถ้ามี) หากเข้าร่วมห้องที่ Check-in แล้ว พร้อมคืนโควตาวันลาทันที
+    if (session.status === "checked_in") {
+      await autoCancelLeaveForAttendance(supabase, targetUserId, today, now, user.id);
+    }
 
     // ใช้ now เป็น effective On-site check-in และตัดสิทธิ์เบี้ยเลี้ยงจากเวลา On-site เท่านั้น
     // วันหยุดไม่นับสาย

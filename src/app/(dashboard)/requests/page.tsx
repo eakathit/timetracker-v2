@@ -1129,16 +1129,33 @@ const handleApproveLeave = async (id: string) => {
     const isFullDay = threshold === null;
 
     if (isFullDay) {
-      // 3a. ลาทั้งวัน → upsert status = "leave"
-      await supabase.from("daily_time_logs").upsert(
-        leaveDates.map(date => ({
-          user_id:   leaveReq.user_id,
-          log_date:  date,
-          work_type: "leave",
-          status:    "leave",
-        })),
-        { onConflict: "user_id,log_date" }
+      // 3a. ลาทั้งวัน → ตรวจสอบวันที่เคย Check-in แล้ว (จะไม่เขียนทับเป็น leave)
+      const { data: existingLogs } = await supabase
+        .from("daily_time_logs")
+        .select("log_date, first_check_in")
+        .eq("user_id", leaveReq.user_id)
+        .in("log_date", leaveDates);
+
+      const checkedInDates = new Set(
+        (existingLogs ?? [])
+          .filter((l) => l.first_check_in)
+          .map((l) => l.log_date),
       );
+
+      // เฉพาะวันที่ยังไม่มีเวลาเข้างานจริง ถึงจะเซ็ตเป็น leave
+      const datesToMarkLeave = leaveDates.filter((d) => !checkedInDates.has(d));
+
+      if (datesToMarkLeave.length > 0) {
+        await supabase.from("daily_time_logs").upsert(
+          datesToMarkLeave.map((date) => ({
+            user_id: leaveReq.user_id,
+            log_date: date,
+            work_type: "leave",
+            status: "leave",
+          })),
+          { onConflict: "user_id,log_date" },
+        );
+      }
     } else {
       // 3b. ลาครึ่งวัน / รายชั่วโมง → recalculate status ของวันที่ check-in แล้ว
       for (const date of leaveDates) {

@@ -4,7 +4,11 @@
 import { revalidatePath } from "next/cache";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
-import { getEffectiveThreshold, computeAttendanceStatus } from "@/lib/attendance";
+import {
+  getEffectiveThreshold,
+  computeAttendanceStatus,
+  autoCancelLeaveForAttendance,
+} from "@/lib/attendance";
 import { isAdminRole } from "@/lib/roles";
 type ActionResult = { success: boolean; error?: string };
 
@@ -73,12 +77,15 @@ export async function adminForceCheckIn(
       new_first_check_in: iso,
     };
 
+    // ✅ Auto-cancel ใบลาเต็มวัน (ถ้ามี) เมื่อ Admin บังคับ Check-in พร้อมคืนโควตาวันลาทันที
+    await autoCancelLeaveForAttendance(supabase, targetUserId, logDate, iso, user.id);
+
     // วันหยุดไม่นับสาย — ดู shift_type จาก log เดิม หรือ fallback เสาร์/อาทิตย์
     const isHolidayDate =
       log?.shift_type === "holiday" ||
       (() => { const d = new Date(logDate).getDay(); return d === 0 || d === 6; })();
     const threshold = isHolidayDate ? null : await getEffectiveThreshold(supabase, targetUserId, logDate);
-    const status = isHolidayDate ? "on_time" : computeAttendanceStatus(iso, threshold!);
+    const status = isHolidayDate ? "on_time" : computeAttendanceStatus(iso, threshold);
 
     if (log) {
       // ── Row มีอยู่แล้ว → UPDATE เท่านั้น (ไม่แตะ work_type) ──

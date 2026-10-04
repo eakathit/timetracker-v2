@@ -87,16 +87,104 @@ export function thresholdFromLeave(leave: {
 /**
  * คำนวณ attendance status
  *
- * thresholdMinutes:
- *   null   → "leave"
- *   number → เปรียบเทียบกับเวลา check-in (strict greater than = สาย)
+ * หากมีเวลา check-in เข้ามาจริง ต้องไม่คืนค่าเป็น "leave" เด็ดขาด
+ * ถ้า thresholdMinutes เป็น null (เดิมมาจากใบลาเต็มวัน) ให้ fallback เป็นเวลาเริ่มงานปกติ (08:30)
  */
 export function computeAttendanceStatus(
   checkInIso: string,
   thresholdMinutes: number | null,
-): "on_time" | "late" | "leave" {
-  if (thresholdMinutes === null) return "leave";
-  return toThaiMinutes(checkInIso) > thresholdMinutes ? "late" : "on_time";
+): "on_time" | "late" {
+  const effectiveThreshold = thresholdMinutes ?? WORK_START_MINUTES;
+  return toThaiMinutes(checkInIso) > effectiveThreshold ? "late" : "on_time";
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Async: Auto-Cancel Leave On Attendance Check-In (คืนโควตาวันลาทันที)
+// ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * ยกเลิกใบลาเต็มวันอัตโนมัติเมื่อพนักงานมีการ Check-in เข้าทำงานจริง
+ * คืนสิทธิ์วันลา / โควต้าแลกวันหยุด (holiday_swap) ให้ทันทีผ่าน Trigger Database
+ */
+export async function autoCancelLeaveForAttendance(
+  supabase: AnySupabase,
+  userId: string,
+  logDate: string,
+  checkInIso: string,
+  actionBy?: string,
+): Promise<Array<{ cancelled_request_id: string; leave_type: string }>> {
+  try {
+    // 1. เรียกผ่าน RPC ของ PostgreSQL เพื่อความรวดเร็วและปลอดภัยระดับ Database
+    const { data: rpcResult, error: rpcError } = await supabase.rpc(
+      "auto_cancel_leave_for_attendance",
+      {
+        p_user_id: userId,
+        p_date: logDate,
+        p_checkin_time: checkInIso,
+        p_action_by: actionBy ?? null,
+      },
+    );
+
+    if (!rpcError && Array.isArray(rpcResult)) {
+      return rpcResult;
+    }
+
+    // 2. Fallback: กรณีรันบน environment ที่ยังไม่ได้ apply RPC migration
+    const { data: approvedLeaves, error: selectErr } = await supabase
+      .from("leave_requests")
+      .select("id, leave_type, days, hours, period_label")
+      .eq("user_id", userId)
+      .eq("status", "approved")
+      .lte("start_date", logDate)
+      .gte("end_date", logDate);
+
+    if (selectErr || !approvedLeaves || approvedLeaves.length === 0) {
+      return [];
+    }
+
+    // กรองเฉพาะลาเต็มวัน (ไม่มีชั่วโมงระบุ หรือ period_label ว่าง หรือ เป็น 'ทั้งวัน')
+    const fullDayLeaves = approvedLeaves.filter(
+      (l: { period_label?: string | null; hours?: number | null }) =>
+        (!l.hours || l.hours === 0) &&
+        (!l.period_label || l.period_label === "ทั้งวัน" || !l.period_label.includes(":")),
+    );
+
+    if (fullDayLeaves.length === 0) return [];
+
+    const thaiTime = new Date(checkInIso).toLocaleTimeString("th-TH", {
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone: "Asia/Bangkok",
+    });
+    const cancelReason = `ระบบยกเลิกการลาอัตโนมัติ เนื่องจากพนักงานเข้าทำงานจริง ณ เวลา ${thaiTime} น.`;
+
+    const cancelledList: Array<{ cancelled_request_id: string; leave_type: string }> = [];
+
+    for (const leave of fullDayLeaves) {
+      const { error: updateErr } = await supabase
+        .from("leave_requests")
+        .update({
+          status: "cancelled",
+          cancel_reason: cancelReason,
+          cancel_requested_at: new Date().toISOString(),
+          cancel_actioned_by: actionBy ?? userId,
+          cancel_actioned_at: new Date().toISOString(),
+        })
+        .eq("id", leave.id);
+
+      if (!updateErr) {
+        cancelledList.push({
+          cancelled_request_id: leave.id,
+          leave_type: leave.leave_type,
+        });
+      }
+    }
+
+    return cancelledList;
+  } catch (err) {
+    console.error("[autoCancelLeaveForAttendance] Error:", err);
+    return [];
+  }
 }
 
 // ────────────────────────────────────────────────────────────────────────────

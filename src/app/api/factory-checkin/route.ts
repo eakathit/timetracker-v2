@@ -4,7 +4,11 @@ import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { validateQRToken } from "@/lib/qr-token";
-import { getEffectiveThreshold, computeAttendanceStatus } from "@/lib/attendance";
+import {
+  getEffectiveThreshold,
+  computeAttendanceStatus,
+  autoCancelLeaveForAttendance,
+} from "@/lib/attendance";
 
 // Service role สำหรับ consume nonce (ต้องการ bypass RLS)
 const supabaseAdmin = createClient(
@@ -151,8 +155,11 @@ export async function POST(req: NextRequest) {
     }
     const dayoffCredit = shiftType === "holiday" ? "pending" : null;
 
+    // ── 6.4. Auto-cancel ใบลาเต็มวัน (ถ้ามี) พร้อมคืนโควตาวันลาทันที ───────────
+    await autoCancelLeaveForAttendance(supabaseAdmin, user.id, today, now, user.id);
+
     // ── 6.5. คำนวณ status — วันหยุดไม่นับสาย ────────────────────────────────
-    let attendanceStatus: "on_time" | "late" | "leave";
+    let attendanceStatus: "on_time" | "late";
     if (shiftType === "holiday") {
       attendanceStatus = "on_time";
     } else {

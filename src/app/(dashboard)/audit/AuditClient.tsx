@@ -503,18 +503,6 @@ function EmployeeCard({ emp, auditDate }: { emp: AuditEmployee; auditDate: strin
       แลกวันหยุด (+8 ชม.)
     </span>
   )}
-  {emp.dayoffCredit === "forfeited" && emp.shiftType === "holiday" && (
-    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold border bg-slate-50 text-slate-500 border-slate-200">
-      <span className="w-1.5 h-1.5 rounded-full bg-slate-400 inline-block" />
-      ไม่แลกวันหยุด
-    </span>
-  )}
-  {emp.dayoffCredit === "pending" && emp.shiftType === "holiday" && (
-    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold border bg-amber-50 text-amber-700 border-amber-200">
-      <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
-      กะวันหยุด (รอยืนยัน)
-    </span>
-  )}
 
 </div>
 
@@ -764,26 +752,10 @@ function EmployeeCard({ emp, auditDate }: { emp: AuditEmployee; auditDate: strin
   </div>
 )}
 
-                {/* Dayoff Credit badge */}
-                {emp.dayoffCredit && (
-                  <div
-                    className={`flex items-center gap-2.5 rounded-xl px-3 py-2.5 border ${
-                      emp.dayoffCredit === "earned"
-                        ? "bg-teal-50/70 border-teal-200"
-                        : emp.dayoffCredit === "pending"
-                        ? "bg-amber-50/70 border-amber-200"
-                        : "bg-slate-50 border-slate-200"
-                    }`}
-                  >
-                    <div
-                      className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                        emp.dayoffCredit === "earned"
-                          ? "bg-teal-100 text-teal-700"
-                          : emp.dayoffCredit === "pending"
-                          ? "bg-amber-100 text-amber-700"
-                          : "bg-slate-200 text-slate-500"
-                      }`}
-                    >
+                {/* Dayoff Credit badge — แสดงเฉพาะเมื่อได้รับสิทธิ์แลกวันหยุด (+8 ชม.) */}
+                {emp.dayoffCredit === "earned" && (
+                  <div className="flex items-center gap-2.5 rounded-xl px-3 py-2.5 border bg-teal-50/70 border-teal-200">
+                    <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 bg-teal-100 text-teal-700">
                       <svg
                         viewBox="0 0 24 24"
                         fill="none"
@@ -801,20 +773,8 @@ function EmployeeCard({ emp, auditDate }: { emp: AuditEmployee; auditDate: strin
                       <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
                         สิทธิ์วันหยุดชดเชย (Holiday Swap)
                       </p>
-                      <p
-                        className={`text-xs font-bold ${
-                          emp.dayoffCredit === "earned"
-                            ? "text-teal-700"
-                            : emp.dayoffCredit === "pending"
-                            ? "text-amber-700"
-                            : "text-slate-600"
-                        }`}
-                      >
-                        {emp.dayoffCredit === "earned"
-                          ? "ได้รับสิทธิ์แลกวันหยุด (+8 ชม. เข้าสู่โควตาวันลา)"
-                          : emp.dayoffCredit === "pending"
-                          ? "กำลังรอยืนยันสิทธิ์ตอน Check-out"
-                          : "สละสิทธิ์การแลกวันหยุด (รับเป็นค่าตอบแทนตามปกติ)"}
+                      <p className="text-xs font-bold text-teal-700">
+                        ได้รับสิทธิ์แลกวันหยุด (+8 ชม. เข้าสู่โควตาวันลา)
                       </p>
                     </div>
                   </div>
