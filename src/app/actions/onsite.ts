@@ -334,7 +334,36 @@ function calcDailyAllowance(checkInIso: string): boolean {
   return totalMinutes < ONSITE_ALLOWANCE_CUTOFF_MINUTES;
 }
 
-// Helper: คำนวณ OT On-site นับจาก 17:30 Bangkok (UTC+7)
+// Helper: ตรวจสอบว่า Check-in หลัง 17:30 Bangkok หรือไม่
+function isCheckInAfterEOD(isoString: string): boolean {
+  const BANGKOK_OFFSET_MS = 7 * 60 * 60 * 1000;
+  const bangkokDateStr = new Date(new Date(isoString).getTime() + BANGKOK_OFFSET_MS)
+    .toISOString()
+    .split("T")[0];
+  const eod = new Date(bangkokDateStr + "T10:30:00.000Z"); // 17:30 Bangkok
+  return new Date(isoString) > eod;
+}
+
+// Helper: หาข้อความเวลาเริ่มนับ OT (เช่น "17:30" หรือ "19:28")
+function getOnsiteOTStartTimeLabel(checkInIso?: string): string {
+  if (!checkInIso) return "17:30";
+  const BANGKOK_OFFSET_MS = 7 * 60 * 60 * 1000;
+  const bangkokDateStr = new Date(new Date(checkInIso).getTime() + BANGKOK_OFFSET_MS)
+    .toISOString()
+    .split("T")[0];
+  const defaultOtStart = new Date(bangkokDateStr + "T10:30:00.000Z");
+  const checkIn = new Date(checkInIso);
+  if (checkIn > defaultOtStart) {
+    return checkIn.toLocaleTimeString("en-GB", {
+      timeZone: "Asia/Bangkok",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
+  return "17:30";
+}
+
+// Helper: คำนวณ OT On-site (รองรับกะปกติที่นับจาก 17:30 และกะค่ำ/ดึกที่นับจากเวลา Check-in จริง)
 // ⚠️ ใช้ UTC+7 offset ตรงๆ ไม่ใช้ setHours() เพราะ server อาจ run บน UTC
 function calcOnsiteOTHours(checkoutIso: string, checkInIso?: string): number {
   const checkout = new Date(checkoutIso);
@@ -345,7 +374,16 @@ function calcOnsiteOTHours(checkoutIso: string, checkInIso?: string): number {
     .toISOString()
     .split("T")[0]; // "YYYY-MM-DD" ใน Bangkok
   // 17:30 Bangkok = 10:30 UTC (UTC+7 offset = -7h)
-  const otStart = new Date(bangkokDateStr + "T10:30:00.000Z");
+  const defaultOtStart = new Date(bangkokDateStr + "T10:30:00.000Z");
+
+  let otStart = defaultOtStart;
+  // หาก Check-in หลัง 17:30 (เช่น เข้างาน 19:28 หรือ 20:00) ให้นับ OT จากเวลา Check-in จริง
+  if (checkInIso) {
+    const checkIn = new Date(checkInIso);
+    if (checkIn > defaultOtStart) {
+      otStart = checkIn;
+    }
+  }
 
   if (checkout <= otStart) return 0;
   const diffMinutes = Math.floor((checkout.getTime() - otStart.getTime()) / (1000 * 60));
@@ -475,11 +513,17 @@ export async function groupCheckIn(sessionId: string): Promise<ActionResult> {
     // ── INSERT new rows (ยังไม่เคย checkin เลยวันนี้) ────────────────────
     if (newUids.length > 0) {
       const dailyAllowance = calcDailyAllowance(now);
+      const isNightCheckIn = isCheckInAfterEOD(now);
 
       // คำนวณ status แยกตาม user เพราะแต่ละคนอาจมีใบลาต่างกัน
+      // หาก Check-in หลัง 17:30 (กะค่ำ/ดึก) ให้ถือเป็น on_time อัตโนมัติ (ไม่นับสาย)
       const statusMap = new Map<string, string>();
       await Promise.all(
         newUids.map(async (uid) => {
+          if (isNightCheckIn) {
+            statusMap.set(uid, "on_time");
+            return;
+          }
           const s = await calcAttendanceStatusForUser(
             supabase,
             uid,
@@ -583,6 +627,8 @@ export async function groupCheckOut(
       const adjHours = recordOT ? Math.max(0, rawOT - breakMinutes / 60) : 0;
       const otHours = Math.round(adjHours * 100) / 100;
 
+      const otStartsFrom = getOnsiteOTStartTimeLabel(session.group_check_in ?? undefined);
+
       const checkoutEvent = {
         event: "onsite_checkout",
         timestamp: now,
@@ -591,7 +637,7 @@ export async function groupCheckOut(
         break_minutes: recordOT ? breakMinutes : 0,
         raw_ot_hours: rawOT,
         net_ot_hours: otHours,
-        ot_starts_from: "17:30",
+        ot_starts_from: otStartsFrom,
         ...(checkoutLat != null && checkoutLng != null
           ? { checkout_lat: checkoutLat, checkout_lng: checkoutLng }
           : {}),
@@ -599,7 +645,7 @@ export async function groupCheckOut(
 
       const { data: existingLogs } = await supabase
         .from("daily_time_logs")
-        .select("user_id, timeline_events, first_check_in, work_type, shift_type, dayoff_credit")
+        .select("user_id, timeline_events, first_check_in, work_type, shift_type, dayoff_credit, regular_hours")
         .in("user_id", pendingUids)
         .eq("log_date", sessionLogDate);
 
@@ -641,6 +687,7 @@ export async function groupCheckOut(
             work_type: currentWorkType,
             last_check_out: now,
             ot_hours: otHours,
+            ...(existing?.regular_hours != null ? { regular_hours: existing.regular_hours } : {}),
             ...(dayoffCreditUpdate ? { dayoff_credit: dayoffCreditUpdate } : {}),
             timeline_events: [
               ...(existing?.timeline_events ?? []),
@@ -720,11 +767,13 @@ export async function earlyLeave(
       existingRows && existingRows.length > 0 ? existingRows[0] : null;
 
     // ── เปลี่ยนจาก otHours → rawOtHours (รองรับข้ามวัน) ──────────────────────────
-    const rawOtHours = calcOnsiteOTHours(now, session.group_check_in ?? undefined);
+    const effectiveCheckIn = existing?.first_check_in ?? session.group_check_in ?? undefined;
+    const rawOtHours = calcOnsiteOTHours(now, effectiveCheckIn);
+    const otStartsFrom = getOnsiteOTStartTimeLabel(effectiveCheckIn);
 
     let extraUpdate: Record<string, unknown> = {};
     if (existing?.shift_type === "holiday") {
-      const checkInTime = existing?.first_check_in ?? session.group_check_in ?? now;
+      const checkInTime = effectiveCheckIn ?? now;
       const netHours = Math.max(
         0,
         (new Date(now).getTime() - new Date(checkInTime).getTime()) / 3_600_000 - 1,
@@ -752,7 +801,7 @@ export async function earlyLeave(
         break_minutes: 0, // early leave ไม่มีเบรค
         raw_ot_hours: rawOtHours,
         net_ot_hours: rawOtHours, // ไม่หักเบรค
-        ot_starts_from: "17:30",
+        ot_starts_from: otStartsFrom,
         ...(checkoutLat != null && checkoutLng != null
           ? { checkout_lat: checkoutLat, checkout_lng: checkoutLng }
           : {}),

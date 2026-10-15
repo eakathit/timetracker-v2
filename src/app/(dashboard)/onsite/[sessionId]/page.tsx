@@ -55,7 +55,7 @@ const getInitials = (m: OnsiteSessionMemberWithProfile) => {
     : "?";
 };
 
-// คำนวณ OT On-site เหมือนใน actions (นับจาก 17:30 Bangkok ของวัน Check-in/Session)
+// คำนวณ OT On-site เหมือนใน actions (รองรับกะปกติที่นับจาก 17:30 และกะค่ำ/ดึกที่นับจากเวลา Check-in จริง)
 function calcOnsiteOTHoursPreview(checkoutIso: string, checkInIso?: string): number {
   const checkout = new Date(checkoutIso);
   const BANGKOK_OFFSET_MS = 7 * 60 * 60 * 1000;
@@ -63,7 +63,16 @@ function calcOnsiteOTHoursPreview(checkoutIso: string, checkInIso?: string): num
   const bangkokDateStr = new Date(new Date(baseDateIso).getTime() + BANGKOK_OFFSET_MS)
     .toISOString()
     .split("T")[0];
-  const otStart = new Date(bangkokDateStr + "T10:30:00.000Z");
+  const defaultOtStart = new Date(bangkokDateStr + "T10:30:00.000Z");
+
+  let otStart = defaultOtStart;
+  // หาก Check-in หลัง 17:30 (เช่น เข้างาน 19:28 หรือ 20:00) ให้นับ OT จากเวลา Check-in จริง
+  if (checkInIso) {
+    const checkIn = new Date(checkInIso);
+    if (checkIn > defaultOtStart) {
+      otStart = checkIn;
+    }
+  }
 
   if (checkout <= otStart) return 0;
   const diffMinutes = Math.floor((checkout.getTime() - otStart.getTime()) / (1000 * 60));
@@ -553,6 +562,7 @@ function OTBreakModal({
   pendingCount,
   memberCount,
   currentOTHours,
+  checkInIso,
   onConfirm,
   onCancel,
   loading,
@@ -560,20 +570,41 @@ function OTBreakModal({
   pendingCount:   number;
   memberCount:    number;
   currentOTHours: number;
+  checkInIso?:    string;
   onConfirm:      (breakMinutes: number) => void;
   onCancel:       () => void;
   loading:        boolean;
 }) {
+  const isNightShift = useMemo(() => {
+    if (!checkInIso) return false;
+    const BANGKOK_OFFSET_MS = 7 * 60 * 60 * 1000;
+    const bangkokDateStr = new Date(new Date(checkInIso).getTime() + BANGKOK_OFFSET_MS)
+      .toISOString()
+      .split("T")[0];
+    const eod = new Date(bangkokDateStr + "T10:30:00.000Z"); // 17:30 Bangkok
+    return new Date(checkInIso) > eod;
+  }, [checkInIso]);
+
+  const checkInTimeLabel = useMemo(() => {
+    if (!checkInIso) return "17:30";
+    return new Date(checkInIso).toLocaleTimeString("th-TH", {
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone: "Asia/Bangkok",
+    });
+  }, [checkInIso]);
+
   const [hasBreak,   setHasBreak]   = useState(false);
-  const [breakStart, setBreakStart] = useState("17:30"); // ✅ default 17:30
+  const [breakStart, setBreakStart] = useState(isNightShift ? "" : "17:30"); // default 17:30 ถ้าเป็นรอบปกติ
   const [breakEnd,   setBreakEnd]   = useState("");
 
-  // คำนวณ break minutes
+  // คำนวณ break minutes (รองรับการพักข้ามเที่ยงคืน เช่น 23:30 - 00:30)
   const breakMinutes = useMemo(() => {
     if (!hasBreak || !breakStart || !breakEnd) return 0;
     const [sh, sm] = breakStart.split(":").map(Number);
     const [eh, em] = breakEnd.split(":").map(Number);
-    const diff = (eh * 60 + em) - (sh * 60 + sm);
+    let diff = (eh * 60 + em) - (sh * 60 + sm);
+    if (diff < 0) diff += 24 * 60; // บวก 24 ชม. หากเวลาสิ้นสุดข้ามเที่ยงคืน
     return Math.max(0, diff);
   }, [hasBreak, breakStart, breakEnd]);
 
@@ -583,7 +614,7 @@ function OTBreakModal({
     return Math.round(adj * 100) / 100;
   }, [currentOTHours, breakMinutes]);
 
-  const isValid = !hasBreak || (breakEnd !== "" && breakMinutes >= 0);
+  const isValid = !hasBreak || (breakStart !== "" && breakEnd !== "" && breakMinutes >= 0);
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-6">
@@ -606,7 +637,12 @@ function OTBreakModal({
 
         {/* OT Badge */}
         <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 flex items-center justify-between">
-          <span className="text-sm font-bold text-amber-700">OT วันนี้</span>
+          <div>
+            <span className="text-sm font-bold text-amber-700 block">OT วันนี้</span>
+            <span className="text-[11px] text-amber-600/80">
+              {isNightShift ? `เริ่มนับจาก ${checkInTimeLabel} (เวลาเข้างาน)` : "เริ่มนับจาก 17:30"}
+            </span>
+          </div>
           <span className="text-lg font-black text-amber-600">{currentOTHours} ชม.</span>
         </div>
 
@@ -666,13 +702,20 @@ function OTBreakModal({
 
               {/* OT preview หลังหักเบรค */}
               {breakMinutes > 0 && (
-                <div className="flex items-center justify-between pt-1">
-                  <span className="text-xs text-gray-500">
-                    หัก {breakMinutes} นาที →
-                  </span>
-                  <span className="text-sm font-black text-emerald-600">
-                    OT จริง {adjOT} ชม.
-                  </span>
+                <div className="space-y-1.5 pt-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-500">
+                      หัก {breakMinutes} นาที {breakMinutes >= 60 && `(${Math.floor(breakMinutes / 60)} ชม.${breakMinutes % 60 > 0 ? ` ${breakMinutes % 60} นาที` : ""})`} →
+                    </span>
+                    <span className="text-sm font-black text-emerald-600">
+                      OT จริง {adjOT} ชม.
+                    </span>
+                  </div>
+                  {breakMinutes > 240 && (
+                    <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-xl p-2.5 leading-relaxed">
+                      ⚠️ <strong>เวลาพักอาจนานกว่าปกติ ({Math.floor(breakMinutes / 60)} ชม.):</strong> หากต้องการระบุเวลาช่วงหลังเที่ยงคืน (00:xx น.) โปรดเลือกเป็น <strong>AM</strong> (เนื่องจาก PM จะหมายถึงช่วงเที่ยงวัน)
+                    </p>
+                  )}
                 </div>
               )}
             </div>
@@ -705,6 +748,7 @@ function OTConfirmModal({
   pendingCount,
   memberCount,
   currentOTHours,
+  checkInIso,
   onNoOT,
   onYesOT,
   onCancel,
@@ -713,11 +757,31 @@ function OTConfirmModal({
   pendingCount:   number;
   memberCount:    number;
   currentOTHours: number;
+  checkInIso?:    string;
   onNoOT:         () => void;
   onYesOT:        () => void;
   onCancel:       () => void;
   loading:        boolean;
 }) {
+  const isNightShift = useMemo(() => {
+    if (!checkInIso) return false;
+    const BANGKOK_OFFSET_MS = 7 * 60 * 60 * 1000;
+    const bangkokDateStr = new Date(new Date(checkInIso).getTime() + BANGKOK_OFFSET_MS)
+      .toISOString()
+      .split("T")[0];
+    const eod = new Date(bangkokDateStr + "T10:30:00.000Z"); // 17:30 Bangkok
+    return new Date(checkInIso) > eod;
+  }, [checkInIso]);
+
+  const checkInTimeLabel = useMemo(() => {
+    if (!checkInIso) return "17:30";
+    return new Date(checkInIso).toLocaleTimeString("th-TH", {
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone: "Asia/Bangkok",
+    });
+  }, [checkInIso]);
+
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-6">
       <div className="w-full max-w-sm bg-white rounded-3xl p-6 space-y-5">
@@ -736,7 +800,12 @@ function OTConfirmModal({
         </div>
 
         <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 flex items-center justify-between">
-          <span className="text-sm font-bold text-amber-700">พบเวลา OT</span>
+          <div>
+            <span className="text-sm font-bold text-amber-700 block">พบเวลา OT</span>
+            <span className="text-[11px] text-amber-600/80">
+              {isNightShift ? `เริ่มนับจาก ${checkInTimeLabel} (เวลาเข้างาน)` : "เริ่มนับจาก 17:30"}
+            </span>
+          </div>
           <span className="text-lg font-black text-amber-600">{currentOTHours} ชม.</span>
         </div>
 
@@ -1600,6 +1669,7 @@ const handleSetDriver = async (trip: "to" | "from", userId: string | null) => {
           pendingCount={pendingMembers.length}
           memberCount={session.members.length}
           currentOTHours={calcOnsiteOTHoursPreview(new Date().toISOString(), session?.group_check_in ?? undefined)}
+          checkInIso={session?.group_check_in ?? undefined}
           onNoOT={() => handleGroupCheckOut(0, false)}
           onYesOT={proceedGroupCheckoutWithOT}
           onCancel={() => setShowOTConfirm(false)}
@@ -1611,6 +1681,7 @@ const handleSetDriver = async (trip: "to" | "from", userId: string | null) => {
           pendingCount={pendingMembers.length}
           memberCount={session.members.length}
           currentOTHours={calcOnsiteOTHoursPreview(new Date().toISOString(), session?.group_check_in ?? undefined)}
+          checkInIso={session?.group_check_in ?? undefined}
           onConfirm={(breakMins) => handleGroupCheckOut(breakMins)}
           onCancel={() => setShowOTBreak(false)}
           loading={isPending}
